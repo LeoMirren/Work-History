@@ -516,3 +516,17 @@ body {
 .drumstick.empty {
   color: rgba(255, 255, 255, 0.22);
 }
+
+.chest-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 42px);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.held-label {
+  min-height: 18px;
+  font-size: 13px;
+  color: #ffd75e;
+  text-align: center;
+}

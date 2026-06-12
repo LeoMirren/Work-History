@@ -57,3 +57,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Hunger model (original numbers): activity-scaled exhaustion drains hunger; hunger >=18 regenerates health at a food cost; empty hunger starves to a 1-hp floor (never lethal, forgiving). Meat now restores hunger rather than healing directly, so the loop is hunt -> eat -> regen.
 
 - Hostile mobs ("stalkers") are original entities sharing the animal AABB physics and ray-pick/hurt interface; night-gated spawning via the day/night brightness value, sun burn-off in daylight, simple seek+hop AI, melee with cooldown. Player damage routed through a public hurt() that only applies in survival.
+
+- Chests store a 27-slot Inventory per world position in a ContainerStore (game layer), serialized into the world save; the Inventory class was generalized to a configurable size. Right-click on a chest opens it; breaking it spills contents to the player. Block place/break notify the store via an interaction hook.

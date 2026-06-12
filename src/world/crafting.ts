@@ -59,6 +59,7 @@ export const RECIPES: readonly Recipe[] = [
     ],
   },
   { name: 'furnace', station: 'craft', output: Block.furnace, outputCount: 1, inputs: [{ id: Block.cobblestone, count: 8 }] },
+  { name: 'chest', station: 'craft', output: Block.chest, outputCount: 1, inputs: [{ id: Block.planks, count: 8 }] },
   { name: 'bricks', station: 'craft', output: Block.brick, outputCount: 4, inputs: [{ id: Block.cobblestone, count: 4 }] },
   // Smelting (furnace + fuel).
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },

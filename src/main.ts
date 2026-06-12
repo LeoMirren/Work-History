@@ -19,7 +19,9 @@ import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
+import { ChestScreen } from './ui/chestScreen';
 import { Guide } from './ui/guide';
+import { ContainerStore } from './world/containers';
 import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
@@ -92,6 +94,9 @@ async function boot(): Promise<void> {
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   const inventory = new Inventory();
   const inventoryScreen = new InventoryScreen(app);
+  const chestScreen = new ChestScreen(app);
+  const containers = new ContainerStore();
+  let chestOpen = false;
   const guide = new Guide(app);
   let guideOpen = false;
   const infoPanel = new InfoPanel(app);
@@ -114,6 +119,16 @@ async function boot(): Promise<void> {
   interaction.animals = animals;
   const hostiles = new HostileSystem(gr.scene);
   interaction.hostiles = hostiles;
+  interaction.onOpenContainer = (x, y, z) => {
+    if (!session) return false;
+    chestScreen.open(containers.get(x, y, z), inventory, session.atlasCanvas);
+    chestOpen = true;
+    document.exitPointerLock();
+    return true;
+  };
+  interaction.onBlockChanged = (kind, id, x, y, z) => {
+    containers.onBlockChanged(kind, id, x, y, z, (itemId, count) => inventory.add(itemId, count));
+  };
   let inventoryOpen = false;
   let hud: Hud | null = null;
   let session: Session | null = null;
@@ -145,6 +160,7 @@ async function boot(): Promise<void> {
       },
       settings: { ...settings },
       timeOfDay: dayNight.time,
+      containers: containers.serialize(),
     };
   }
 
@@ -253,6 +269,11 @@ async function boot(): Promise<void> {
       guide.close();
       guideOpen = false;
     }
+    if (chestOpen) {
+      chestScreen.close();
+      chestOpen = false;
+    }
+    containers.load(resume?.containers);
 
     session = { seed, mode, world, texture, atlasCanvas, persistedKeys };
     menus.setPauseSeed(seed);
@@ -302,7 +323,7 @@ async function boot(): Promise<void> {
   input.onLockChange = (locked) => {
     if (locked) {
       menus.hidePause();
-    } else if (session && !inventoryOpen && !guideOpen) {
+    } else if (session && !inventoryOpen && !guideOpen && !chestOpen) {
       menus.showPause();
     }
   };
@@ -385,8 +406,18 @@ async function boot(): Promise<void> {
         gr.setFov(currentFov);
       }
       input.takeMouseDelta(mouse);
+      // Chest screen (right-click a chest) — close with E/Esc.
+      if (session && chestOpen) {
+        if (input.takePressed('KeyE') || input.takePressed('Escape')) {
+          chestScreen.close();
+          chestOpen = false;
+          input.requestLock();
+        } else {
+          chestScreen.render();
+        }
+      }
       // Inventory screen (E) swaps pointer lock for the cursor.
-      if (session && hud && session.mode === 'survival') {
+      if (session && hud && session.mode === 'survival' && !chestOpen) {
         if (inventoryOpen) {
           if (input.takePressed('KeyE') || input.takePressed('Escape')) {
             inventoryScreen.close();
@@ -402,7 +433,7 @@ async function boot(): Promise<void> {
         }
       }
       // Guide book (G) — available in any mode; also swaps pointer lock.
-      if (session) {
+      if (session && !chestOpen) {
         if (guideOpen) {
           if (input.takePressed('KeyG') || input.takePressed('Escape')) {
             guide.close();

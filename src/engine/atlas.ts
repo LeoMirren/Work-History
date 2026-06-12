@@ -35,6 +35,8 @@ export const Tiles = {
   meat: 20,
   furnaceSide: 21,
   furnaceFront: 22,
+  chestSide: 23,
+  chestTop: 24,
   charcoal: 23,
   ingot: 24,
 } as const;
@@ -390,6 +392,42 @@ const paintFurnaceFront: TilePainter = (set, rng) => {
   }
 };
 
+/** Chest side: wood planks with a dark iron band and a clasp. */
+const paintChestSide: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 12);
+      const plankSeam = y % 5 === 0;
+      const base = plankSeam ? 120 : 162;
+      set(x, y, base + n, (base - 36) + n * 0.8, (base - 84) + n * 0.5);
+    }
+  }
+  // Iron band across the middle + a small clasp.
+  for (let x = 0; x < TILE_PX; x++) {
+    const n = jitter(rng, 10);
+    set(x, 7, 60 + n, 60 + n, 64 + n);
+    set(x, 8, 48 + n, 48 + n, 52 + n);
+  }
+  for (let y = 6; y <= 9; y++) for (let x = 7; x <= 8; x++) set(x, y, 40, 40, 44);
+};
+
+/** Chest top: planks with two iron straps and a latch. */
+const paintChestTop: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 12);
+      const base = x % 5 === 0 ? 120 : 162;
+      set(x, y, base + n, (base - 36) + n * 0.8, (base - 84) + n * 0.5);
+    }
+  }
+  for (const sx of [3, 12]) {
+    for (let y = 0; y < TILE_PX; y++) {
+      const n = jitter(rng, 10);
+      set(sx, y, 60 + n, 60 + n, 64 + n);
+    }
+  }
+};
+
 /** Charcoal: dark lump with a faint sheen. */
 const paintCharcoal: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -446,6 +484,8 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.meat, 'meat', paintMeat],
   [Tiles.furnaceSide, 'furnaceSide', paintFurnaceSide],
   [Tiles.furnaceFront, 'furnaceFront', paintFurnaceFront],
+  [Tiles.chestSide, 'chestSide', paintChestSide],
+  [Tiles.chestTop, 'chestTop', paintChestTop],
   [Tiles.charcoal, 'charcoal', paintCharcoal],
   [Tiles.ingot, 'ingot', paintIngot],
 ];

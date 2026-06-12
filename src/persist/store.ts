@@ -20,6 +20,7 @@ export interface WorldMeta {
   };
   settings: { renderDistance: number; mouseSensitivity: number; fov: number };
   timeOfDay: number;
+  containers?: Array<{ pos: [number, number, number]; items: Array<[number, number] | null> }>;
 }
 
 export interface StorageBackend {

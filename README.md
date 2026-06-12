@@ -56,8 +56,8 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
   synthesized block-tap sounds.
 - **Survival depth**: a 36-slot inventory with drops and stacking, a crafting
   recipe book (logs → planks → sticks → pickaxe tiers that mine faster and
-  unlock ore), placement that consumes items, and two-system caves (rooms +
-  winding tunnels). Punch a tree and work your way up.
+  unlock ore), placement that consumes items, and furnace smelting, hunger, hostile night mobs, chests for storage, and
+  two-system caves (rooms + winding tunnels). Punch a tree and work your way up.
 
 ## Architecture
 

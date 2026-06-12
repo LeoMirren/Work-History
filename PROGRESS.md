@@ -105,3 +105,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] AI: chase within aggro range (hop over obstacles), wander otherwise; melee the player on contact with a cooldown
 - [x] Burn away after sustained daylight; despawn when far; killed in a few punches (shared entity ray-pick/hurt)
 - [x] Player takes damage in survival (routes through death/respawn); immune in creative; Threats readout on the status panel
+
+## Post-spec: Chests & storage
+
+- [x] Chest block (craft from 8 planks), placeable, with its own 27-slot inventory keyed by world position
+- [x] Right-click opens the chest screen (chest grid + your inventory) with a held-cursor: click to pick up/drop/merge/swap, shift-click to move across
+- [x] Breaking a chest spills its contents into your inventory; chest inventories persist with the world
+- [x] Generalized the Inventory class to a configurable size; cross-inventory transfer helper

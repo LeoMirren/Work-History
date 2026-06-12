@@ -7,6 +7,7 @@ import { stackLimit } from '../world/items';
 
 export const HOTBAR_SIZE = 9;
 export const INVENTORY_SIZE = 36;
+export const CHEST_SIZE = 27;
 
 export interface ItemStack {
   id: number;
@@ -16,9 +17,15 @@ export interface ItemStack {
 export type SerializedInventory = Array<[number, number] | null>;
 
 export class Inventory {
-  readonly slots: Array<ItemStack | null> = new Array<ItemStack | null>(INVENTORY_SIZE).fill(null);
+  readonly slots: Array<ItemStack | null>;
+  readonly size: number;
   /** Bumped on every mutation; consumers cache against it. */
   version = 0;
+
+  constructor(size: number = INVENTORY_SIZE) {
+    this.size = size;
+    this.slots = new Array<ItemStack | null>(size).fill(null);
+  }
 
   /**
    * Add items, filling existing stacks first, then empty slots (hotbar
@@ -28,7 +35,7 @@ export class Inventory {
     const limit = stackLimit(id);
     let remaining = count;
     for (let pass = 0; pass < 2 && remaining > 0; pass++) {
-      for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i++) {
+      for (let i = 0; i < this.size && remaining > 0; i++) {
         const slot = this.slots[i];
         if (pass === 0) {
           if (slot && slot.id === id && slot.count < limit) {
@@ -60,7 +67,7 @@ export class Inventory {
   remove(id: number, count: number): boolean {
     if (this.countOf(id) < count) return false;
     let remaining = count;
-    for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i++) {
+    for (let i = 0; i < this.size && remaining > 0; i++) {
       const slot = this.slots[i];
       if (!slot || slot.id !== id) continue;
       const take = Math.min(slot.count, remaining);
@@ -105,7 +112,7 @@ export class Inventory {
   quickMove(index: number): void {
     const stack = this.slots[index];
     if (!stack) return;
-    const [start, end] = index < HOTBAR_SIZE ? [HOTBAR_SIZE, INVENTORY_SIZE] : [0, HOTBAR_SIZE];
+    const [start, end] = index < HOTBAR_SIZE ? [HOTBAR_SIZE, this.size] : [0, HOTBAR_SIZE];
     const limit = stackLimit(stack.id);
     for (let i = start; i < end && stack.count > 0; i++) {
       const target = this.slots[i];
@@ -137,7 +144,7 @@ export class Inventory {
   load(data: SerializedInventory | undefined): void {
     this.slots.fill(null);
     if (Array.isArray(data)) {
-      for (let i = 0; i < Math.min(data.length, INVENTORY_SIZE); i++) {
+      for (let i = 0; i < Math.min(data.length, this.size); i++) {
         const entry = data[i];
         if (Array.isArray(entry) && entry.length === 2) {
           const [id, count] = entry;
@@ -149,4 +156,18 @@ export class Inventory {
     }
     this.version++;
   }
+}
+
+/**
+ * Move the whole stack at src[srcIndex] into dst (stacking/filling). Anything
+ * that doesn't fit stays in src. Used for chest <-> player shift-clicks.
+ */
+export function transferStack(src: Inventory, srcIndex: number, dst: Inventory): void {
+  const stack = src.slots[srcIndex];
+  if (!stack) return;
+  const leftover = dst.add(stack.id, stack.count);
+  if (leftover === stack.count) return; // nothing moved
+  stack.count = leftover;
+  if (stack.count === 0) src.slots[srcIndex] = null;
+  src.version++;
 }

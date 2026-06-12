@@ -50,6 +50,10 @@ export class Interaction {
   hostiles: HostileSystem | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
+  /** Right-click on a container block (chest): opens it, consumes the click. */
+  onOpenContainer: ((x: number, y: number, z: number) => boolean) | null = null;
+  /** Block placed/broken at a world cell, for container bookkeeping. */
+  onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
   breakProgress = 0;
   private breakX = Number.NaN;
@@ -92,6 +96,7 @@ export class Interaction {
         if (button === 0) {
           this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
         } else if (button === 2) {
+          if (this.tryOpenContainer(world)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
         }
@@ -102,10 +107,19 @@ export class Interaction {
           if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
           if (this.hasTarget) this.tryBreak(world);
         } else if (button === 2 && this.hasTarget) {
+          if (this.tryOpenContainer(world)) continue;
           this.tryPlace(world, body, hotbar.creativeBlock);
         }
       }
     }
+  }
+
+  /** Right-click a chest: hand off to the container hook. */
+  private tryOpenContainer(world: World): boolean {
+    if (!this.hasTarget || !this.onOpenContainer) return false;
+    const { bx, by, bz } = this.hit;
+    if (world.getBlock(bx, by, bz) !== Block.chest) return false;
+    return this.onOpenContainer(bx, by, bz);
   }
 
   /** Punch the nearest entity (animal or hostile) if closer than the block. */
@@ -186,6 +200,7 @@ export class Interaction {
       const drop = dropFor(id, held);
       if (drop) inventory.add(drop.id, drop.count); // overflow is simply lost
       this.onEdit?.('break', id);
+      this.onBlockChanged?.('break', id, bx, by, bz);
       this.breakProgress = 0;
       this.breakX = Number.NaN;
     }
@@ -197,6 +212,7 @@ export class Interaction {
     if (BREAKABLE[id] !== 1) return;
     world.setBlock(bx, by, bz, Block.air);
     this.onEdit?.('break', id);
+    this.onBlockChanged?.('break', id, bx, by, bz);
   }
 
   private tryPlace(world: World, body: Body, blockId: number): void {
@@ -207,6 +223,7 @@ export class Interaction {
     if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) return;
     world.setBlock(bx, by, bz, blockId);
     this.onEdit?.('place', blockId);
+    this.onBlockChanged?.('place', blockId, bx, by, bz);
   }
 
   /** Survival placement consumes one item from the selected stack. */
@@ -222,5 +239,6 @@ export class Interaction {
     if (!inventory.consumeOne(hotbar.slot)) return;
     world.setBlock(bx, by, bz, blockId);
     this.onEdit?.('place', blockId);
+    this.onBlockChanged?.('place', blockId, bx, by, bz);
   }
 }
