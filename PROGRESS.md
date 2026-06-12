@@ -50,12 +50,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M5 — Visual pass
 
-- [ ] Vertex AO + quad-flip (§4.6)
-- [ ] Face shading
-- [ ] Cutout + translucent passes (leaves/glass/water)
-- [ ] Day/night cycle with fog/sky sync
-- [ ] ✅ AO unit tests against hand-computed cases
-- [ ] ✅ Three shared materials total — assert via renderer.info and scene traversal
+- [x] Vertex AO + quad-flip (§4.6)
+- [x] Face shading
+- [x] Cutout + translucent passes (leaves/glass/water)
+- [x] Day/night cycle with fog/sky sync
+- [x] ✅ AO unit tests against hand-computed cases (calculator + mesh-output + flip)
+- [x] ✅ Three shared materials total — scene-traversal test + dev-mode runtime assert (renderer.info side re-checked at M7)
 
 ## M6 — Persistence & menus
 

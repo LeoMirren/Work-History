@@ -33,9 +33,15 @@ interface ChunkRecord {
   meshSeq: number;
   /** True when current meshes match meshSeq (an all-air result also counts). */
   meshed: boolean;
-  meshes: { opaque: THREE.Mesh | null };
+  meshes: { opaque: THREE.Mesh | null; cutout: THREE.Mesh | null; water: THREE.Mesh | null };
   modified: boolean;
   dist: number;
+}
+
+export interface ChunkMaterials {
+  opaque: THREE.Material;
+  cutout: THREE.Material;
+  water: THREE.Material;
 }
 
 function chunkKey(cx: number, cz: number): number {
@@ -73,7 +79,7 @@ export interface WorldStats {
 export class World {
   readonly seed: string;
   private readonly scene: THREE.Scene;
-  private readonly material: THREE.Material;
+  private readonly materials: ChunkMaterials;
   private readonly pool: JobPool;
   private readonly chunks = new Map<number, ChunkRecord>();
   private renderDistance: number;
@@ -87,10 +93,16 @@ export class World {
   private cachedKey = Number.NaN;
   private cachedRec: ChunkRecord | null = null;
 
-  constructor(opts: { seed: string; scene: THREE.Scene; material: THREE.Material; pool: JobPool; renderDistance: number }) {
+  constructor(opts: {
+    seed: string;
+    scene: THREE.Scene;
+    materials: ChunkMaterials;
+    pool: JobPool;
+    renderDistance: number;
+  }) {
     this.seed = opts.seed;
     this.scene = opts.scene;
-    this.material = opts.material;
+    this.materials = opts.materials;
     this.pool = opts.pool;
     this.renderDistance = opts.renderDistance;
   }
@@ -172,7 +184,7 @@ export class World {
         meshPending: false,
         meshSeq: 0,
         meshed: false,
-        meshes: { opaque: null },
+        meshes: { opaque: null, cutout: null, water: null },
         modified,
         dist: this.chebyshev({ cx, cz }),
         };
@@ -291,7 +303,7 @@ export class World {
             meshPending: false,
             meshSeq: 0,
             meshed: false,
-            meshes: { opaque: null },
+            meshes: { opaque: null, cutout: null, water: null },
             modified: false,
             dist: 0,
           };
@@ -428,7 +440,10 @@ export class World {
   /** Replace a chunk's scene meshes with freshly built geometry. */
   installMesh(rec: ChunkRecord, mesh: ChunkMeshData): void {
     this.disposeMeshes(rec);
-    rec.meshes.opaque = this.createPassMesh(rec, mesh.opaque, this.material, 0);
+    rec.meshes.opaque = this.createPassMesh(rec, mesh.opaque, this.materials.opaque, 0);
+    rec.meshes.cutout = this.createPassMesh(rec, mesh.cutout, this.materials.cutout, 0);
+    // Water draws after everything opaque so depth-testing kills hidden faces.
+    rec.meshes.water = this.createPassMesh(rec, mesh.water, this.materials.water, 1);
     rec.meshed = true;
   }
 
@@ -459,11 +474,13 @@ export class World {
   }
 
   private disposeMeshes(rec: ChunkRecord): void {
-    const m = rec.meshes.opaque;
-    if (m) {
-      this.scene.remove(m);
-      m.geometry.dispose();
-      rec.meshes.opaque = null;
+    for (const pass of ['opaque', 'cutout', 'water'] as const) {
+      const m = rec.meshes[pass];
+      if (m) {
+        this.scene.remove(m);
+        m.geometry.dispose();
+        rec.meshes[pass] = null;
+      }
     }
   }
 

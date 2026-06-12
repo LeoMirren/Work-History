@@ -6,6 +6,7 @@ import './style.css';
 import * as THREE from 'three';
 import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
+import { DayNight } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
@@ -38,11 +39,23 @@ function boot(): void {
   texture.minFilter = THREE.NearestFilter;
   texture.generateMipmaps = false;
   texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true });
+  // The three shared materials (§4.3) — every chunk mesh reuses these.
+  const materials = {
+    opaque: new THREE.MeshBasicMaterial({ map: texture, vertexColors: true }),
+    cutout: new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, alphaTest: 0.5 }),
+    water: new THREE.MeshBasicMaterial({
+      map: texture,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  };
+  const materialList = [materials.opaque, materials.cutout, materials.water];
 
   const gr = new GameRenderer(app);
-  gr.setClearColor(new THREE.Color('#8ecae6'));
   gr.setViewDistance(RENDER_DISTANCE);
+  const dayNight = new DayNight();
 
   const pool = new WorkerPool(
     () => new Worker(new URL('./workers/worker.ts', import.meta.url), { type: 'module' }),
@@ -52,10 +65,27 @@ function boot(): void {
   const world = new World({
     seed: SEED,
     scene: gr.scene,
-    material,
+    materials,
     pool,
     renderDistance: RENDER_DISTANCE,
   });
+
+  if (import.meta.env.DEV) {
+    // §5 M5 acceptance: no per-chunk materials may ever exist.
+    setInterval(() => {
+      const seen = new Set<THREE.Material>();
+      gr.scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) seen.add(obj.material);
+      });
+      for (const m of seen) {
+        console.assert(
+          materialList.includes(m as THREE.MeshBasicMaterial),
+          'non-shared chunk material detected',
+        );
+      }
+      console.assert(seen.size <= 3, `expected <=3 shared materials, saw ${seen.size}`);
+    }, 5000);
+  }
 
   const input = new Input(gr.canvas);
   gr.canvas.addEventListener('click', () => input.requestLock());
@@ -93,9 +123,11 @@ function boot(): void {
 
   startLoop({
     update(dt) {
+      dayNight.advance(dt);
       if (input.locked && physicsReady()) player.fixedUpdate(input, world, dt);
     },
     render(alpha) {
+      dayNight.apply(gr, materialList);
       input.takeMouseDelta(mouse);
       if (input.locked) {
         player.look(mouse.dx, mouse.dy, MOUSE_SENSITIVITY);

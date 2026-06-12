@@ -41,7 +41,7 @@ export type WorkerResponse = GenResponse | MeshResponse;
 
 /** Collect the transferable buffers of a mesh result. */
 export function meshTransferables(mesh: ChunkMeshData, out: ArrayBuffer[]): ArrayBuffer[] {
-  for (const pass of [mesh.opaque]) {
+  for (const pass of [mesh.opaque, mesh.cutout, mesh.water]) {
     if (!pass) continue;
     out.push(
       pass.positions.buffer as ArrayBuffer,

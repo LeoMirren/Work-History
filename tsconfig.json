@@ -14,7 +14,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "useDefineForClassFields": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vite/client"]
   },
   "include": ["src", "tests", "vite.config.ts"]
 }

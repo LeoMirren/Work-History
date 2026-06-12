@@ -26,3 +26,8 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - World takes a `JobPool` interface; tests inject a synchronous pool so streaming/edit logic runs headless in node — this is how M2's "flight stabilizes" acceptance is asserted programmatically.
 - Chunks between RD and RD+2 keep their meshes (spec only requires disposal beyond RD+2): cheap churn insurance, frustum culling hides them.
 - Hotbar icons use the block's side-face tile (grass band and bark read better than plain tops).
+- The §4.5 culling formula also culls leaves-against-leaves faces (same id, non-opaque) — followed literally; canopies just read denser.
+- Shade × AO is baked uniformly into all three passes, water included (spec §4.5 defines color as shade × AO with no pass exception).
+- Water material is DoubleSide so the surface is visible from underneath while swimming (spec accepts minor translucency artifacts; cost is negligible overdraw).
+- New worlds start at noon (t=120s) so first impressions aren't pitch black.
+- Day/night brightness lerps sky/fog directly by the brightness value (t=0.18 night floor → near-night sky), matching the spec's "by brightness" wording.
