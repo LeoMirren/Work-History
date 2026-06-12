@@ -182,3 +182,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Species follow biome: woollies in the snowy cold, mostly trundlers in temperate green; deserts stay barren
 - [x] Animals now also spawn on snow surfaces; biome lookup threaded from the overworld generator (none in the underworld)
 - [x] Spawn-gate seam (setSpawning) for deterministic tests
+
+## Post-spec: Death screen
+
+- [x] Death now shows a blocking "You fell…" screen with a Respawn button (instead of silently teleporting)
+- [x] Player freezes on death until respawn; pointer lock released; pause menu suppressed while dead
+- [x] Controller keeps auto-respawn as the default (no handler) for tests; the game installs an onDeath handler

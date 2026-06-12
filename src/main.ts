@@ -19,6 +19,7 @@ import { Inventory } from './player/inventory';
 import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { DamageOverlay } from './ui/damageOverlay';
+import { DeathScreen } from './ui/deathScreen';
 import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
@@ -102,6 +103,19 @@ async function boot(): Promise<void> {
   const damageOverlay = new DamageOverlay(app);
   const hurt = new HurtIndicator();
   let prevHp = MAX_HP;
+  let deathOpen = false;
+  const deathScreen = new DeathScreen(app, () => {
+    player.respawn();
+    prevHp = player.hp;
+    deathScreen.hide();
+    deathOpen = false;
+    input.requestLock();
+  });
+  player.onDeath = () => {
+    deathOpen = true;
+    deathScreen.show();
+    document.exitPointerLock();
+  };
 
   /** A furnace block within a small box around the player (smelting station). */
   function furnaceNearby(world: World): boolean {
@@ -291,6 +305,11 @@ async function boot(): Promise<void> {
       guide.close();
       guideOpen = false;
     }
+    if (deathOpen) {
+      deathScreen.hide();
+      deathOpen = false;
+    }
+    player.dead = false;
     if (chestOpen) {
       chestScreen.close();
       chestOpen = false;

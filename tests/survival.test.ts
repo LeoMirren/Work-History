@@ -164,3 +164,48 @@ describe('hunger', () => {
     expect(c.hunger).toBe(0);
   });
 });
+
+describe('death handling', () => {
+  function survivalPlayer(): PlayerController {
+    const c = new PlayerController();
+    c.setMode('survival');
+    c.setSpawn(0.5, 90, 0.5);
+    c.teleport(0.5, 70, 0.5);
+    return c;
+  }
+
+  it('with an onDeath handler, lethal damage freezes the player (no auto-respawn)', () => {
+    const c = survivalPlayer();
+    let deaths = 0;
+    c.onDeath = () => deaths++;
+    c.hp = 3;
+    // Drive a lethal fall: drop from a great height onto a floor.
+    const world: WorldView = { isSolid: (_x, y, _z) => y <= 9, getBlock: () => Block.air };
+    c.teleport(0.5, 60, 0.5);
+    const input = new FakeInput();
+    for (let i = 0; i < 600 && !c.dead; i++) c.fixedUpdate(input, world, DT);
+    expect(c.dead).toBe(true);
+    expect(deaths).toBe(1);
+    expect(c.hp).toBe(0);
+    // Frozen: further updates don't move or revive it.
+    const y = c.body.y;
+    for (let i = 0; i < 60; i++) c.fixedUpdate(input, world, DT);
+    expect(c.body.y).toBe(y);
+    expect(c.dead).toBe(true);
+    // respawn() restores vitals and position.
+    c.respawn();
+    expect(c.dead).toBe(false);
+    expect(c.hp).toBe(MAX_HP);
+    expect(c.body.x).toBe(0.5);
+    expect(c.body.y).toBe(90);
+  });
+
+  it('without a handler, auto-respawns (back-compat)', () => {
+    const c = survivalPlayer();
+    c.hp = 1;
+    c.hurt(20);
+    expect(c.dead).toBe(false);
+    expect(c.hp).toBe(MAX_HP);
+    expect(c.body.y).toBe(90);
+  });
+});

@@ -56,6 +56,9 @@ export class PlayerController {
   sprinting = false;
   mode: GameMode = 'creative';
   hp = MAX_HP;
+  dead = false;
+  /** Set by the game to drive a death screen; null means auto-respawn. */
+  onDeath: (() => void) | null = null;
   hunger = MAX_HUNGER;
   /** Highest y reached since last grounded, for fall damage. */
   private peakY = 0;
@@ -111,6 +114,7 @@ export class PlayerController {
     this.prevX = body.x;
     this.prevY = body.y;
     this.prevZ = body.z;
+    if (this.dead) return; // frozen until the game calls respawn()
 
     if (input.takePressed('KeyF') && this.mode !== 'survival') {
       this.flying = !this.flying;
@@ -248,11 +252,27 @@ export class PlayerController {
   private applyDamage(amount: number): void {
     this.hp = Math.max(0, this.hp - amount);
     if (this.hp === 0) {
-      this.teleport(this.spawnX, this.spawnY, this.spawnZ);
-      this.hp = MAX_HP;
-      this.hunger = MAX_HUNGER;
-      this.exhaustion = 0;
+      if (this.onDeath) {
+        // Defer to the game (death screen drives respawn()).
+        this.dead = true;
+        this.body.vx = 0;
+        this.body.vy = 0;
+        this.body.vz = 0;
+        this.onDeath();
+      } else {
+        // No handler (tests): respawn immediately.
+        this.respawn();
+      }
     }
+  }
+
+  /** Respawn at the bound spawn point with full vitals. */
+  respawn(): void {
+    this.teleport(this.spawnX, this.spawnY, this.spawnZ);
+    this.hp = MAX_HP;
+    this.hunger = MAX_HUNGER;
+    this.exhaustion = 0;
+    this.dead = false;
   }
 
   /** Interpolated camera placement; alpha is the accumulator fraction. */

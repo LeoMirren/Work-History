@@ -545,3 +545,11 @@ body {
   );
   transition: opacity 0.08s linear;
 }
+
+.death-panel {
+  border-color: #7a3a3a;
+}
+
+.death-panel h1 {
+  color: #e26b6b;
+}
