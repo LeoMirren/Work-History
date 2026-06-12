@@ -17,12 +17,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M1 — One chunk
 
-- [ ] Chunk data structure + index math
-- [ ] Hardcoded-seed worldgen for a single chunk
-- [ ] Culled mesher (opaque pass only)
-- [ ] Fly-around camera with pointer lock (no collision)
-- [ ] ✅ Index round-trip test over all 32,768 cells
-- [ ] ✅ Triangle count for one terrain chunk in the low thousands (logged), not ~393k
+- [x] Chunk data structure + index math
+- [x] Hardcoded-seed worldgen for a single chunk
+- [x] Culled mesher (opaque pass only)
+- [x] Fly-around camera with pointer lock (no collision)
+- [x] ✅ Index round-trip test over all 32,768 cells
+- [x] ✅ Triangle count for one terrain chunk: 784 (logged in test), not ~393k
 
 ## M2 — Infinite world
 

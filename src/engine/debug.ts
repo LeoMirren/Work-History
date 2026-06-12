@@ -4,6 +4,11 @@
  */
 export interface DebugInfo {
   fps: number;
+  x: number;
+  y: number;
+  z: number;
+  triangles: number;
+  drawCalls: number;
 }
 
 declare global {
@@ -14,6 +19,11 @@ declare global {
 
 export const debugInfo: DebugInfo = {
   fps: 0,
+  x: 0,
+  y: 0,
+  z: 0,
+  triangles: 0,
+  drawCalls: 0,
 };
 
 export function exposeDebug(): void {
