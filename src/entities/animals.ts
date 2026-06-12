@@ -22,16 +22,51 @@ import type { WorldView } from '../player/controller';
 export const ANIMAL_HALF_WIDTH = 0.35;
 export const ANIMAL_HEIGHT = 0.7;
 export const ANIMAL_HP = 3;
-const MAX_ANIMALS = 10;
+const MAX_ANIMALS = 12;
 const SPAWN_INTERVAL_S = 2.5;
 const SPAWN_MIN_DIST = 16;
 const SPAWN_MAX_DIST = 38;
 const DESPAWN_DIST = 72;
 const WALK_SPEED = 1.6;
 const HOP_VELOCITY = 7.4;
+const FLOCK_RADIUS = 9; // herd cohesion range (same species)
+const FLOCK_CHANCE = 0.5; // per decision, steer toward the herd centroid
+
+/** Two passive species — visual variety; both drop meat. */
+export const Species = { trundler: 0, woolly: 1 } as const;
+export type SpeciesId = (typeof Species)[keyof typeof Species];
+
+interface SpeciesDef {
+  readonly torso: readonly [number, number, number];
+  readonly torsoY: number;
+  readonly head: readonly [number, number, number];
+  readonly headY: number;
+  readonly bodyColor: number;
+  readonly headColor: number;
+}
+
+const SPECIES: Record<SpeciesId, SpeciesDef> = {
+  [Species.trundler]: {
+    torso: [0.7, 0.45, 0.7],
+    torsoY: 0.32,
+    head: [0.34, 0.3, 0.3],
+    headY: 0.6,
+    bodyColor: 0xb08a5a,
+    headColor: 0x7a5c39,
+  },
+  [Species.woolly]: {
+    torso: [0.62, 0.52, 0.62],
+    torsoY: 0.34,
+    head: [0.3, 0.28, 0.28],
+    headY: 0.62,
+    bodyColor: 0xddd6c4,
+    headColor: 0xc8bfa8,
+  },
+};
 
 export interface Animal {
   readonly body: Body;
+  readonly species: SpeciesId;
   yaw: number;
   hp: number;
   moving: boolean;
@@ -39,18 +74,29 @@ export interface Animal {
   readonly group: THREE.Group;
 }
 
-const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0xb08a5a });
-const headMaterial = new THREE.MeshBasicMaterial({ color: 0x7a5c39 });
+// Shared per-species materials (kept static so meshes never allocate new ones).
+const speciesMaterials: Record<SpeciesId, { body: THREE.MeshBasicMaterial; head: THREE.MeshBasicMaterial }> = {
+  [Species.trundler]: {
+    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.trundler].bodyColor }),
+    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.trundler].headColor }),
+  },
+  [Species.woolly]: {
+    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].bodyColor }),
+    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].headColor }),
+  },
+};
 
-function makeAnimalMesh(): THREE.Group {
+function makeAnimalMesh(species: SpeciesId): THREE.Group {
+  const def = SPECIES[species];
+  const mats = speciesMaterials[species];
   const group = new THREE.Group();
   group.name = 'entity';
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.7), bodyMaterial);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(...def.torso), mats.body);
   torso.name = 'entity';
-  torso.position.set(0, 0.32, 0);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.3, 0.3), headMaterial);
+  torso.position.set(0, def.torsoY, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(...def.head), mats.head);
   head.name = 'entity';
-  head.position.set(0, 0.6, -0.42);
+  head.position.set(0, def.headY, -0.42);
   group.add(torso, head);
   return group;
 }
@@ -83,14 +129,16 @@ export class AnimalSystem {
   }
 
   /** Place an animal directly (also the test seam). */
-  spawnAt(x: number, y: number, z: number): Animal {
+  spawnAt(x: number, y: number, z: number, species?: SpeciesId): Animal {
+    const sp = species ?? (this.random() < 0.5 ? Species.trundler : Species.woolly);
     const animal: Animal = {
       body: createBody(x, y, z),
+      species: sp,
       yaw: this.random() * Math.PI * 2,
       hp: ANIMAL_HP,
       moving: false,
       timer: 0.5 + this.random() * 2,
-      group: makeAnimalMesh(),
+      group: makeAnimalMesh(sp),
     };
     this.scene.add(animal.group);
     this.animals.push(animal);
@@ -139,12 +187,37 @@ export class AnimalSystem {
     void py;
   }
 
+  /** Centroid of same-species animals within FLOCK_RADIUS, or null if alone. */
+  private herdCentroid(self: Animal): { x: number; z: number } | null {
+    let sx = 0;
+    let sz = 0;
+    let n = 0;
+    for (const other of this.animals) {
+      if (other === self || other.species !== self.species) continue;
+      const dx = other.body.x - self.body.x;
+      const dz = other.body.z - self.body.z;
+      if (dx * dx + dz * dz <= FLOCK_RADIUS * FLOCK_RADIUS) {
+        sx += other.body.x;
+        sz += other.body.z;
+        n++;
+      }
+    }
+    return n > 0 ? { x: sx / n, z: sz / n } : null;
+  }
+
   private step(animal: Animal, world: WorldView, dt: number): void {
     const body = animal.body;
     animal.timer -= dt;
     if (animal.timer <= 0) {
-      animal.moving = this.random() < 0.6;
-      animal.yaw = this.random() * Math.PI * 2;
+      // Cohesion: most decisions, steer toward nearby herd-mates; else roam.
+      const herd = this.random() < FLOCK_CHANCE ? this.herdCentroid(animal) : null;
+      if (herd && (herd.x !== body.x || herd.z !== body.z)) {
+        animal.yaw = Math.atan2(-(herd.x - body.x), -(herd.z - body.z));
+        animal.moving = true;
+      } else {
+        animal.moving = this.random() < 0.6;
+        animal.yaw = this.random() * Math.PI * 2;
+      }
       animal.timer = 1 + this.random() * 3;
     }
     const speed = animal.moving ? WALK_SPEED : 0;

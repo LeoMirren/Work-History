@@ -133,3 +133,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Procedural ore tiles (coloured speckle) + item tiles (coal lump, copper/gold bars & pickaxes) via painter factories
 - [x] Full pickaxe ladder: wood(1) < stone(2) < copper(3) < iron(4) < gold(5); per-ore tool-tier gates and speed multipliers (gold fast but a luxury)
 - [x] Coal is furnace fuel; smelt copper/gold ore to ingots; craft copper & gold pickaxes; humanized block display names
+
+## Post-spec: More wildlife (species & flocking)
+
+- [x] Second passive species (woolly) alongside the trundler — distinct size/colour, shared static materials, both drop meat
+- [x] Species chosen at spawn (deterministic via the system rng); population cap raised to 12
+- [x] Gentle flocking: same-species animals steer toward their herd centroid within range, so herds drift together

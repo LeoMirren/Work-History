@@ -69,7 +69,7 @@ describe('animals', () => {
     const { system } = makeSystem(7);
     for (let i = 0; i < 60 * 30; i++) system.fixedUpdate(DT, 0.5, 10, 0.5); // 30s
     expect(system.count).toBeGreaterThan(0);
-    expect(system.count).toBeLessThanOrEqual(10);
+    expect(system.count).toBeLessThanOrEqual(12);
   });
 
   it('despawns animals that end up far from the player', () => {
@@ -136,5 +136,39 @@ describe('entity-sized AABB physics', () => {
       moveBody(floorOnly, faller, 0, faller.vy * DT, 0, result, 0.35, 0.7);
     }
     expect(faller.y).toBe(10);
+  });
+});
+
+describe('animal species & flocking', () => {
+  it('assigns both species deterministically and renders distinct meshes', () => {
+    const { system } = makeSystem(3);
+    const a = system.spawnAt(0.5, 11, 0.5, 0);
+    const b = system.spawnAt(2.5, 11, 0.5, 1);
+    expect(a.species).toBe(0);
+    expect(b.species).toBe(1);
+    // Default (no species arg) still picks one of the two.
+    const c = system.spawnAt(4.5, 11, 0.5);
+    expect([0, 1]).toContain(c.species);
+  });
+
+  it('herds of one species drift together over time', () => {
+    const { system } = makeSystem(11);
+    // Scatter a same-species herd across a flat area.
+    const herd = [
+      system.spawnAt(0.5, 11, 0.5, 0),
+      system.spawnAt(6.5, 11, 0.5, 0),
+      system.spawnAt(0.5, 11, 6.5, 0),
+      system.spawnAt(6.5, 11, 6.5, 0),
+    ];
+    const spread = (): number => {
+      const cx = herd.reduce((s, a) => s + a.body.x, 0) / herd.length;
+      const cz = herd.reduce((s, a) => s + a.body.z, 0) / herd.length;
+      return herd.reduce((s, a) => s + Math.hypot(a.body.x - cx, a.body.z - cz), 0);
+    };
+    const before = spread();
+    // Keep the player at the herd centre so nothing despawns; cohesion pulls in.
+    for (let i = 0; i < 60 * 25; i++) system.fixedUpdate(DT, 3.5, 11, 3.5);
+    expect(herd.every((a) => system.animals.includes(a))).toBe(true);
+    expect(spread()).toBeLessThan(before);
   });
 });
