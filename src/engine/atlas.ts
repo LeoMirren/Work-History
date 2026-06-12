@@ -56,6 +56,7 @@ export const Tiles = {
   gem: 41,
   gemPickaxe: 42,
   sapling: 43,
+  cookedMeat: 44,
 } as const;
 
 type Rng = () => number;
@@ -633,6 +634,27 @@ const paintSapling: TilePainter = (set, rng) => {
   }
 };
 
+/** A browned, cooked haunch. */
+const paintCookedMeat: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const d = Math.hypot(x - 6, y - 6);
+      if (d < 4.6) {
+        const n = jitter(rng, 20);
+        set(x, y, 138 + n, 80 + n * 0.6, 50 + n * 0.5);
+      }
+    }
+  }
+  for (let i = 10; i <= 13; i++) {
+    const n = jitter(rng, 10);
+    set(i, i, 226 + n, 222 + n, 212 + n);
+    set(i + 1, i, 226 + n, 222 + n, 212 + n);
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -677,6 +699,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.gem, 'gem', paintGem],
   [Tiles.gemPickaxe, 'gemPickaxe', paintPickaxe(150, 120, 220)],
   [Tiles.sapling, 'sapling', paintSapling],
+  [Tiles.cookedMeat, 'cookedMeat', paintCookedMeat],
   [Tiles.lantern, 'lantern', paintLantern],
 ];
 

@@ -22,10 +22,23 @@ export const Item = {
   gem: 112,
   gemPickaxe: 113,
   sapling: 114,
+  cookedMeat: 115,
 } as const;
 
-/** Hunger restored when eating meat (RMB while holding it). */
+/** Hunger restored per edible (RMB while holding it). */
 export const MEAT_FOOD = 6;
+const FOOD: Record<number, number> = {
+  [Item.meat]: MEAT_FOOD,
+  [Item.cookedMeat]: 10, // cooking nearly doubles the value
+};
+
+export function isFood(id: number): boolean {
+  return id in FOOD;
+}
+
+export function foodValue(id: number): number {
+  return FOOD[id] ?? 0;
+}
 
 export const MAX_STACK = 64;
 
@@ -66,6 +79,7 @@ const ITEM_TILE: Record<number, number> = {
   [Item.gem]: Tiles.gem,
   [Item.gemPickaxe]: Tiles.gemPickaxe,
   [Item.sapling]: Tiles.sapling,
+  [Item.cookedMeat]: Tiles.cookedMeat,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -90,6 +104,7 @@ const ITEM_NAME: Record<number, string> = {
   [Item.gem]: 'gem',
   [Item.gemPickaxe]: 'gem pickaxe',
   [Item.sapling]: 'sapling',
+  [Item.cookedMeat]: 'cooked meat',
 };
 
 export function itemName(id: number): string {

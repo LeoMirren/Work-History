@@ -148,3 +148,16 @@ describe('gem pickaxe recipe', () => {
     expect(inv.countOf(Item.gemPickaxe)).toBe(1);
   });
 });
+
+describe('cooking', () => {
+  it('smelts raw meat into cooked meat at a furnace with fuel', () => {
+    const inv = new Inventory();
+    inv.add(Item.meat, 2);
+    inv.add(Item.charcoal, 1);
+    expect(craft(inv, recipe('cooked meat'), FURNACE)).toBe(true);
+    expect(inv.countOf(Item.cookedMeat)).toBe(1);
+    expect(inv.countOf(Item.meat)).toBe(1);
+    // No furnace: can't cook.
+    expect(canMake(inv, recipe('cooked meat'), NO_FURNACE)).toBe(false);
+  });
+});

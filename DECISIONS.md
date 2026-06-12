@@ -87,3 +87,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Death screen: PlayerController gained dead/onDeath/respawn(). With an onDeath handler (the game) lethal damage freezes the player and shows a blocking death screen driving respawn(); without a handler (tests) it auto-respawns as before — preserving the existing fall/starve tests.
 
 - Saplings (renewable wood): forEachTreeBlock(trunkHeight, emit) is the single source of tree shape (logs emitted before leaves), used by worldgen plantTree and the in-world growTree; refactor preserves byte-identical worldgen. Leaves drop a sapling ~16% (pure bonusDropFor with caller-supplied roll). Right-clicking a sapling on a grass top grows a tree, consuming the item and only filling air.
+
+- Cooked food: a pure FOOD table (meat 6, cooked meat 10); eating generalized from meat-only to any food item via isFood/foodValue. Smelting recipe meat -> cooked meat ties hunting to the furnace.

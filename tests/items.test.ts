@@ -2,7 +2,7 @@
  * Survival update: drop tables and tool-adjusted mining times.
  */
 import { describe, expect, it } from 'vitest';
-import { breakSecondsFor, dropFor, iconTileFor, isBlockId, Item, itemName, pickaxeTier, stackLimit } from '../src/world/items';
+import { breakSecondsFor, dropFor, foodValue, iconTileFor, isBlockId, isFood, Item, itemName, pickaxeTier, stackLimit } from '../src/world/items';
 import { Block } from '../src/world/blocks';
 
 describe('item basics', () => {
@@ -136,5 +136,16 @@ describe('geode gems', () => {
     expect(breakSecondsFor(Block.stone, Item.gemPickaxe)).toBeLessThan(
       breakSecondsFor(Block.stone, Item.goldPickaxe),
     );
+  });
+});
+
+describe('food values', () => {
+  it('classifies edibles and ranks cooked over raw', () => {
+    expect(isFood(Item.meat)).toBe(true);
+    expect(isFood(Item.cookedMeat)).toBe(true);
+    expect(isFood(Block.dirt)).toBe(false);
+    expect(isFood(Item.stick)).toBe(false);
+    expect(foodValue(Item.cookedMeat)).toBeGreaterThan(foodValue(Item.meat));
+    expect(foodValue(Block.stone)).toBe(0);
   });
 });

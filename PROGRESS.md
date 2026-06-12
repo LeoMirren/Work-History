@@ -194,3 +194,8 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Tree shape extracted to a shared pure forEachTreeBlock (worldgen + in-world planting agree); determinism preserved
 - [x] Leaves occasionally drop a sapling (chance-based bonus drop, pure & testable)
 - [x] Right-click a sapling on grass to grow a tree (consumes the sapling, only fills air — never destroys builds)
+
+## Post-spec: Cooked food
+
+- [x] Smelt raw meat into cooked meat at a furnace (closes the hunt → cook → better-food loop)
+- [x] Food table: cooked meat restores ~10 hunger vs 6 raw; eating generalized to any food item

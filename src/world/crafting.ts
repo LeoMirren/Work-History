@@ -115,6 +115,7 @@ export const RECIPES: readonly Recipe[] = [
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
   { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },
   { name: 'gold ingot', station: 'smelt', output: Item.goldIngot, outputCount: 1, inputs: [{ id: Block.goldOre, count: 1 }] },
+  { name: 'cooked meat', station: 'smelt', output: Item.cookedMeat, outputCount: 1, inputs: [{ id: Item.meat, count: 1 }] },
   { name: 'charcoal', station: 'smelt', output: Item.charcoal, outputCount: 1, inputs: [{ id: Block.log, count: 1 }] },
   { name: 'glass', station: 'smelt', output: Block.glass, outputCount: 1, inputs: [{ id: Block.sand, count: 1 }] },
 ];
