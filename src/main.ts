@@ -27,7 +27,7 @@ import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { createGenerator } from './world/worldgen';
+import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
 import { chunkCoord, CHUNK_VOLUME } from './world/chunk';
@@ -37,14 +37,21 @@ import type { WorldStats } from './world/world';
 
 const BASE_SENSITIVITY = 0.002;
 const AUTOSAVE_INTERVAL_MS = 10_000;
+const UNDERWORLD_SKY = new THREE.Color(0x1a0d10);
 
 interface Session {
   seed: string;
   mode: GameMode;
+  dimension: Dimension;
   world: World;
   texture: THREE.Texture;
   atlasCanvas: HTMLCanvasElement;
   persistedKeys: Set<string>;
+}
+
+/** Chunk store key namespaced by dimension so realms never collide. */
+function dimChunkKey(dim: Dimension, cx: number, cz: number): string {
+  return `${dim === 'underworld' ? 'u' : 'o'}:${chunkStoreKey(cx, cz)}`;
 }
 
 async function boot(): Promise<void> {
@@ -119,6 +126,11 @@ async function boot(): Promise<void> {
   interaction.onBlockChanged = (kind, id, x, y, z) => {
     containers.onBlockChanged(kind, id, x, y, z, (itemId, count) => inventory.add(itemId, count));
   };
+  interaction.onActivateRift = (_x, _y, _z) => {
+    const target: Dimension = session?.dimension === 'underworld' ? 'overworld' : 'underworld';
+    void enterDimension(target);
+    return true;
+  };
   let inventoryOpen = false;
   let hud: Hud | null = null;
   let session: Session | null = null;
@@ -155,6 +167,7 @@ async function boot(): Promise<void> {
       },
       settings: { ...settings },
       timeOfDay: dayNight.time,
+      dimension: session?.dimension ?? 'overworld',
       containers: containers.serialize(),
     };
   }
@@ -164,7 +177,7 @@ async function boot(): Promise<void> {
     if (!s) return Promise.resolve();
     const puts: Array<Promise<void>> = [];
     s.world.flushDirty((cx, cz, data) => {
-      const key = chunkStoreKey(cx, cz);
+      const key = dimChunkKey(s.dimension, cx, cz);
       s.persistedKeys.add(key);
       puts.push(storage.putChunk(key, encodeRLE(data)));
     });
@@ -177,6 +190,9 @@ async function boot(): Promise<void> {
     mode: GameMode,
     resume: WorldMeta | null,
     persistedKeys: Set<string>,
+    dimension: Dimension = 'overworld',
+    spawnOverride?: { x: number; y: number; z: number },
+    keepPlayer = false,
   ): void {
     if (session) {
       session.world.dispose();
@@ -197,9 +213,9 @@ async function boot(): Promise<void> {
     clouds.reseed(seed);
 
     const persistence: ChunkPersistence = {
-      has: (cx, cz) => persistedKeys.has(chunkStoreKey(cx, cz)),
+      has: (cx, cz) => persistedKeys.has(dimChunkKey(dimension, cx, cz)),
       load: async (cx, cz) => {
-        const key = chunkStoreKey(cx, cz);
+        const key = dimChunkKey(dimension, cx, cz);
         try {
           const encoded = await storage.getChunk(key);
           if (!encoded) {
@@ -222,11 +238,17 @@ async function boot(): Promise<void> {
       pool,
       renderDistance: settings.renderDistance,
       persistence,
+      dimension,
     });
 
-    const spawnY = createGenerator(seed).heightAt(0, 0) + 2;
-    player.setSpawn(0.5, spawnY, 0.5);
-    if (resume) {
+    const spawnY = spawnOverride ? spawnOverride.y : createGenerator(seed, dimension).heightAt(0, 0) + 2;
+    const spawnX = spawnOverride ? spawnOverride.x : 0.5;
+    const spawnZ = spawnOverride ? spawnOverride.z : 0.5;
+    player.setSpawn(spawnX, spawnY, spawnZ);
+    if (keepPlayer) {
+      // Dimension switch: preserve inventory/hp/hunger, just relocate.
+      player.teleport(spawnX, spawnY, spawnZ);
+    } else if (resume) {
       player.teleport(resume.player.x, resume.player.y, resume.player.z);
       player.yaw = resume.player.yaw;
       player.pitch = resume.player.pitch;
@@ -269,8 +291,22 @@ async function boot(): Promise<void> {
     }
     containers.load(resume?.containers);
 
-    session = { seed, mode, world, texture, atlasCanvas, persistedKeys };
+    session = { seed, mode, dimension, world, texture, atlasCanvas, persistedKeys };
     menus.setPauseSeed(seed);
+  }
+
+  /** Travel between dimensions via a riftframe: save, swap worlds, relocate. */
+  async function enterDimension(target: Dimension): Promise<void> {
+    const s = session;
+    if (!s || s.dimension === target) return;
+    await saveWorld();
+    const prefix = target === 'underworld' ? 'u:' : 'o:';
+    const keys = new Set((await storage.listChunkKeys()).filter((k) => k.startsWith(prefix)));
+    const wx = Math.floor(player.body.x);
+    const wz = Math.floor(player.body.z);
+    const safeY = findSafeSpawnY(s.seed, target, wx, wz);
+    startSession(s.seed, s.mode, null, keys, target, { x: wx + 0.5, y: safeY, z: wz + 0.5 }, true);
+    input.requestLock();
   }
 
   const savedMode: GameMode = savedMeta?.mode === 'survival' ? 'survival' : 'creative';
@@ -280,7 +316,10 @@ async function boot(): Promise<void> {
         if (savedMeta && savedMeta.seed === seed) {
           applySettings(savedMeta.settings);
           menus.applySettings(savedMeta.settings);
-          startSession(seed, savedMode, savedMeta, new Set(await storage.listChunkKeys()));
+          const dim: Dimension = savedMeta.dimension === 'underworld' ? 'underworld' : 'overworld';
+          const prefix = dim === 'underworld' ? 'u:' : 'o:';
+          const keys = new Set((await storage.listChunkKeys()).filter((k) => k.startsWith(prefix)));
+          startSession(seed, savedMode, savedMeta, keys, dim);
         } else {
           await storage.clearAll();
           startSession(seed, survival ? 'survival' : 'creative', null, new Set());
@@ -377,18 +416,28 @@ async function boot(): Promise<void> {
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
       if (session.mode === 'survival') {
+        // The underworld is always dark and dangerous; the sun never reaches it.
+        const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);
         hostiles.fixedUpdate(
           dt,
           player.body.x,
           player.body.y,
           player.body.z,
-          brightnessAt(dayNight.time),
+          threatBrightness,
           (dmg) => player.hurt(dmg),
         );
       }
     },
     render(alpha, frameDt) {
-      dayNight.apply(gr, materials, clouds.material);
+      if (session?.dimension === 'underworld') {
+        gr.setClearColor(UNDERWORLD_SKY);
+        for (const m of materialList) {
+          m.uniforms.uBrightness.value = 0.05; // no sun down here; ember/lantern light carries
+          m.uniforms.fogColor.value.copy(UNDERWORLD_SKY);
+        }
+      } else {
+        dayNight.apply(gr, materials, clouds.material);
+      }
       clouds.update(frameDt, player.body.x, player.body.z);
       const targetFov = settings.fov * (player.sprinting ? SPRINT_FOV_FACTOR : 1);
       currentFov += (targetFov - currentFov) * Math.min(1, frameDt * 12);

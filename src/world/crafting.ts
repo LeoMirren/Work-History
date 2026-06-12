@@ -62,6 +62,16 @@ export const RECIPES: readonly Recipe[] = [
   { name: 'chest', station: 'craft', output: Block.chest, outputCount: 1, inputs: [{ id: Block.planks, count: 8 }] },
   { name: 'bricks', station: 'craft', output: Block.brick, outputCount: 4, inputs: [{ id: Block.cobblestone, count: 4 }] },
   {
+    name: 'rift frame',
+    station: 'craft',
+    output: Block.riftframe,
+    outputCount: 2,
+    inputs: [
+      { id: Item.goldIngot, count: 1 },
+      { id: Block.cobblestone, count: 4 },
+    ],
+  },
+  {
     name: 'lanterns',
     station: 'craft',
     output: Block.lantern,

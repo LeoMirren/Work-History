@@ -93,6 +93,26 @@ export function createGenerator(seed: string, dimension: Dimension = 'overworld'
   return createOverworld(seed);
 }
 
+/**
+ * Deterministic safe landing for a dimension portal: generate the column's
+ * chunk and find a solid block with a 2-tall air gap above. Scans top-down
+ * (overworld) or from the cavern band (underworld). Returns the feet Y.
+ */
+export function findSafeSpawnY(seed: string, dimension: Dimension, wx: number, wz: number): number {
+  const gen = createGenerator(seed, dimension);
+  const data = gen.generateChunk(Math.floor(wx / CHUNK_SIZE), Math.floor(wz / CHUNK_SIZE));
+  const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const top = dimension === 'underworld' ? UW_CEIL - 1 : CHUNK_HEIGHT - 1;
+  for (let y = top; y >= 1; y--) {
+    const solid = data[blockIndex(lx, y, lz)] !== Block.air && data[blockIndex(lx, y, lz)] !== Block.water;
+    const air1 = data[blockIndex(lx, y + 1, lz)] === Block.air;
+    const air2 = (data[blockIndex(lx, y + 2, lz)] ?? Block.air) === Block.air;
+    if (solid && air1 && air2) return y + 1;
+  }
+  return dimension === 'underworld' ? UW_FLOOR + 3 : 70;
+}
+
 function createUnderworld(seed: string): Generator {
   const cavern: NoiseFunction3D = seededNoise3D(seed, 'uw:cavern');
   const ember: NoiseFunction3D = seededNoise3D(seed, 'uw:ember');

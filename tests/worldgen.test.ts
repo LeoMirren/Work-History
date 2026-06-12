@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE } from '../src/world/chunk';
-import { createGenerator, SEA_LEVEL } from '../src/world/worldgen';
+import { createGenerator, findSafeSpawnY, SEA_LEVEL } from '../src/world/worldgen';
 
 function fnv1a(data: Uint8Array): number {
   let h = 0x811c9dc5;
@@ -233,5 +233,42 @@ describe('underworld dimension', () => {
     expect(ember).toBeGreaterThan(0); // light sources present
     expect(air).toBeGreaterThan(0); // caverns to walk through
     expect(water).toBe(0); // no water down here
+  });
+});
+
+describe('portal landing (findSafeSpawnY)', () => {
+  it('returns an in-range, deterministic landing for both dimensions', () => {
+    for (const dim of ['overworld', 'underworld'] as const) {
+      for (const [wx, wz] of [
+        [0, 0],
+        [37, -52],
+        [-100, 8],
+      ] as const) {
+        const y = findSafeSpawnY(SEED, dim, wx, wz);
+        expect(y).toBeGreaterThan(0);
+        expect(y).toBeLessThan(127);
+        expect(findSafeSpawnY(SEED, dim, wx, wz)).toBe(y); // deterministic
+      }
+    }
+  });
+
+  it('lands on solid ground with headroom over dry land', () => {
+    const gen = createGenerator(SEED, 'overworld');
+    let landTested = 0;
+    // Scan a swath for land columns (above sea level) and verify the invariant.
+    for (let wx = -40; wx <= 40 && landTested < 5; wx += 7) {
+      for (let wz = -40; wz <= 40 && landTested < 5; wz += 7) {
+        if (gen.heightAt(wx, wz) < SEA_LEVEL + 3) continue; // skip ocean/beach
+        const y = findSafeSpawnY(SEED, 'overworld', wx, wz);
+        const data = gen.generateChunk(Math.floor(wx / CHUNK_SIZE), Math.floor(wz / CHUNK_SIZE));
+        const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+        const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+        expect(data[blockIndex(lx, y - 1, lz)]).not.toBe(Block.air); // solid below
+        expect(data[blockIndex(lx, y, lz)]).toBe(Block.air); // feet
+        expect(data[blockIndex(lx, y + 1, lz)]).toBe(Block.air); // head
+        landTested++;
+      }
+    }
+    expect(landTested).toBeGreaterThan(0);
   });
 });

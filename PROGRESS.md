@@ -152,3 +152,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Underworld: an enclosed ashstone cavern realm — bedrock floor/ceiling, big 3D-noise caverns, emberrock veins that emit light (no sky light, no water); pure & deterministic, unit-tested
 - [x] New blocks: ashstone, emberrock (glow 10), riftframe (portal frame) with procedural tiles
 - [ ] Portal block + activation, dimension switching, separate persistence namespace (part 2, next)
+
+## Post-spec: Second dimension — portal & switching (part 2b)
+
+- [x] Riftframe portal block (craft from gold ingot + cobblestone); right-click to travel between overworld and underworld
+- [x] Dimension switching in main: save current realm, build the target World, deterministic safe-landing teleport (findSafeSpawnY), keep player inventory/hp/hunger
+- [x] Per-dimension persistence: chunk keys namespaced (o:/u:) so realms never collide; meta stores the active dimension and resumes into it
+- [x] Underworld atmosphere: dark ember sky/fog, sun never reaches it; hostiles treat it as always-night

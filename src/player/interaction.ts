@@ -52,6 +52,8 @@ export class Interaction {
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Right-click on a container block (chest): opens it, consumes the click. */
   onOpenContainer: ((x: number, y: number, z: number) => boolean) | null = null;
+  /** Right-click a riftframe to travel between dimensions. */
+  onActivateRift: ((x: number, y: number, z: number) => boolean) | null = null;
   /** Block placed/broken at a world cell, for container bookkeeping. */
   onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
@@ -96,6 +98,7 @@ export class Interaction {
         if (button === 0) {
           this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
         } else if (button === 2) {
+          if (this.tryActivateRift(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
@@ -107,6 +110,7 @@ export class Interaction {
           if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
           if (this.hasTarget) this.tryBreak(world);
         } else if (button === 2 && this.hasTarget) {
+          if (this.tryActivateRift(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           this.tryPlace(world, body, hotbar.creativeBlock);
         }
@@ -120,6 +124,14 @@ export class Interaction {
     const { bx, by, bz } = this.hit;
     if (world.getBlock(bx, by, bz) !== Block.chest) return false;
     return this.onOpenContainer(bx, by, bz);
+  }
+
+  /** Right-click a riftframe: hand off to the dimension-travel hook. */
+  private tryActivateRift(world: World): boolean {
+    if (!this.hasTarget || !this.onActivateRift) return false;
+    const { bx, by, bz } = this.hit;
+    if (world.getBlock(bx, by, bz) !== Block.riftframe) return false;
+    return this.onActivateRift(bx, by, bz);
   }
 
   /** Punch the nearest entity (animal or hostile) if closer than the block. */
