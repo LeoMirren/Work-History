@@ -51,3 +51,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Crafting is a recipe-book list (click to craft from totals) rather than a placement grid — original interaction, less UI surface.
 - Iron pickaxe crafts directly from raw ore for now (no furnace/smelting yet; planned with the next tranche).
 - E opens the inventory: pointer lock is released with a flag suppressing the pause menu; E/Esc closes and relocks.
+
+- Biomes added: temperature/moisture noise classify columns into plains/forest/desert/savanna/snowy; each drives surface/subsurface block, tree density and a height bias. A separate mountain noise raises ranges. Original design — not modeled on any specific game's biome tables.

@@ -64,7 +64,7 @@ describe('worldgen content rules', () => {
     }
   });
 
-  it('underwater columns are sand-floored and filled to sea level; land is grass/sand/snow', () => {
+  it('floods oceans, sands beaches/peaks, and lays biome surfaces on land', () => {
     let waterColumns = 0;
     let grassColumns = 0;
     for (let cz = -4; cz <= 4; cz++) {
@@ -72,7 +72,9 @@ describe('worldgen content rules', () => {
         const data = gen.generateChunk(cx, cz);
         for (let z = 0; z < CHUNK_SIZE; z++) {
           for (let x = 0; x < CHUNK_SIZE; x++) {
-            const h = gen.heightAt(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+            const wx = cx * CHUNK_SIZE + x;
+            const wz = cz * CHUNK_SIZE + z;
+            const h = gen.heightAt(wx, wz);
             const surface = data[blockIndex(x, h, z)];
             if (h < SEA_LEVEL) {
               waterColumns++;
@@ -81,13 +83,15 @@ describe('worldgen content rules', () => {
                 expect(data[blockIndex(x, y, z)]).toBe(Block.water);
               }
               expect(data[blockIndex(x, SEA_LEVEL + 1, z)]).toBe(Block.air);
-            } else if (h >= SEA_LEVEL + 2) {
-              if (surface === Block.grass) grassColumns++;
-              // Tree trunks never replace the surface; snow only above 96.
-              if (h > 96) expect(surface).toBe(Block.snow);
-              else expect(surface).toBe(Block.grass);
+            } else if (h <= SEA_LEVEL + 1) {
+              expect(surface).toBe(Block.sand); // beach band
+            } else if (h > 96) {
+              expect(surface).toBe(Block.snow); // peaks
             } else {
-              expect(surface).toBe(Block.sand);
+              // Biome surface: grass (plains/forest/savanna), sand (desert)
+              // or snow (snowy). Trees never replace the surface block.
+              if (surface === Block.grass) grassColumns++;
+              expect([Block.grass, Block.sand, Block.snow]).toContain(surface);
             }
           }
         }
