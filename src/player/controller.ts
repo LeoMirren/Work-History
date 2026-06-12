@@ -42,6 +42,8 @@ export class PlayerController {
   pitch = 0;
   flying = false;
   inWater = false;
+  /** True while sprint speed applies (drives the FOV kick). */
+  sprinting = false;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;
@@ -109,6 +111,7 @@ export class PlayerController {
     const sneaking = input.isDown('ShiftLeft') || input.isDown('ShiftRight');
     const sprinting =
       forward > 0 && !sneaking && (this.sprintLatch || input.isDown('ControlLeft') || input.isDown('ControlRight'));
+    this.sprinting = sprinting && !this.flying;
 
     const feetBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + 0.05), Math.floor(body.z));
     const eyeBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + EYE_HEIGHT), Math.floor(body.z));

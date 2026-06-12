@@ -6,6 +6,7 @@ import './style.css';
 import * as THREE from 'three';
 import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
+import { Clouds } from './engine/clouds';
 import { DayNight, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
@@ -66,6 +67,9 @@ async function boot(): Promise<void> {
     }),
   };
   const materialList = [materials.opaque, materials.cutout, materials.water];
+  const clouds = new Clouds(gr.scene, 'voxelheim');
+  // Everything brightness-dimmed by day/night, clouds included.
+  const litMaterials = [...materialList, clouds.material];
 
   const pool = new WorkerPool(
     () => new Worker(new URL('./workers/worker.ts', import.meta.url), { type: 'module' }),
@@ -81,7 +85,7 @@ async function boot(): Promise<void> {
   function applySettings(next: Settings): void {
     settings = { ...next };
     gr.setViewDistance(settings.renderDistance);
-    gr.setFov(settings.fov);
+    // FOV itself is driven by the render loop (sprint kick smoothing).
     session?.world.setRenderDistance(settings.renderDistance);
   }
 
@@ -133,6 +137,7 @@ async function boot(): Promise<void> {
     }
     if (!hud) hud = new Hud(app as HTMLElement, atlasCanvas);
     else hud.redrawIcons(atlasCanvas);
+    clouds.reseed(seed);
 
     const persistence: ChunkPersistence = {
       has: (cx, cz) => persistedKeys.has(chunkStoreKey(cx, cz)),
@@ -236,7 +241,7 @@ async function boot(): Promise<void> {
     setInterval(() => {
       const seen = new Set<THREE.Material>();
       gr.scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) seen.add(obj.material);
+        if (obj instanceof THREE.Mesh && obj.name !== 'clouds') seen.add(obj.material);
       });
       for (const m of seen) {
         console.assert(
@@ -274,6 +279,10 @@ async function boot(): Promise<void> {
   // per-frame heap allocation the render loop would otherwise make (§7).
   const DEBUG_REFRESH_MS = 250;
   let nextDebugRefresh = 0;
+  // Sprint FOV kick: smooth toward base FOV x1.08 while sprinting.
+  const SPRINT_FOV_FACTOR = 1.08;
+  let currentFov = settings.fov;
+  let appliedFov = 0;
 
   startLoop({
     update(dt) {
@@ -281,8 +290,15 @@ async function boot(): Promise<void> {
       dayNight.advance(dt);
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
     },
-    render(alpha) {
-      dayNight.apply(gr, materialList);
+    render(alpha, frameDt) {
+      dayNight.apply(gr, litMaterials);
+      clouds.update(frameDt, player.body.x, player.body.z);
+      const targetFov = settings.fov * (player.sprinting ? SPRINT_FOV_FACTOR : 1);
+      currentFov += (targetFov - currentFov) * Math.min(1, frameDt * 12);
+      if (Math.abs(currentFov - appliedFov) > 0.05) {
+        appliedFov = currentFov;
+        gr.setFov(currentFov);
+      }
       input.takeMouseDelta(mouse);
       if (session && input.locked && hud) {
         player.look(mouse.dx, mouse.dy, BASE_SENSITIVITY * settings.mouseSensitivity);

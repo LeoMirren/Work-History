@@ -19,7 +19,15 @@ declare module 'three' {
   export const NearestFilter: number;
   export const DoubleSide: number;
   export const FrontSide: number;
+  export const RepeatWrapping: number;
   export const SRGBColorSpace: string;
+
+  export class Vector2 {
+    x: number;
+    y: number;
+    constructor(x?: number, y?: number);
+    set(x: number, y: number): this;
+  }
 
   export class Vector3 {
     x: number;
@@ -58,6 +66,7 @@ declare module 'three' {
   }
 
   export class Object3D {
+    name: string;
     position: Vector3;
     rotation: Euler;
     visible: boolean;
@@ -107,6 +116,10 @@ declare module 'three' {
     constructor(width?: number, height?: number, depth?: number);
   }
 
+  export class PlaneGeometry extends BufferGeometry {
+    constructor(width?: number, height?: number, widthSegments?: number, heightSegments?: number);
+  }
+
   export class EdgesGeometry extends BufferGeometry {
     constructor(geometry: BufferGeometry, thresholdAngle?: number);
   }
@@ -114,6 +127,10 @@ declare module 'three' {
   export class Texture {
     magFilter: number;
     minFilter: number;
+    wrapS: number;
+    wrapT: number;
+    readonly offset: Vector2;
+    readonly repeat: Vector2;
     generateMipmaps: boolean;
     colorSpace: string;
     needsUpdate: boolean;
