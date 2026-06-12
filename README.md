@@ -31,11 +31,9 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
 | **Ctrl** (or double-tap **W**) | sprint |
 | **F** | toggle fly |
 | **Mouse** | look (pointer lock) |
-| **Left click** | break block |
-| **Right click** | place block |
-| **1–9 / wheel** | hotbar selection |
 | **Left click** | break / hunt / fight |
 | **Right click** | place / eat / plant sapling / use furnace, chest, rift |
+| **1–9 / wheel** | hotbar selection |
 | **E** | inventory & crafting (survival) |
 | **G** | guide book (controls + every recipe) |
 | **Tab** | status panel (health, hunger, biome time, threats) |
