@@ -180,7 +180,7 @@ export class World {
       this.scanNeeded = true;
       return;
     }
-    this.installMesh(rec, meshChunk(padded));
+    this.installMesh(rec, meshChunk(padded, rec.cx, rec.cz));
   }
 
   /**

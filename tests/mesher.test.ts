@@ -21,7 +21,7 @@ describe('mesher', () => {
   it('emits 6 faces (12 triangles) for a lone block', () => {
     const data = createChunkData();
     data[blockIndex(8, 50, 8)] = Block.stone;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     expect(out.opaque).not.toBeNull();
     expect(out.opaque!.indices.length).toBe(6 * 6);
     expect(out.opaque!.positions.length).toBe(6 * 4 * 3);
@@ -31,7 +31,7 @@ describe('mesher', () => {
     const data = createChunkData();
     data[blockIndex(8, 50, 8)] = Block.stone;
     data[blockIndex(9, 50, 8)] = Block.dirt;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     // 2 cubes = 12 faces, minus the 2 shared ones.
     expect(out.opaque!.indices.length).toBe(10 * 6);
   });
@@ -42,7 +42,7 @@ describe('mesher', () => {
     for (let dx = -1; dx <= 1; dx++)
       for (let dy = -1; dy <= 1; dy++)
         for (let dz = -1; dz <= 1; dz++) data[blockIndex(8 + dx, 50 + dy, 8 + dz)] = Block.stone;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     // 27 cubes, shell shows 9 faces per side * 6 sides = 54 quads.
     expect(out.opaque!.indices.length).toBe(54 * 6);
   });
@@ -53,7 +53,7 @@ describe('mesher', () => {
     data[blockIndex(9, 50, 8)] = Block.water;
     data[blockIndex(7, 50, 8)] = Block.glass;
     data[blockIndex(8, 51, 8)] = Block.leaves;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     // The stone cube still shows all 6 faces; water/glass/leaves emit none in M1.
     const quads = out.opaque!.indices.length / 6;
     expect(quads).toBe(6);
@@ -62,7 +62,7 @@ describe('mesher', () => {
   it('winds triangles CCW from outside (cross product matches face normal)', () => {
     const data = createChunkData();
     data[blockIndex(8, 50, 8)] = Block.stone;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     const { positions, indices } = out.opaque!;
     // Face f produced quad f (deterministic emission order for a lone block).
     for (let f = 0; f < 6; f++) {
@@ -89,7 +89,7 @@ describe('mesher', () => {
   it('keeps UVs within each face tile', () => {
     const data = createChunkData();
     data[blockIndex(8, 50, 8)] = Block.grass;
-    const out = meshChunk(padWithAir(data));
+    const out = meshChunk(padWithAir(data), 0, 0);
     const { uvs } = out.opaque!;
     for (let i = 0; i < uvs.length; i++) {
       expect(uvs[i]).toBeGreaterThanOrEqual(0);
@@ -100,7 +100,7 @@ describe('mesher', () => {
   it('meshes a real terrain chunk to low thousands of triangles (culling works)', () => {
     const generator = createGenerator('voxelheim-m1');
     const data = generator.generateChunk(0, 0);
-    const out = meshChunk(padLoneChunk(data));
+    const out = meshChunk(padLoneChunk(data), 0, 0);
     expect(out.opaque).not.toBeNull();
     const tris = out.opaque!.indices.length / 3;
     console.log(`[M1 acceptance] terrain chunk triangles: ${tris}`);

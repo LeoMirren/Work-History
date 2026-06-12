@@ -11,9 +11,10 @@ import * as THREE from 'three';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { breakSecondsFor, dropFor, isBlockId } from '../world/items';
-import { blockIntersectsBody, EYE_HEIGHT, type Body } from './physics';
+import { breakSecondsFor, dropFor, isBlockId, Item, MEAT_HEAL } from '../world/items';
+import { blockIntersectsBody, EYE_HEIGHT, MAX_HP, type Body } from './physics';
 import type { Input } from '../engine/input';
+import type { AnimalSystem } from '../entities/animals';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -42,6 +43,8 @@ export class Interaction {
   hasTarget = false;
   readonly hit: RaycastHit = { bx: 0, by: 0, bz: 0, nx: 0, ny: 0, nz: 0, distance: 0 };
   mode: GameMode = 'creative';
+  /** Huntable wildlife (bound by main; punches hit these before blocks). */
+  animals: AnimalSystem | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
@@ -83,15 +86,54 @@ export class Interaction {
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
       for (const button of this.clicks) {
-        if (button === 2 && this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
+        if (button === 0) {
+          this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
+        } else if (button === 2) {
+          if (this.tryEat(player, hotbar)) continue;
+          if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
+        }
       }
     } else {
       for (const button of this.clicks) {
-        if (!this.hasTarget) continue;
-        if (button === 0) this.tryBreak(world);
-        else if (button === 2) this.tryPlace(world, body, hotbar.creativeBlock);
+        if (button === 0) {
+          if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
+          if (this.hasTarget) this.tryBreak(world);
+        } else if (button === 2 && this.hasTarget) {
+          this.tryPlace(world, body, hotbar.creativeBlock);
+        }
       }
     }
+  }
+
+  /** Punch the nearest animal if it's closer than the targeted block. */
+  private tryPunchAnimal(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    inventory: Inventory | null,
+  ): boolean {
+    const hit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH);
+    if (!hit) return false;
+    if (this.hasTarget && this.hit.distance < hit.distance) return false;
+    const drops = this.animals?.hurt(hit.animal) ?? null;
+    if (drops && inventory) inventory.add(drops.id, drops.count);
+    this.onEdit?.('break', Item.meat); // meaty thud
+    return true;
+  }
+
+  /** Holding meat: right-click eats it when hurt. Returns true if consumed. */
+  private tryEat(player: PlayerController, hotbar: HotbarState): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || stack.id !== Item.meat) return false;
+    if (player.hp >= MAX_HP) return false;
+    if (!inventory.consumeOne(hotbar.slot)) return false;
+    player.heal(MEAT_HEAL);
+    this.onEdit?.('place', Item.meat);
+    return true;
   }
 
   private heldId(hotbar: HotbarState): number {

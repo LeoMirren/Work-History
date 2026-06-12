@@ -84,6 +84,10 @@ declare module 'three' {
     fog: Fog | null;
   }
 
+  export class Group extends Object3D {
+    constructor();
+  }
+
   export class PerspectiveCamera extends Object3D {
     fov: number;
     aspect: number;

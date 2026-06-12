@@ -26,7 +26,7 @@ class SyncJobPool implements JobPool {
       }
       onDone({ id: 0, kind: 'gen', cx: job.cx, cz: job.cz, data: gen.generateChunk(job.cx, job.cz) });
     } else {
-      onDone({ id: 0, kind: 'mesh', cx: job.cx, cz: job.cz, mesh: meshChunk(job.padded) });
+      onDone({ id: 0, kind: 'mesh', cx: job.cx, cz: job.cz, mesh: meshChunk(job.padded, job.cx, job.cz) });
     }
   }
 }

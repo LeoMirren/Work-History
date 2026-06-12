@@ -3,7 +3,7 @@
  * face-shade and quad-flip behavior as observed in actual mesh output.
  */
 import { describe, expect, it } from 'vitest';
-import { AO_BRIGHTNESS, computeAO, FACE_SHADE, meshChunk, PADDED_VOLUME, paddedIndex } from '../src/world/mesher';
+import { AO_BRIGHTNESS, computeAO, depthBrightness, FACE_SHADE, meshChunk, PADDED_VOLUME, paddedIndex } from '../src/world/mesher';
 import { Block } from '../src/world/blocks';
 
 describe('computeAO hand cases', () => {
@@ -38,7 +38,7 @@ function topFaceColors(
   by: number,
   bz: number,
 ): Map<string, number> {
-  const mesh = meshChunk(buf).opaque;
+  const mesh = meshChunk(buf, 0, 0).opaque;
   expect(mesh).not.toBeNull();
   const { positions, colors } = mesh!;
   const out = new Map<string, number>();
@@ -128,7 +128,7 @@ describe('AO in mesh output (hand-computed)', () => {
       [7, 11, 9, Block.stone],
       [9, 11, 7, Block.stone],
     ]);
-    const mesh = meshChunk(buf).opaque!;
+    const mesh = meshChunk(buf, 0, 0).opaque!;
     // Locate the top face: 4 consecutive vertices on the y=11 plane.
     let base = -1;
     for (let v = 0; v < mesh.positions.length / 3; v += 4) {
@@ -152,7 +152,7 @@ describe('AO in mesh output (hand-computed)', () => {
   });
 
   it('an isotropically lit quad keeps the default diagonal', () => {
-    const mesh = meshChunk(padded([[8, 10, 8, Block.stone]])).opaque!;
+    const mesh = meshChunk(padded([[8, 10, 8, Block.stone]]), 0, 0).opaque!;
     expect(Array.from(mesh.indices.slice(0, 6)).map((i) => i % 4)).toEqual([0, 1, 2, 0, 2, 3]);
   });
 });
@@ -160,11 +160,14 @@ describe('AO in mesh output (hand-computed)', () => {
 describe('face shading (§4.5)', () => {
   it('bakes the directional shade per face', () => {
     expect(FACE_SHADE).toEqual([0.75, 0.75, 1.0, 0.55, 0.85, 0.85]);
-    const mesh = meshChunk(padded([[8, 10, 8, Block.stone]])).opaque!;
+    const mesh = meshChunk(padded([[8, 10, 8, Block.stone]]), 0, 0).opaque!;
     // Lone block: faces emitted in table order (+x,-x,+y,-y,+z,-z), ao all 3.
+    // The underside's air cell sits 1 below the block's own cover, so depth
+    // lighting dims the -y face slightly.
     for (let f = 0; f < 6; f++) {
+      const depth = f === 3 ? depthBrightness(1) : 1;
       for (let v = 0; v < 4; v++) {
-        expect(mesh.colors[(f * 4 + v) * 3]).toBeCloseTo(FACE_SHADE[f] ?? -1, 6);
+        expect(mesh.colors[(f * 4 + v) * 3]).toBeCloseTo((FACE_SHADE[f] ?? -1) * depth, 6);
       }
     }
   });
@@ -179,6 +182,8 @@ describe('render passes (§4.5 culling rule)', () => {
         [12, 10, 12, Block.glass],
         [12, 14, 12, Block.leaves],
       ]),
+      0,
+      0,
     );
     expect(out.opaque!.indices.length).toBe(6 * 6);
     expect(out.water!.indices.length).toBe(6 * 6);
@@ -191,6 +196,8 @@ describe('render passes (§4.5 culling rule)', () => {
         [8, 10, 8, Block.water],
         [9, 10, 8, Block.water],
       ]),
+      0,
+      0,
     ).water!;
     expect(water.indices.length).toBe(10 * 6); // 12 faces minus the 2 shared
 
@@ -199,6 +206,8 @@ describe('render passes (§4.5 culling rule)', () => {
         [8, 10, 8, Block.glass],
         [8, 11, 8, Block.glass],
       ]),
+      0,
+      0,
     ).cutout!;
     expect(glass.indices.length).toBe(10 * 6);
   });
@@ -209,6 +218,8 @@ describe('render passes (§4.5 culling rule)', () => {
         [8, 10, 8, Block.water],
         [9, 10, 8, Block.glass],
       ]),
+      0,
+      0,
     );
     expect(out.water!.indices.length).toBe(6 * 6); // all six water faces live
     expect(out.cutout!.indices.length).toBe(6 * 6);
@@ -220,6 +231,8 @@ describe('render passes (§4.5 culling rule)', () => {
         [8, 10, 8, Block.water],
         [9, 10, 8, Block.stone],
       ]),
+      0,
+      0,
     );
     expect(out.water!.indices.length).toBe(5 * 6); // face against stone culled
     expect(out.opaque!.indices.length).toBe(6 * 6); // stone shows all faces

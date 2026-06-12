@@ -11,7 +11,11 @@ export const Item = {
   woodPickaxe: 101,
   stonePickaxe: 102,
   ironPickaxe: 103,
+  meat: 104,
 } as const;
+
+/** Half-hearts restored when eating meat (RMB while holding it). */
+export const MEAT_HEAL = 4;
 
 export const MAX_STACK = 64;
 
@@ -39,6 +43,8 @@ export function iconTileFor(id: number): number {
       return Tiles.stonePickaxe;
     case Item.ironPickaxe:
       return Tiles.ironPickaxe;
+    case Item.meat:
+      return Tiles.meat;
     default:
       return 0;
   }
@@ -54,6 +60,8 @@ export function itemName(id: number): string {
       return 'stone pickaxe';
     case Item.ironPickaxe:
       return 'iron pickaxe';
+    case Item.meat:
+      return 'meat';
     default:
       return `item ${id}`;
   }

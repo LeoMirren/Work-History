@@ -16,7 +16,8 @@ export class Input {
 
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'F3') e.preventDefault(); // keep browser shortcuts out of the debug toggle
+      // Keep browser shortcuts out of game keys (F3 search, Tab focus-walk).
+      if (e.code === 'F3' || (e.code === 'Tab' && this.locked)) e.preventDefault();
       if (!e.repeat) this.pressedQueue.add(e.code);
       this.keysDown.add(e.code);
     });

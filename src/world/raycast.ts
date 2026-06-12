@@ -88,3 +88,45 @@ export function raycast(
     }
   }
 }
+
+/**
+ * Ray vs axis-aligned box (slab method). Returns the entry distance along
+ * the (normalized) ray, 0 if the origin is inside, or null on a miss.
+ */
+export function rayAABB(
+  ox: number,
+  oy: number,
+  oz: number,
+  dx: number,
+  dy: number,
+  dz: number,
+  minX: number,
+  minY: number,
+  minZ: number,
+  maxX: number,
+  maxY: number,
+  maxZ: number,
+): number | null {
+  let tMin = -Infinity;
+  let tMax = Infinity;
+  const axes: ReadonlyArray<readonly [number, number, number, number]> = [
+    [ox, dx, minX, maxX],
+    [oy, dy, minY, maxY],
+    [oz, dz, minZ, maxZ],
+  ];
+  for (const [o, d, lo, hi] of axes) {
+    if (d === 0) {
+      if (o < lo || o > hi) return null;
+      continue;
+    }
+    const t1 = (lo - o) / d;
+    const t2 = (hi - o) / d;
+    const near = Math.min(t1, t2);
+    const far = Math.max(t1, t2);
+    if (near > tMin) tMin = near;
+    if (far < tMax) tMax = far;
+    if (tMin > tMax) return null;
+  }
+  if (tMax < 0) return null; // box entirely behind the ray
+  return Math.max(tMin, 0);
+}

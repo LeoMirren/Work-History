@@ -364,3 +364,47 @@ body {
   opacity: 0.4;
   cursor: default;
 }
+
+#info-panel {
+  position: fixed;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 240px;
+  background: rgba(10, 14, 31, 0.72);
+  border: 2px solid rgba(58, 74, 122, 0.8);
+  border-radius: 6px;
+  color: #e8f0ff;
+  padding: 10px 12px;
+  z-index: 25;
+  pointer-events: none;
+  font-size: 12px;
+}
+
+#info-panel h2 {
+  font-size: 13px;
+  letter-spacing: 1px;
+  margin: 6px 0 4px;
+  color: #9db4e8;
+  text-transform: uppercase;
+}
+
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  line-height: 1.7;
+}
+
+.panel-label {
+  opacity: 0.65;
+}
+
+.panel-label.key {
+  font-weight: bold;
+  opacity: 0.9;
+}
+
+.panel-value {
+  text-align: right;
+}

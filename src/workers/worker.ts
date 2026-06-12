@@ -25,7 +25,7 @@ scope.onmessage = (e: MessageEvent<WorkerRequest>): void => {
       data.buffer as ArrayBuffer,
     ]);
   } else {
-    const mesh = meshChunk(req.padded);
+    const mesh = meshChunk(req.padded, req.cx, req.cz);
     scope.postMessage(
       { id: req.id, kind: 'mesh', cx: req.cx, cz: req.cz, mesh },
       meshTransferables(mesh, []),

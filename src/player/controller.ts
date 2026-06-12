@@ -181,6 +181,11 @@ export class PlayerController {
     }
   }
 
+  /** Eat/regen: clamped to MAX_HP. */
+  heal(amount: number): void {
+    this.hp = Math.min(MAX_HP, this.hp + amount);
+  }
+
   private applyDamage(amount: number): void {
     this.hp = Math.max(0, this.hp - amount);
     if (this.hp === 0) {

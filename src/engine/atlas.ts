@@ -32,6 +32,7 @@ export const Tiles = {
   woodPickaxe: 17,
   stonePickaxe: 18,
   ironPickaxe: 19,
+  meat: 20,
 } as const;
 
 type Rng = () => number;
@@ -331,6 +332,27 @@ function paintPickaxe(r: number, g: number, b: number): TilePainter {
   };
 }
 
+/** A haunch: rosy meat blob with a small bone stub. */
+const paintMeat: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const d = Math.hypot(x - 6, y - 6);
+      if (d < 4.6) {
+        const n = jitter(rng, 22);
+        set(x, y, 188 + n, 96 + n * 0.6, 74 + n * 0.5);
+      }
+    }
+  }
+  for (let i = 10; i <= 13; i++) {
+    const n = jitter(rng, 10);
+    set(i, i, 226 + n, 222 + n, 212 + n);
+    set(i + 1, i, 226 + n, 222 + n, 212 + n);
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -352,6 +374,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.woodPickaxe, 'woodPickaxe', paintPickaxe(150, 112, 66)],
   [Tiles.stonePickaxe, 'stonePickaxe', paintPickaxe(128, 128, 130)],
   [Tiles.ironPickaxe, 'ironPickaxe', paintPickaxe(208, 204, 200)],
+  [Tiles.meat, 'meat', paintMeat],
 ];
 
 /**

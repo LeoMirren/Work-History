@@ -54,13 +54,13 @@ export interface MoveResult {
 // Reused box to keep the per-step hot path allocation-free.
 const box = { minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0 };
 
-function syncBoxFromBody(body: Body): void {
-  box.minX = body.x - PLAYER_HALF_WIDTH;
-  box.maxX = body.x + PLAYER_HALF_WIDTH;
+function syncBoxFromBody(body: Body, halfWidth: number, height: number): void {
+  box.minX = body.x - halfWidth;
+  box.maxX = body.x + halfWidth;
   box.minY = body.y;
-  box.maxY = body.y + PLAYER_HEIGHT;
-  box.minZ = body.z - PLAYER_HALF_WIDTH;
-  box.maxZ = body.z + PLAYER_HALF_WIDTH;
+  box.maxY = body.y + height;
+  box.minZ = body.z - halfWidth;
+  box.maxZ = body.z + halfWidth;
 }
 
 /** Any solid block overlapping the (strictly) open box volume? */
@@ -122,9 +122,19 @@ function sweepAxis(solid: SolidFn, axis: 0 | 1 | 2, dist: number): boolean {
 /**
  * Move the body by (dx, dy, dz) with per-axis resolution. Velocities are
  * zeroed on the axes that hit; onGround is set iff the Y move hit downward.
+ * Dimensions default to the player AABB; entities pass their own.
  */
-export function moveBody(solid: SolidFn, body: Body, dx: number, dy: number, dz: number, result: MoveResult): void {
-  syncBoxFromBody(body);
+export function moveBody(
+  solid: SolidFn,
+  body: Body,
+  dx: number,
+  dy: number,
+  dz: number,
+  result: MoveResult,
+  halfWidth: number = PLAYER_HALF_WIDTH,
+  height: number = PLAYER_HEIGHT,
+): void {
+  syncBoxFromBody(body, halfWidth, height);
   result.hitX = sweepAxis(solid, 0, dx);
   result.hitY = sweepAxis(solid, 1, dy);
   result.hitZ = sweepAxis(solid, 2, dz);

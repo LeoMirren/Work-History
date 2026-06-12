@@ -12,6 +12,7 @@
  */
 import { Block, FACE_TILES, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE } from './blocks';
 import { CHUNK_HEIGHT, CHUNK_SIZE, blockIndex } from './chunk';
+import { hash2 } from './noise';
 import { ATLAS_TILES } from '../engine/atlas';
 
 export const PAD = CHUNK_SIZE + 2; // 18
@@ -31,6 +32,29 @@ export const AO_BRIGHTNESS: readonly number[] = [0.5, 0.7, 0.85, 1.0];
 
 /** Directional shade per face, order [+x, -x, +y, -y, +z, -z] (§4.5). */
 export const FACE_SHADE: readonly number[] = [0.75, 0.75, 1.0, 0.55, 0.85, 0.85];
+
+/**
+ * Fake depth lighting: faces darken with distance below the column's top
+ * cover (any non-air block, water and leaves included), bottoming out in
+ * deep caves. Surfaces under open sky stay fully lit.
+ */
+export const DEPTH_DARK_MIN = 0.35;
+export const DEPTH_DARK_FALLOFF = 0.045;
+
+export function depthBrightness(depthBelowCover: number): number {
+  if (depthBelowCover <= 0) return 1;
+  return Math.max(DEPTH_DARK_MIN, 1 - depthBelowCover * DEPTH_DARK_FALLOFF);
+}
+
+/** Foliage gets a subtle per-column warm/cool tint so plains aren't flat. */
+const TINT_SALT = 0x7e11a9;
+const TINTED = new Set<number>([Block.grass, Block.leaves]);
+
+export function foliageTint(wx: number, wz: number): { r: number; b: number } {
+  // 4-block patches; subtle ±6% red / ±8% blue swing around neutral.
+  const h = hash2(TINT_SALT, wx >> 2, wz >> 2);
+  return { r: 0.94 + ((h & 0xff) / 255) * 0.12, b: 0.88 + (((h >> 8) & 0xff) / 255) * 0.16 };
+}
 
 /**
  * Face tables. Order: 0:+x 1:-x 2:+y 3:-y 4:+z 5:-z (matches FACE_TILES).
@@ -142,6 +166,9 @@ class QuadSink {
     ao1: number,
     ao2: number,
     ao3: number,
+    depthFactor: number,
+    tintR: number,
+    tintB: number,
   ): void {
     const base = this.positions.length / 3;
     const tu = (tile % ATLAS_TILES) / ATLAS_TILES;
@@ -156,8 +183,8 @@ class QuadSink {
       this.positions.push(vx, vy, vz);
       this.uvs.push(tu + uv[0] / ATLAS_TILES, tv + uv[1] / ATLAS_TILES);
       const ao = c === 0 ? ao0 : c === 1 ? ao1 : c === 2 ? ao2 : ao3;
-      const light = shade * (AO_BRIGHTNESS[ao] ?? 1);
-      this.colors.push(light, light, light);
+      const light = shade * (AO_BRIGHTNESS[ao] ?? 1) * depthFactor;
+      this.colors.push(light * tintR, light, light * tintB);
       if (vx < this.minX) this.minX = vx;
       if (vy < this.minY) this.minY = vy;
       if (vz < this.minZ) this.minZ = vz;
@@ -208,11 +235,28 @@ function occludes(padded: Uint8Array, px: number, y: number, pz: number): boolea
   return OPAQUE[padded[paddedIndex(px, y, pz)] ?? 0] === 1;
 }
 
-/** Mesh one chunk from its padded snapshot. Pure. */
-export function meshChunk(padded: Uint8Array): ChunkMeshData {
+/**
+ * Mesh one chunk from its padded snapshot. Pure — (cx, cz) only seed the
+ * deterministic foliage tint hash.
+ */
+export function meshChunk(padded: Uint8Array, cx: number, cz: number): ChunkMeshData {
   const opaque = new QuadSink();
   const cutout = new QuadSink();
   const water = new QuadSink();
+  // Per padded column: topmost non-air y + 1 ("cover height") for depth light.
+  const cover = new Int16Array(PAD * PAD);
+  for (let pz = 0; pz < PAD; pz++) {
+    for (let px = 0; px < PAD; px++) {
+      let top = 0;
+      for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+        if ((padded[paddedIndex(px, y, pz)] ?? 0) !== Block.air) {
+          top = y + 1;
+          break;
+        }
+      }
+      cover[pz * PAD + px] = top;
+    }
+  }
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
     for (let z = 0; z < CHUNK_SIZE; z++) {
       const pz = z + 1;
@@ -250,7 +294,23 @@ export function meshChunk(padded: Uint8Array): ChunkMeshData {
               else ao3 = ao;
             }
           }
-          sink.pushQuad(x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1, ao0, ao1, ao2, ao3);
+          // Light the face by its air-side cell's depth below cover.
+          const nbPx = Math.min(PAD - 1, Math.max(0, px + face.dx));
+          const nbPz = Math.min(PAD - 1, Math.max(0, pz + face.dz));
+          const nbY = Math.min(CHUNK_HEIGHT - 1, Math.max(0, y + face.dy));
+          const depth = (cover[nbPz * PAD + nbPx] ?? 0) - 1 - nbY;
+          const depthFactor = depthBrightness(depth);
+          let tintR = 1;
+          let tintB = 1;
+          if (TINTED.has(id)) {
+            const tint = foliageTint(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+            tintR = tint.r;
+            tintB = tint.b;
+          }
+          sink.pushQuad(
+            x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,
+            ao0, ao1, ao2, ao3, depthFactor, tintR, tintB,
+          );
         }
       }
     }

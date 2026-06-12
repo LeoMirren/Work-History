@@ -17,7 +17,9 @@ import { Interaction, type HotbarState } from './player/interaction';
 import { Inventory } from './player/inventory';
 import { MAX_HP, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
+import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
+import { AnimalSystem } from './entities/animals';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -87,6 +89,9 @@ async function boot(): Promise<void> {
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   const inventory = new Inventory();
   const inventoryScreen = new InventoryScreen(app);
+  const infoPanel = new InfoPanel(app);
+  const animals = new AnimalSystem(gr.scene);
+  interaction.animals = animals;
   let inventoryOpen = false;
   let hud: Hud | null = null;
   let session: Session | null = null;
@@ -208,6 +213,8 @@ async function boot(): Promise<void> {
     }
     player.setMode(mode);
     interaction.mode = mode;
+    animals.setWorld({ isSolid: world.isSolid, getBlock: world.blockAt });
+    infoPanel.show();
     hud.setSurvivalVisible(mode === 'survival');
     hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
     if (inventoryOpen) {
@@ -276,7 +283,7 @@ async function boot(): Promise<void> {
     setInterval(() => {
       const seen = new Set<THREE.Material>();
       gr.scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh && obj.name !== 'clouds') seen.add(obj.material);
+        if (obj instanceof THREE.Mesh && obj.name !== 'clouds' && obj.name !== 'entity') seen.add(obj.material);
       });
       for (const m of seen) {
         console.assert(
@@ -324,6 +331,7 @@ async function boot(): Promise<void> {
       if (!session || !input.locked) return;
       dayNight.advance(dt);
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
+      animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
     },
     render(alpha, frameDt) {
       dayNight.apply(gr, litMaterials);
@@ -359,6 +367,7 @@ async function boot(): Promise<void> {
         const wheel = input.takeWheel();
         if (wheel !== 0) hud.stepSlot(wheel > 0 ? 1 : -1);
         if (input.takePressed('F3')) hud.toggleDebug();
+        if (input.takePressed('Tab')) infoPanel.toggle();
         hotbarState.creativeBlock = hud.selectedBlock;
         hotbarState.inventory = session.mode === 'survival' ? inventory : null;
         hotbarState.slot = hud.selectedSlot;
@@ -395,6 +404,18 @@ async function boot(): Promise<void> {
       debugInfo.drawCalls = gr.info.render.calls;
       debugInfo.geometries = gr.info.memory.geometries;
       const mode = player.flying ? 'fly' : player.inWater ? 'swim' : b.onGround ? 'walk' : 'air';
+      const dayFrac = (((dayNight.time % 480) + 480) % 480) / 480;
+      const clockH = Math.floor((dayFrac * 24 + 6) % 24);
+      const clockM = Math.floor(((dayFrac * 24 + 6) % 1) * 60);
+      infoPanel.setStatus({
+        hp: player.hp,
+        maxHp: MAX_HP,
+        mode: session.mode === 'survival' ? `survival (${mode})` : `creative (${mode})`,
+        position: `${b.x.toFixed(0)}, ${b.y.toFixed(0)}, ${b.z.toFixed(0)}`,
+        time: `${clockH}:${String(clockM).padStart(2, '0')}`,
+        animals: animals.count,
+        fps: debugInfo.fps,
+      });
       hud.setDebugText(
         `Voxelheim | fps ${debugInfo.fps}\n` +
           `pos ${b.x.toFixed(2)} ${b.y.toFixed(2)} ${b.z.toFixed(2)} | facing ${debugInfo.facing} | chunk ${debugInfo.chunkX},${debugInfo.chunkZ} | ${mode}\n` +
