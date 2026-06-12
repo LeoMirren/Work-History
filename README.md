@@ -49,6 +49,9 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
   lights, no normals.
 - **Local persistence**: edited chunks (RLE-compressed) and the player state
   autosave to IndexedDB every 10s; reload and pick up where you left off.
+- **Stretch extras**: sprint FOV kick, drifting blocky clouds, an optional
+  survival mode (hearts, fall damage, timed breaking — tick the box on the
+  title screen), ore veins to mine, and synthesized block-tap sounds.
 
 ## Architecture
 

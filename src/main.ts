@@ -6,6 +6,7 @@ import './style.css';
 import * as THREE from 'three';
 import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
+import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
 import { DayNight, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
@@ -79,6 +80,8 @@ async function boot(): Promise<void> {
 
   const player = new PlayerController();
   const interaction = new Interaction(gr.scene);
+  const audio = new TapAudio();
+  interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   let hud: Hud | null = null;
   let session: Session | null = null;
   let settings: Settings = { ...DEFAULT_SETTINGS };

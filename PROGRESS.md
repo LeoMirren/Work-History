@@ -75,3 +75,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Tag v1.0.0
 - [x] ✅ Budgets met by mechanism or gap documented in DECISIONS.md
 - [x] ✅ Full test suite green, clean `npm run build`
+
+## Stretch (§9, in order — budgets met by mechanism, see M7)
+
+- [x] Sprint FOV kick (smoothed ×1.08 while sprinting)
+- [x] Clouds: single drifting translucent plane at y=140, seeded blocky pattern, world-anchored, day/night dimmed
+- [x] Survival mode: HP hearts HUD, fall damage (3 safe blocks, water cancels), death→respawn, hold-to-break with per-block times + progress bar; mode chosen at world creation and persisted
+- [x] Ore veins: 3D-noise pockets (block id 14) in the stone band y∈[5,60]
+- [x] Procedural WebAudio block-tap sounds (per-block pitched blip + noise tap, zero assets)
