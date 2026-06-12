@@ -1,8 +1,11 @@
 # Voxelheim
 
 An infinite, procedurally generated voxel sandbox that runs entirely in your
-browser — no backend, no assets, no frameworks. Walk an endless world, dig
-caves, build with nine block types, and it all saves locally.
+browser — no backend, no asset files, no frameworks. Mine a tiered tech tree,
+survive hungry nights against ranged and melee mobs, light caves with real
+flood-filled lighting, cross biomes from jungle to snow, and step through a
+rift into a second dimension. Every texture is painted procedurally at boot;
+it all saves locally.
 
 > _Screenshot placeholder — run the game and take one! (F3 overlay shows live
 > performance metrics.)_
@@ -31,34 +34,48 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
 | **Left click** | break block |
 | **Right click** | place block |
 | **1–9 / wheel** | hotbar selection |
+| **Left click** | break / hunt / fight |
+| **Right click** | place / eat / plant sapling / use furnace, chest, rift |
 | **E** | inventory & crafting (survival) |
+| **G** | guide book (controls + every recipe) |
+| **Tab** | status panel (health, hunger, biome time, threats) |
 | **F3** | debug overlay |
 | **Esc** | pause menu |
 
 ## What's inside
 
-- **Infinite terrain** from seeded simplex noise: continents, hills, beaches,
-  oceans, snow caps, 3D-noise caves and trees. Same seed → byte-identical
-  world, always.
-- **Procedural everything**: all 15 block textures are painted at boot onto a
-  256×256 canvas atlas from a seeded PRNG. Zero asset files.
-- **Creative-lite gameplay**: instant break, infinite blocks, fly mode, water
-  swimming, AABB physics with exact-contact collision.
+- **Infinite terrain** from seeded simplex noise: continents, mountains,
+  beaches, oceans, snow caps, two cave systems (rooms + winding tunnels),
+  trees, and **biomes** — plains, forest, desert, savanna, snowy, and dense
+  **jungle**. Same seed → byte-identical world, always.
+- **Procedural everything**: every block and item texture is painted at boot
+  onto a canvas atlas from a seeded PRNG. Zero asset files, zero downloads.
 - **A real voxel light engine**: flood-filled sky light (caves are genuinely
   dark, forest floors dappled, water dims with depth) plus block light from
-  craftable lanterns — smoothed per vertex and combined in a tiny custom
-  shader with baked face shading and ambient occlusion, so lantern light
-  keeps glowing through the night. No scene lights, no normals.
-- **Local persistence**: edited chunks (RLE-compressed) and the player state
-  autosave to IndexedDB every 10s; reload and pick up where you left off.
-- **Stretch extras**: sprint FOV kick, drifting blocky clouds, an optional
-  survival mode (hearts, hunger, fall damage, timed breaking — tick the box
-  on the title screen), ore veins to mine, hostile mobs after dark, and
-  synthesized block-tap sounds.
-- **Survival depth**: a 36-slot inventory with drops and stacking, a crafting
-  recipe book (logs → planks → sticks → pickaxe tiers that mine faster and
-  unlock ore), placement that consumes items, and furnace smelting, hunger, hostile night mobs, chests for storage, and
-  two-system caves (rooms + winding tunnels). Punch a tree and work your way up.
+  lanterns and glowing ore — smoothed per vertex and combined in a tiny
+  custom shader with baked face shading and ambient occlusion, so lantern
+  light keeps glowing through the night. No scene lights, no normals.
+- **A mining tech tree**: coal, iron, copper, gold, and deep gem geodes, each
+  gated behind the right pickaxe tier (wood → stone → copper → iron → gold →
+  gem). Smelt ore in a furnace (with fuel) into ingots; craft up the ladder.
+- **Survival loop**: hearts and a hunger bar, fall damage (water breaks a
+  fall), eat hunted meat to refill hunger, natural regen when well-fed,
+  starvation when empty, a damage vignette, and a death screen. Renewable
+  wood via saplings.
+- **Creatures**: two flocking passive species that favour their biomes
+  (woollies in the cold, trundlers in the green), plus night mobs — melee
+  stalkers that chase you and ranged spitters that lob projectiles, all
+  burning off at dawn.
+- **Building & storage**: a 36-slot inventory with a click/right-click held
+  cursor, stacking and drops, placeable chests with their own inventories,
+  furnaces, and lanterns.
+- **A second dimension**: craft a **riftframe**, right-click it, and travel to
+  the **underworld** — an enclosed ashstone cavern realm lit by emberrock,
+  always dark and dangerous, with its own per-dimension save data.
+- **Local persistence**: edited chunks (RLE-compressed) plus player and world
+  state autosave to IndexedDB every 10s; reload and pick up where you left off.
+- **Polish**: day/night with synced sky/fog, drifting clouds, sprint FOV kick,
+  an in-game guide (G), a status panel (Tab), and synthesized block sounds.
 
 ## Architecture
 
@@ -134,7 +151,7 @@ on `beforeunload`, and via the pause menu's Save.
 
 ## Development notes
 
-- `npm test` — 160+ tests over the pure core: chunk index math, worldgen
+- `npm test` — 200+ tests over the pure core: chunk index math, worldgen
   determinism (checksummed), mesher culling/AO/winding, raycast DDA, AABB
   physics, RLE codec, placement rules, survival fall damage and break times,
   plus headless streaming/persistence integration through a synchronous
