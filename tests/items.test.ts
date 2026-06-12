@@ -122,3 +122,19 @@ describe('ore item names and icons resolve', () => {
     }
   });
 });
+
+describe('geode gems', () => {
+  it('crystal needs a stone+ pickaxe and drops a gem', () => {
+    expect(dropFor(Block.crystal, 0)).toBeNull();
+    expect(dropFor(Block.crystal, Item.woodPickaxe)).toBeNull();
+    expect(dropFor(Block.crystal, Item.stonePickaxe)).toEqual({ id: Item.gem, count: 1 });
+    expect(dropFor(Block.crystal, Item.gemPickaxe)).toEqual({ id: Item.gem, count: 1 });
+  });
+
+  it('gem pickaxe is the apex tier and mines stone fastest', () => {
+    expect(pickaxeTier(Item.gemPickaxe)).toBe(6);
+    expect(breakSecondsFor(Block.stone, Item.gemPickaxe)).toBeLessThan(
+      breakSecondsFor(Block.stone, Item.goldPickaxe),
+    );
+  });
+});

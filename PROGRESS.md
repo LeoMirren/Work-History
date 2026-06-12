@@ -159,3 +159,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Dimension switching in main: save current realm, build the target World, deterministic safe-landing teleport (findSafeSpawnY), keep player inventory/hp/hunger
 - [x] Per-dimension persistence: chunk keys namespaced (o:/u:) so realms never collide; meta stores the active dimension and resumes into it
 - [x] Underworld atmosphere: dark ember sky/fog, sun never reaches it; hostiles treat it as always-night
+
+## Post-spec: Underground geodes & gems
+
+- [x] Rare hollow crystal geodes deep in the stone — one candidate per chunk (deterministic hash), kept chunk-local, only carving solid cells so they never float
+- [x] New blocks: geodeshell, crystal (glow 7); crystal needs a stone+ pickaxe and drops gems
+- [x] Gem item + gem pickaxe (apex tier 6, fastest mining), extending the tool ladder

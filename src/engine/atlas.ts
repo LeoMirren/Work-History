@@ -51,6 +51,10 @@ export const Tiles = {
   ashstone: 36,
   emberrock: 37,
   riftframe: 38,
+  geodeshell: 39,
+  crystal: 40,
+  gem: 41,
+  gemPickaxe: 42,
 } as const;
 
 type Rng = () => number;
@@ -568,6 +572,47 @@ const paintRiftframe: TilePainter = (set, rng) => {
   }
 };
 
+/** Knobbly dark mineral shell that lines a geode. */
+const paintGeodeShell: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      let l = 96 + jitter(rng, 26);
+      if (rng() < 0.16) l -= 26;
+      set(x, y, l, l - 6, l + 4);
+    }
+  }
+};
+
+/** Faceted violet crystal lining, faintly glowing. */
+const paintCrystal: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const facet = 0.5 + 0.5 * Math.sin((x + y) * 0.9 + Math.sin(x * 0.7) * 2);
+      const n = jitter(rng, 18);
+      set(x, y, 138 + facet * 70 + n, 96 + facet * 40 + n, 196 + facet * 50 + n);
+    }
+  }
+};
+
+/** Cut gemstone item on a transparent tile. */
+const paintGem: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  const pts: Array<[number, number]> = [
+    [7, 2], [8, 2],
+    [5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5],
+    [4, 8], [5, 8], [6, 8], [7, 8], [8, 8], [9, 8], [10, 8], [11, 8],
+    [6, 11], [7, 11], [8, 11], [9, 11],
+    [7, 13], [8, 13],
+  ];
+  for (const [x, y] of pts) {
+    const n = jitter(rng, 28);
+    set(x, y, 150 + n, 110 + n, 224 + n * 0.5);
+  }
+  set(6, 4, 220, 200, 250); // glint
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -607,6 +652,10 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.ashstone, 'ashstone', paintAshstone],
   [Tiles.emberrock, 'emberrock', paintEmberrock],
   [Tiles.riftframe, 'riftframe', paintRiftframe],
+  [Tiles.geodeshell, 'geodeshell', paintGeodeShell],
+  [Tiles.crystal, 'crystal', paintCrystal],
+  [Tiles.gem, 'gem', paintGem],
+  [Tiles.gemPickaxe, 'gemPickaxe', paintPickaxe(150, 120, 220)],
   [Tiles.lantern, 'lantern', paintLantern],
 ];
 

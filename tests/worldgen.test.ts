@@ -103,6 +103,23 @@ describe('worldgen content rules', () => {
 
   it('carves caves but never under low/ocean columns', () => {
     let caveAir = 0;
+    /** True if a crystal/geodeshell sits within radius 5 — i.e., sealed geode air. */
+    const nearGeode = (data: Uint8Array, x: number, y: number, z: number): boolean => {
+      for (let dy = -5; dy <= 5; dy++) {
+        const yy = y + dy;
+        if (yy < 1 || yy >= CHUNK_HEIGHT) continue;
+        for (let dz = -5; dz <= 5; dz++) {
+          for (let dx = -5; dx <= 5; dx++) {
+            const xx = x + dx;
+            const zz = z + dz;
+            if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
+            const id = data[blockIndex(xx, yy, zz)];
+            if (id === Block.crystal || id === Block.geodeshell) return true;
+          }
+        }
+      }
+      return false;
+    };
     for (let cz = -4; cz <= 4; cz++) {
       for (let cx = -4; cx <= 4; cx++) {
         const data = gen.generateChunk(cx, cz);
@@ -110,7 +127,7 @@ describe('worldgen content rules', () => {
           for (let x = 0; x < CHUNK_SIZE; x++) {
             const h = gen.heightAt(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
             for (let y = 1; y <= h - 6 && y < h; y++) {
-              if (data[blockIndex(x, y, z)] === Block.air) {
+              if (data[blockIndex(x, y, z)] === Block.air && !nearGeode(data, x, y, z)) {
                 caveAir++;
                 expect(h).toBeGreaterThanOrEqual(SEA_LEVEL + 2);
                 expect(y).toBeGreaterThanOrEqual(5);
@@ -270,5 +287,36 @@ describe('portal landing (findSafeSpawnY)', () => {
       }
     }
     expect(landTested).toBeGreaterThan(0);
+  });
+});
+
+describe('geodes', () => {
+  it('generates crystal-lined geodes deep underground, deterministically', () => {
+    const gen = createGenerator(SEED, 'overworld');
+    let crystal = 0;
+    let shell = 0;
+    let minCrystalY = 128;
+    let maxCrystalY = 0;
+    for (let cz = -8; cz <= 8; cz++) {
+      for (let cx = -8; cx <= 8; cx++) {
+        const data = gen.generateChunk(cx, cz);
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] === Block.crystal) {
+            crystal++;
+            const y = i >> 8;
+            minCrystalY = Math.min(minCrystalY, y);
+            maxCrystalY = Math.max(maxCrystalY, y);
+          } else if (data[i] === Block.geodeshell) {
+            shell++;
+          }
+        }
+      }
+    }
+    expect(crystal).toBeGreaterThan(0);
+    expect(shell).toBeGreaterThan(0);
+    expect(minCrystalY).toBeGreaterThanOrEqual(1);
+    expect(maxCrystalY).toBeLessThan(50); // deep underground
+    // Determinism: same chunk regenerates identically.
+    expect(gen.generateChunk(3, -5)).toEqual(createGenerator(SEED, 'overworld').generateChunk(3, -5));
   });
 });

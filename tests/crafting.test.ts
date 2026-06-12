@@ -138,3 +138,13 @@ describe('smelting', () => {
     expect(inv.countOf(Block.glass)).toBe(1);
   });
 });
+
+describe('gem pickaxe recipe', () => {
+  it('crafts from gems and sticks', () => {
+    const inv = new Inventory();
+    inv.add(Item.gem, 3);
+    inv.add(Item.stick, 2);
+    expect(craft(inv, recipe('gem pickaxe'), NO_FURNACE)).toBe(true);
+    expect(inv.countOf(Item.gemPickaxe)).toBe(1);
+  });
+});

@@ -101,6 +101,16 @@ export const RECIPES: readonly Recipe[] = [
       { id: Item.stick, count: 2 },
     ],
   },
+  {
+    name: 'gem pickaxe',
+    station: 'craft',
+    output: Item.gemPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.gem, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
   // Smelting (furnace + fuel).
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
   { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },

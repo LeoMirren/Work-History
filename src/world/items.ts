@@ -19,6 +19,8 @@ export const Item = {
   goldIngot: 109,
   copperPickaxe: 110,
   goldPickaxe: 111,
+  gem: 112,
+  gemPickaxe: 113,
 } as const;
 
 /** Hunger restored when eating meat (RMB while holding it). */
@@ -32,6 +34,7 @@ const PICKAXES = new Set<number>([
   Item.copperPickaxe,
   Item.ironPickaxe,
   Item.goldPickaxe,
+  Item.gemPickaxe,
 ]);
 
 export function isBlockId(id: number): boolean {
@@ -59,6 +62,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.goldIngot]: Tiles.goldIngot,
   [Item.copperPickaxe]: Tiles.copperPickaxe,
   [Item.goldPickaxe]: Tiles.goldPickaxe,
+  [Item.gem]: Tiles.gem,
+  [Item.gemPickaxe]: Tiles.gemPickaxe,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -80,6 +85,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.goldIngot]: 'gold ingot',
   [Item.copperPickaxe]: 'copper pickaxe',
   [Item.goldPickaxe]: 'gold pickaxe',
+  [Item.gem]: 'gem',
+  [Item.gemPickaxe]: 'gem pickaxe',
 };
 
 export function itemName(id: number): string {
@@ -99,13 +106,15 @@ export function pickaxeTier(heldId: number): number {
       return 4;
     case Item.goldPickaxe:
       return 5;
+    case Item.gemPickaxe:
+      return 6;
     default:
       return 0;
   }
 }
 
-/** Mining-speed multiplier by tier (gold is fast but soft — a luxury tool). */
-const TIER_SPEED = [1, 2, 4, 5, 6, 9] as const;
+/** Mining-speed multiplier by tier (gold is fast-but-soft; gem is the apex). */
+const TIER_SPEED = [1, 2, 4, 5, 6, 9, 12] as const;
 const ORE_WRONG_TOOL_PENALTY = 5;
 
 interface OreInfo {
@@ -121,6 +130,8 @@ export const ORES: ReadonlyMap<number, OreInfo> = new Map<number, OreInfo>([
   [Block.ore, { drop: { id: Block.ore, count: 1 }, requiredTier: 2 }],
   [Block.copperOre, { drop: { id: Block.copperOre, count: 1 }, requiredTier: 2 }],
   [Block.goldOre, { drop: { id: Block.goldOre, count: 1 }, requiredTier: 4 }],
+  // Geode crystal: needs a stone-tier pickaxe; drops 1-2 gems handled below.
+  [Block.crystal, { drop: { id: Item.gem, count: 1 }, requiredTier: 2 }],
 ]);
 
 /** Stone-family blocks a pickaxe speeds up (no tier gate, just faster). */

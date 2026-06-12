@@ -27,6 +27,10 @@ const COPPER_MAX_Y = 46;
 const GOLD_THRESHOLD = 0.84; // rare, deep
 const GOLD_MAX_Y = 28;
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
+const GEODE_CHANCE = 16; // ~1 chunk in 16 hosts a geode
+const GEODE_R = 4; // sphere radius; kept inside the chunk
+const GEODE_MIN_Y = 8;
+const GEODE_MAX_Y = 40;
 
 export const Biome = {
   plains: 0,
@@ -172,6 +176,7 @@ function createOverworld(seed: string): Generator {
   const copperN: NoiseFunction3D = seededNoise3D(seed, 'copper');
   const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
   const treeSeed = cyrb128(`${seed} trees`)[0];
+  const geodeSeed = cyrb128(`${seed} geodes`)[0];
 
   function biomeAt(wx: number, wz: number): number {
     const t = temperature(wx / 620, wz / 620);
@@ -277,10 +282,48 @@ function createOverworld(seed: string): Generator {
       }
     }
 
+    // Geodes: rare hollow crystal pockets deep underground. One candidate per
+    // chunk, kept fully inside the chunk so it never crosses a border.
+    const ghash = hash2(geodeSeed, cx, cz);
+    if (ghash % GEODE_CHANCE === 0) {
+      const gx = GEODE_R + 1 + ((ghash >>> 4) % (CHUNK_SIZE - 2 * (GEODE_R + 1)));
+      const gz = GEODE_R + 1 + ((ghash >>> 12) % (CHUNK_SIZE - 2 * (GEODE_R + 1)));
+      const gy = GEODE_MIN_Y + ((ghash >>> 20) % (GEODE_MAX_Y - GEODE_MIN_Y));
+      plantGeode(data, gx, gy, gz);
+    }
+
     return data;
   }
 
   return { seed, dimension: 'overworld', heightAt, biomeAt, generateChunk };
+}
+
+/**
+ * Carve a geode at local (gx, gy, gz): a hollow centre lined with crystal,
+ * wrapped in a shell. Only overwrites solid non-bedrock cells, so it never
+ * leaves floating shells where it meets a cavern.
+ */
+function plantGeode(data: Uint8Array, gx: number, gy: number, gz: number): void {
+  const inner = GEODE_R - 1.6;
+  const lining = GEODE_R - 0.5;
+  const shell = GEODE_R + 0.7;
+  for (let dy = -GEODE_R - 1; dy <= GEODE_R + 1; dy++) {
+    const y = gy + dy;
+    if (y < 1 || y >= CHUNK_HEIGHT) continue;
+    for (let dz = -GEODE_R - 1; dz <= GEODE_R + 1; dz++) {
+      for (let dx = -GEODE_R - 1; dx <= GEODE_R + 1; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d > shell) continue;
+        const i = blockIndex(gx + dx, y, gz + dz);
+        const cur = data[i] ?? Block.air;
+        if (d < inner) {
+          if (cur !== Block.bedrock) data[i] = Block.air; // hollow centre
+        } else if (cur !== Block.air && cur !== Block.bedrock) {
+          data[i] = d < lining ? Block.crystal : Block.geodeshell;
+        }
+      }
+    }
+  }
 }
 
 function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number): void {

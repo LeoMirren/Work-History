@@ -29,6 +29,8 @@ export const Block = {
   ashstone: 21,
   emberrock: 22,
   riftframe: 23,
+  geodeshell: 24,
+  crystal: 25,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -82,6 +84,8 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.ashstone, name: 'ashstone', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.ashstone) },
   { id: Block.emberrock, name: 'emberrock', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.6, tiles: tiles(T.emberrock) },
   { id: Block.riftframe, name: 'riftframe', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.riftframe) },
+  { id: Block.geodeshell, name: 'geodeshell', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.geodeshell) },
+  { id: Block.crystal, name: 'crystal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.crystal) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -104,6 +108,7 @@ for (const def of BLOCK_DEFS) {
 }
 LIGHT_EMIT[Block.lantern] = 14;
 LIGHT_EMIT[Block.emberrock] = 10;
+LIGHT_EMIT[Block.crystal] = 7;
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [
