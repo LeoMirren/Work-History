@@ -12,6 +12,8 @@ export const Item = {
   stonePickaxe: 102,
   ironPickaxe: 103,
   meat: 104,
+  charcoal: 105,
+  ingot: 106,
 } as const;
 
 /** Half-hearts restored when eating meat (RMB while holding it). */
@@ -45,6 +47,10 @@ export function iconTileFor(id: number): number {
       return Tiles.ironPickaxe;
     case Item.meat:
       return Tiles.meat;
+    case Item.charcoal:
+      return Tiles.charcoal;
+    case Item.ingot:
+      return Tiles.ingot;
     default:
       return 0;
   }
@@ -62,6 +68,10 @@ export function itemName(id: number): string {
       return 'iron pickaxe';
     case Item.meat:
       return 'meat';
+    case Item.charcoal:
+      return 'charcoal';
+    case Item.ingot:
+      return 'iron ingot';
     default:
       return `item ${id}`;
   }

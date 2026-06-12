@@ -408,3 +408,85 @@ body {
 .panel-value {
   text-align: right;
 }
+
+.smelt-hint {
+  font-size: 11px;
+  color: #ffd75e;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.guide-panel {
+  min-width: 640px;
+  max-width: 720px;
+}
+
+.guide-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.guide-tabs button {
+  flex: 1;
+  padding: 7px;
+  font-size: 13px;
+}
+
+.guide-tabs button.active {
+  background: #2c5e2e;
+  border-color: #4a8a4c;
+}
+
+.guide-body {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.guide-page h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #9db4e8;
+  margin: 10px 0 4px;
+}
+
+.guide-howto {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.guide-howto strong {
+  color: #ffd75e;
+}
+
+.guide-recipe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.guide-recipe canvas {
+  image-rendering: pixelated;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+}
+
+.guide-arrow {
+  min-width: 150px;
+}
+
+.guide-ingredient {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
+}
+
+.guide-smelt-note {
+  color: #ffb14e;
+  font-size: 11px;
+}

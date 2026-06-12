@@ -20,6 +20,7 @@ export const Block = {
   bedrock: 12,
   brick: 13,
   ore: 14,
+  furnace: 15,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -64,6 +65,7 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.bedrock, name: 'bedrock', solid: true, pass: PASS_OPAQUE, breakable: false, breakTime: Infinity, tiles: tiles(T.bedrock) },
   { id: Block.brick, name: 'brick', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.25, tiles: tiles(T.brick) },
   { id: Block.ore, name: 'ore', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.ore) },
+  { id: Block.furnace, name: 'furnace', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.5, tiles: tiles(T.furnaceSide, T.furnaceSide, T.furnaceFront) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */

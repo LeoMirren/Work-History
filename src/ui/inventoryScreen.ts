@@ -25,6 +25,7 @@ export class InventoryScreen {
   private atlasCanvas: HTMLCanvasElement | null = null;
   private selectedSlot = -1;
   private renderedVersion = -1;
+  private furnaceAvailable = false;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -68,9 +69,10 @@ export class InventoryScreen {
     parent.appendChild(this.root);
   }
 
-  open(inventory: Inventory, atlasCanvas: HTMLCanvasElement): void {
+  open(inventory: Inventory, atlasCanvas: HTMLCanvasElement, furnaceAvailable: boolean): void {
     this.inventory = inventory;
     this.atlasCanvas = atlasCanvas;
+    this.furnaceAvailable = furnaceAvailable;
     this.selectedSlot = -1;
     this.renderedVersion = -1;
     this.visible = true;
@@ -129,6 +131,13 @@ export class InventoryScreen {
     }
 
     this.recipeList.textContent = '';
+    const ctx = { furnaceAvailable: this.furnaceAvailable };
+    if (!this.furnaceAvailable) {
+      const note = document.createElement('div');
+      note.className = 'smelt-hint';
+      note.textContent = 'Stand by a furnace to smelt.';
+      this.recipeList.appendChild(note);
+    }
     for (const recipe of RECIPES) {
       const row = document.createElement('div');
       row.className = 'recipe-row';
@@ -139,14 +148,14 @@ export class InventoryScreen {
       const label = document.createElement('span');
       label.className = 'recipe-label';
       const ingredients = recipe.inputs.map((i) => `${i.count} ${nameFor(i.id)}`).join(' + ');
-      label.textContent = `${recipe.name} ×${recipe.outputCount}`;
-      label.title = ingredients;
+      label.textContent = `${recipe.name} ×${recipe.outputCount}${recipe.station === 'smelt' ? ' 🔥' : ''}`;
+      label.title = recipe.station === 'smelt' ? `${ingredients} (furnace + fuel)` : ingredients;
       const button = document.createElement('button');
-      const times = craftableCount(inv, recipe);
-      button.textContent = times > 0 ? `Craft (${times})` : 'Craft';
+      const times = craftableCount(inv, recipe, ctx);
+      button.textContent = times > 0 ? `Make (${times})` : recipe.station === 'smelt' ? 'Smelt' : 'Craft';
       button.disabled = times === 0;
       button.addEventListener('click', () => {
-        if (craft(inv, recipe)) this.render();
+        if (craft(inv, recipe, ctx)) this.render();
       });
       row.append(icon, label, button);
       this.recipeList.appendChild(row);

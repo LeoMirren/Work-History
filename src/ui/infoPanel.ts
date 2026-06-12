@@ -3,20 +3,7 @@
  * position, time of day and nearby wildlife. DOM-only; main feeds status at
  * the debug cadence.
  */
-const CONTROLS: ReadonlyArray<readonly [string, string]> = [
-  ['W A S D', 'move'],
-  ['Space', 'jump / swim / fly up'],
-  ['Shift', 'sneak / fly down'],
-  ['Ctrl / 2×W', 'sprint'],
-  ['F', 'toggle fly (creative)'],
-  ['LMB', 'break / hunt'],
-  ['RMB', 'place / eat'],
-  ['1-9, wheel', 'hotbar'],
-  ['E', 'inventory & crafting'],
-  ['Tab', 'this panel'],
-  ['F3', 'debug overlay'],
-  ['Esc', 'pause menu'],
-];
+import { CONTROLS } from './controls';
 
 export interface PanelStatus {
   hp: number;

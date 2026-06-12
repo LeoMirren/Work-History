@@ -33,6 +33,10 @@ export const Tiles = {
   stonePickaxe: 18,
   ironPickaxe: 19,
   meat: 20,
+  furnaceSide: 21,
+  furnaceFront: 22,
+  charcoal: 23,
+  ingot: 24,
 } as const;
 
 type Rng = () => number;
@@ -353,6 +357,71 @@ const paintMeat: TilePainter = (set, rng) => {
   }
 };
 
+/** Furnace side: dark dressed stone blocks. */
+const paintFurnaceSide: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const seam = x % 8 === 0 || y % 4 === 0;
+      const n = jitter(rng, 14);
+      const base = seam ? 70 : 104;
+      set(x, y, base + n, base + n, base + 2 + n);
+    }
+  }
+};
+
+/** Furnace front: stone frame around a dark arch with embers. */
+const paintFurnaceFront: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 14);
+      const inMouth = x >= 4 && x <= 11 && y >= 6 && y <= 13;
+      if (inMouth) {
+        if (y >= 11 && rng() < 0.5) {
+          const e = jitter(rng, 30);
+          set(x, y, 210 + e, 120 + e * 0.5, 40 + e * 0.3); // ember
+        } else {
+          set(x, y, 18 + n * 0.3, 16 + n * 0.3, 18 + n * 0.3); // dark interior
+        }
+      } else {
+        const base = 104;
+        set(x, y, base + n, base + n, base + 2 + n);
+      }
+    }
+  }
+};
+
+/** Charcoal: dark lump with a faint sheen. */
+const paintCharcoal: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      if (Math.hypot(x - 7.5, y - 8) < 5.6) {
+        const n = jitter(rng, 18);
+        set(x, y, 38 + n, 36 + n, 40 + n);
+      }
+    }
+  }
+  for (let i = 5; i <= 8; i++) set(i, 5, 96, 96, 104); // sheen
+};
+
+/** Ingot: a rounded metal bar with a highlight. */
+const paintIngot: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 5; y <= 11; y++) {
+    for (let x = 3; x <= 12; x++) {
+      const inset = (y === 5 || y === 11) && (x === 3 || x === 12);
+      if (inset) continue;
+      const n = jitter(rng, 16);
+      set(x, y, 196 + n, 198 + n, 206 + n);
+    }
+  }
+  for (let x = 4; x <= 9; x++) set(x, 6, 232, 234, 240); // highlight
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -375,6 +444,10 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stonePickaxe, 'stonePickaxe', paintPickaxe(128, 128, 130)],
   [Tiles.ironPickaxe, 'ironPickaxe', paintPickaxe(208, 204, 200)],
   [Tiles.meat, 'meat', paintMeat],
+  [Tiles.furnaceSide, 'furnaceSide', paintFurnaceSide],
+  [Tiles.furnaceFront, 'furnaceFront', paintFurnaceFront],
+  [Tiles.charcoal, 'charcoal', paintCharcoal],
+  [Tiles.ingot, 'ingot', paintIngot],
 ];
 
 /**

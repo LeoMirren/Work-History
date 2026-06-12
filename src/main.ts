@@ -19,6 +19,8 @@ import { MAX_HP, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
+import { Guide } from './ui/guide';
+import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator } from './world/worldgen';
@@ -89,7 +91,24 @@ async function boot(): Promise<void> {
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   const inventory = new Inventory();
   const inventoryScreen = new InventoryScreen(app);
+  const guide = new Guide(app);
+  let guideOpen = false;
   const infoPanel = new InfoPanel(app);
+
+  /** A furnace block within a small box around the player (smelting station). */
+  function furnaceNearby(world: World): boolean {
+    const fx = Math.floor(player.body.x);
+    const fy = Math.floor(player.body.y);
+    const fz = Math.floor(player.body.z);
+    for (let dy = -1; dy <= 2; dy++) {
+      for (let dz = -4; dz <= 4; dz++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          if (world.getBlock(fx + dx, fy + dy, fz + dz) === Block.furnace) return true;
+        }
+      }
+    }
+    return false;
+  }
   const animals = new AnimalSystem(gr.scene);
   interaction.animals = animals;
   let inventoryOpen = false;
@@ -221,6 +240,10 @@ async function boot(): Promise<void> {
       inventoryScreen.close();
       inventoryOpen = false;
     }
+    if (guideOpen) {
+      guide.close();
+      guideOpen = false;
+    }
 
     session = { seed, mode, world, texture, atlasCanvas, persistedKeys };
     menus.setPauseSeed(seed);
@@ -270,7 +293,7 @@ async function boot(): Promise<void> {
   input.onLockChange = (locked) => {
     if (locked) {
       menus.hidePause();
-    } else if (session && !inventoryOpen) {
+    } else if (session && !inventoryOpen && !guideOpen) {
       menus.showPause();
     }
   };
@@ -355,7 +378,21 @@ async function boot(): Promise<void> {
           }
         } else if (input.locked && input.takePressed('KeyE')) {
           inventoryOpen = true;
-          inventoryScreen.open(inventory, session.atlasCanvas);
+          inventoryScreen.open(inventory, session.atlasCanvas, furnaceNearby(session.world));
+          document.exitPointerLock();
+        }
+      }
+      // Guide book (G) — available in any mode; also swaps pointer lock.
+      if (session) {
+        if (guideOpen) {
+          if (input.takePressed('KeyG') || input.takePressed('Escape')) {
+            guide.close();
+            guideOpen = false;
+            input.requestLock();
+          }
+        } else if (input.locked && !inventoryOpen && input.takePressed('KeyG')) {
+          guideOpen = true;
+          guide.open(session.atlasCanvas);
           document.exitPointerLock();
         }
       }
