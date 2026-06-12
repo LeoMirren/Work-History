@@ -101,3 +101,44 @@ describe('player damage', () => {
     expect(builder.hp).toBe(20); // immune in creative
   });
 });
+
+describe('ranged spitters', () => {
+  it('fire projectiles at the player and hold their distance', () => {
+    const { system } = makeSystem();
+    // A ranged spitter 12 blocks from the player.
+    const s = system.spawnAt(12.5, 11, 0.5, true);
+    expect(s.ranged).toBe(true);
+    let hits = 0;
+    for (let i = 0; i < 60 * 3; i++) {
+      system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, () => hits++);
+    }
+    // It launched projectiles (some may still be flying) and hit the player.
+    expect(hits).toBeGreaterThan(0);
+    // It kept roughly its preferred distance, not melee range.
+    expect(Math.abs(s.body.x - 0.5)).toBeGreaterThan(3);
+  });
+
+  it('projectiles stop at terrain', () => {
+    // Wall the player off: solid everywhere x>=6, so shots never connect.
+    const walled: WorldView = {
+      isSolid: (x, y, _z) => y <= 9 || x >= 6,
+      getBlock: (x, y, _z) => (y <= 9 || x >= 6 ? Block.stone : Block.air),
+    };
+    const scene = new THREE.Scene();
+    const system = new HostileSystem(scene, mulberry32(2));
+    system.setWorld(walled);
+    system.spawnAt(12.5, 11, 0.5, true);
+    let hits = 0;
+    for (let i = 0; i < 60 * 3; i++) system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, () => hits++);
+    expect(hits).toBe(0); // every shot dies on the wall
+  });
+
+  it('clears projectiles on world reset', () => {
+    const { system } = makeSystem();
+    system.spawnAt(12.5, 11, 0.5, true);
+    for (let i = 0; i < 60; i++) system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, () => {});
+    system.setWorld(null);
+    expect(system.projectileCount).toBe(0);
+    expect(system.count).toBe(0);
+  });
+});

@@ -139,3 +139,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Second passive species (woolly) alongside the trundler — distinct size/colour, shared static materials, both drop meat
 - [x] Species chosen at spawn (deterministic via the system rng); population cap raised to 12
 - [x] Gentle flocking: same-species animals steer toward their herd centroid within range, so herds drift together
+
+## Post-spec: Ranged hostiles (spitters)
+
+- [x] Spitter variant of the night hostile: greenish, holds a preferred distance, lobs projectiles at the player from range
+- [x] Projectile system: straight-flight shots that damage on a player AABB hit, die on terrain or after a lifetime; cleared on world reset
+- [x] Melee gated to non-ranged stalkers so spitters kite instead of double-attacking

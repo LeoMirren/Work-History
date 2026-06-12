@@ -35,8 +35,20 @@ const ATTACK_DAMAGE = 2;
 const ATTACK_COOLDOWN_S = 1.0;
 const SUNBURN_S = 4;
 
+// Ranged "spitter" variant.
+const RANGED_CHANCE = 0.4;
+const PREFERRED_RANGE = 9; // spitters hold this distance
+const FIRE_RANGE = 18;
+const FIRE_COOLDOWN_S = 2.2;
+const PROJECTILE_SPEED = 15;
+const PROJECTILE_DAMAGE = 2;
+const PROJECTILE_LIFE_S = 3;
+const PLAYER_HALF_WIDTH = 0.3;
+const PLAYER_HEIGHT = 1.8;
+
 export interface Stalker {
   readonly body: Body;
+  readonly ranged: boolean;
   yaw: number;
   hp: number;
   attackCd: number;
@@ -45,16 +57,37 @@ export interface Stalker {
   readonly group: THREE.Group;
 }
 
+interface Projectile {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
+  readonly mesh: THREE.Mesh;
+}
+
 const torsoMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2f3a });
 const headMaterial = new THREE.MeshBasicMaterial({ color: 0x3a4150 });
+const spitterTorsoMaterial = new THREE.MeshBasicMaterial({ color: 0x2f3a2b });
+const spitterHeadMaterial = new THREE.MeshBasicMaterial({ color: 0x66a04a });
+const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0x9bd24a });
+const projectileGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
 
-function makeStalkerMesh(): THREE.Group {
+function makeStalkerMesh(ranged: boolean): THREE.Group {
   const group = new THREE.Group();
   group.name = 'entity';
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.2, 0.4), torsoMaterial);
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 1.2, 0.4),
+    ranged ? spitterTorsoMaterial : torsoMaterial,
+  );
   torso.name = 'entity';
   torso.position.set(0, 0.85, 0);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), headMaterial);
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 0.45, 0.45),
+    ranged ? spitterHeadMaterial : headMaterial,
+  );
   head.name = 'entity';
   head.position.set(0, 1.65, 0);
   group.add(torso, head);
@@ -63,6 +96,7 @@ function makeStalkerMesh(): THREE.Group {
 
 export class HostileSystem {
   readonly stalkers: Stalker[] = [];
+  private readonly projectiles: Projectile[] = [];
   private world: WorldView | null = null;
   private spawnTimer = 0;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
@@ -80,6 +114,8 @@ export class HostileSystem {
   clear(): void {
     for (const s of this.stalkers) this.scene.remove(s.group);
     this.stalkers.length = 0;
+    for (const p of this.projectiles) this.scene.remove(p.mesh);
+    this.projectiles.length = 0;
     this.spawnTimer = 0;
   }
 
@@ -87,15 +123,21 @@ export class HostileSystem {
     return this.stalkers.length;
   }
 
-  spawnAt(x: number, y: number, z: number): Stalker {
+  get projectileCount(): number {
+    return this.projectiles.length;
+  }
+
+  spawnAt(x: number, y: number, z: number, ranged?: boolean): Stalker {
+    const isRanged = ranged ?? this.random() < RANGED_CHANCE;
     const stalker: Stalker = {
       body: createBody(x, y, z),
+      ranged: isRanged,
       yaw: this.random() * Math.PI * 2,
       hp: STALKER_HP,
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
-      group: makeStalkerMesh(),
+      group: makeStalkerMesh(isRanged),
     };
     this.scene.add(stalker.group);
     this.stalkers.push(stalker);
@@ -162,6 +204,7 @@ export class HostileSystem {
       s.group.position.set(s.body.x, s.body.y, s.body.z);
       s.group.rotation.set(0, s.yaw, 0);
     }
+    this.updateProjectiles(dt, px, py, pz, hitPlayer);
   }
 
   private step(
@@ -178,10 +221,24 @@ export class HostileSystem {
     if (s.attackCd > 0) s.attackCd -= dt;
 
     const aggro = distSq < AGGRO_RANGE * AGGRO_RANGE;
-    if (aggro) {
+    const horiz = Math.max(0.001, Math.hypot(px - body.x, pz - body.z));
+    if (aggro && s.ranged) {
+      // Spitter: face the player and hold the preferred range — back off when
+      // too close, sidle in when too far, otherwise strafe to a near-stop.
+      s.yaw = Math.atan2(px - body.x, pz - body.z);
+      const dist = Math.sqrt(distSq);
+      const toward = (dist - PREFERRED_RANGE) / Math.max(2, PREFERRED_RANGE);
+      const drive = Math.max(-1, Math.min(1, toward)) * MOVE_SPEED;
+      body.vx = ((px - body.x) / horiz) * drive;
+      body.vz = ((pz - body.z) / horiz) * drive;
+      if (s.attackCd <= 0 && dist < FIRE_RANGE) {
+        this.fire(s, px, py, pz);
+        s.attackCd = FIRE_COOLDOWN_S;
+      }
+    } else if (aggro) {
       s.yaw = Math.atan2(px - body.x, pz - body.z); // face the player
-      body.vx = (px - body.x) / Math.max(0.001, Math.hypot(px - body.x, pz - body.z)) * MOVE_SPEED;
-      body.vz = (pz - body.z) / Math.max(0.001, Math.hypot(px - body.x, pz - body.z)) * MOVE_SPEED;
+      body.vx = ((px - body.x) / horiz) * MOVE_SPEED;
+      body.vz = ((pz - body.z) / horiz) * MOVE_SPEED;
     } else {
       s.wanderTimer -= dt;
       if (s.wanderTimer <= 0) {
@@ -209,11 +266,80 @@ export class HostileSystem {
       body.vy = HOP_VELOCITY; // climb obstacles toward the player
     }
 
-    // Melee: in range (including vertical), off cooldown.
+    // Melee (non-ranged only): in range including vertical, off cooldown.
     const dyEye = Math.abs(body.y - py);
-    if (aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
+    if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
       hitPlayer(ATTACK_DAMAGE);
       s.attackCd = ATTACK_COOLDOWN_S;
+    }
+  }
+
+  /** Launch a projectile from the spitter's head toward the player's chest. */
+  private fire(s: Stalker, px: number, py: number, pz: number): void {
+    const ox = s.body.x;
+    const oy = s.body.y + STALKER_HEIGHT * 0.85;
+    const oz = s.body.z;
+    const tx = px;
+    const ty = py + 1.0; // aim at the torso
+    const tz = pz;
+    const len = Math.max(0.001, Math.hypot(tx - ox, ty - oy, tz - oz));
+    const mesh = new THREE.Mesh(projectileGeometry, projectileMaterial);
+    mesh.name = 'entity';
+    mesh.position.set(ox, oy, oz);
+    this.scene.add(mesh);
+    this.projectiles.push({
+      x: ox,
+      y: oy,
+      z: oz,
+      vx: ((tx - ox) / len) * PROJECTILE_SPEED,
+      vy: ((ty - oy) / len) * PROJECTILE_SPEED,
+      vz: ((tz - oz) / len) * PROJECTILE_SPEED,
+      life: PROJECTILE_LIFE_S,
+      mesh,
+    });
+  }
+
+  /** Integrate projectiles; despawn on terrain or expiry, damage on player hit. */
+  private updateProjectiles(
+    dt: number,
+    px: number,
+    py: number,
+    pz: number,
+    hitPlayer: (damage: number) => void,
+  ): void {
+    const world = this.world;
+    if (!world) return;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (!p) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      p.life -= dt;
+      let dead = p.life <= 0;
+      // Terrain collision.
+      if (!dead && SOLID[world.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))] === 1) {
+        dead = true;
+      }
+      // Player AABB hit.
+      if (
+        !dead &&
+        p.x > px - PLAYER_HALF_WIDTH &&
+        p.x < px + PLAYER_HALF_WIDTH &&
+        p.z > pz - PLAYER_HALF_WIDTH &&
+        p.z < pz + PLAYER_HALF_WIDTH &&
+        p.y > py &&
+        p.y < py + PLAYER_HEIGHT
+      ) {
+        hitPlayer(PROJECTILE_DAMAGE);
+        dead = true;
+      }
+      if (dead) {
+        this.scene.remove(p.mesh);
+        this.projectiles.splice(i, 1);
+      } else {
+        p.mesh.position.set(p.x, p.y, p.z);
+      }
     }
   }
 
