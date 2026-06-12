@@ -137,6 +137,16 @@ export function moveBody(solid: SolidFn, body: Body, dx: number, dy: number, dz:
   body.onGround = result.hitY && dy < 0;
 }
 
+export const MAX_HP = 20;
+
+/**
+ * Stretch §9 survival: fall damage in half-hearts; falls of 3 blocks or less
+ * are safe. Pure so it's directly testable.
+ */
+export function computeFallDamage(fallDistance: number): number {
+  return Math.max(0, Math.floor(fallDistance - 3));
+}
+
 /** Does the unit block cell at (bx,by,bz) intersect the body's AABB? (§4.8) */
 export function blockIntersectsBody(bx: number, by: number, bz: number, body: Body): boolean {
   return (

@@ -11,9 +11,9 @@ import { DayNight, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
-import { PlayerController } from './player/controller';
+import { PlayerController, type GameMode } from './player/controller';
 import { Interaction } from './player/interaction';
-import { PLAYER_HALF_WIDTH } from './player/physics';
+import { MAX_HP, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator } from './world/worldgen';
@@ -29,6 +29,7 @@ const AUTOSAVE_INTERVAL_MS = 10_000;
 
 interface Session {
   seed: string;
+  mode: GameMode;
   world: World;
   texture: THREE.Texture;
   persistedKeys: Set<string>;
@@ -93,6 +94,7 @@ async function boot(): Promise<void> {
     return {
       version: 1,
       seed: session?.seed ?? '',
+      mode: session?.mode ?? 'creative',
       player: {
         x: player.body.x,
         y: player.body.y,
@@ -100,6 +102,7 @@ async function boot(): Promise<void> {
         yaw: player.yaw,
         pitch: player.pitch,
         flying: player.flying,
+        hp: player.hp,
       },
       settings: { ...settings },
       timeOfDay: dayNight.time,
@@ -119,7 +122,12 @@ async function boot(): Promise<void> {
     return Promise.all(puts).catch((err) => console.error('save failed', err));
   }
 
-  function startSession(seed: string, resume: WorldMeta | null, persistedKeys: Set<string>): void {
+  function startSession(
+    seed: string,
+    mode: GameMode,
+    resume: WorldMeta | null,
+    persistedKeys: Set<string>,
+  ): void {
     if (session) {
       session.world.dispose();
       session.texture.dispose();
@@ -173,30 +181,37 @@ async function boot(): Promise<void> {
       player.teleport(resume.player.x, resume.player.y, resume.player.z);
       player.yaw = resume.player.yaw;
       player.pitch = resume.player.pitch;
-      player.flying = resume.player.flying;
+      player.flying = resume.player.flying === true;
+      const hp = resume.player.hp;
+      player.hp = Number.isFinite(hp) && hp >= 1 && hp <= MAX_HP ? Math.floor(hp) : MAX_HP;
       dayNight.time = resume.timeOfDay;
     } else {
       player.teleport(0.5, spawnY, 0.5);
       player.yaw = 0;
       player.pitch = 0;
       player.flying = false;
+      player.hp = MAX_HP;
       dayNight.time = NOON_TIME;
     }
+    player.setMode(mode);
+    interaction.mode = mode;
+    hud.setSurvivalVisible(mode === 'survival');
 
-    session = { seed, world, texture, persistedKeys };
+    session = { seed, mode, world, texture, persistedKeys };
     menus.setPauseSeed(seed);
   }
 
+  const savedMode: GameMode = savedMeta?.mode === 'survival' ? 'survival' : 'creative';
   const menus = new Menus(app, {
-    onPlay: (seed) => {
+    onPlay: (seed, survival) => {
       void (async () => {
         if (savedMeta && savedMeta.seed === seed) {
           applySettings(savedMeta.settings);
           menus.applySettings(savedMeta.settings);
-          startSession(seed, savedMeta, new Set(await storage.listChunkKeys()));
+          startSession(seed, savedMode, savedMeta, new Set(await storage.listChunkKeys()));
         } else {
           await storage.clearAll();
-          startSession(seed, null, new Set());
+          startSession(seed, survival ? 'survival' : 'creative', null, new Set());
         }
         menus.hideTitle();
         input.requestLock();
@@ -207,7 +222,8 @@ async function boot(): Promise<void> {
     onNewWorld: (seed) => {
       void (async () => {
         await storage.clearAll();
-        startSession(seed, null, new Set());
+        // New worlds from the pause menu keep the current session's mode.
+        startSession(seed, session?.mode ?? 'creative', null, new Set());
         menus.hidePause();
         input.requestLock();
       })();
@@ -219,6 +235,7 @@ async function boot(): Promise<void> {
   });
   if (savedMeta) {
     menus.setTitleSeed(savedMeta.seed);
+    menus.setTitleSurvival(savedMode === 'survival');
     menus.applySettings(savedMeta.settings);
     applySettings(savedMeta.settings);
   } else {
@@ -308,7 +325,11 @@ async function boot(): Promise<void> {
         const wheel = input.takeWheel();
         if (wheel !== 0) hud.stepSlot(wheel > 0 ? 1 : -1);
         if (input.takePressed('F3')) hud.toggleDebug();
-        interaction.update(input, session.world, player, hud.selectedBlock);
+        interaction.update(input, session.world, player, hud.selectedBlock, frameDt);
+        if (session.mode === 'survival') {
+          hud.setHealth(player.hp);
+          hud.setBreakProgress(interaction.breakProgress);
+        }
       }
       player.applyToCamera(gr.camera, alpha);
       session?.world.update(player.body.x, player.body.z);

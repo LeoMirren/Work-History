@@ -4,12 +4,13 @@
  * (no inertia); vertical velocity persists for gravity/jumps.
  */
 import type { PerspectiveCamera } from 'three';
-import type { Input } from '../engine/input';
 import { Block } from '../world/blocks';
 import {
   type Body,
+  computeFallDamage,
   createBody,
   EYE_HEIGHT,
+  MAX_HP,
   FLY_SPEED,
   GRAVITY,
   JUMP_VELOCITY,
@@ -30,9 +31,17 @@ const PITCH_LIMIT = Math.PI / 2 - 0.01;
 const DOUBLE_TAP_WINDOW = 0.3; // seconds between W taps to latch sprint
 const RESPAWN_Y = -10;
 
+export type GameMode = 'creative' | 'survival';
+
 export interface WorldView {
   isSolid: SolidFn;
   getBlock(x: number, y: number, z: number): number;
+}
+
+/** What the controller needs from input — Input satisfies it structurally. */
+export interface ControlInput {
+  isDown(code: string): boolean;
+  takePressed(code: string): boolean;
 }
 
 export class PlayerController {
@@ -44,6 +53,10 @@ export class PlayerController {
   inWater = false;
   /** True while sprint speed applies (drives the FOV kick). */
   sprinting = false;
+  mode: GameMode = 'creative';
+  hp = MAX_HP;
+  /** Highest y reached since last grounded, for fall damage. */
+  private peakY = 0;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;
@@ -62,6 +75,11 @@ export class PlayerController {
     this.spawnZ = z;
   }
 
+  setMode(mode: GameMode): void {
+    this.mode = mode;
+    if (mode === 'survival') this.flying = false;
+  }
+
   teleport(x: number, y: number, z: number): void {
     this.body.x = x;
     this.body.y = y;
@@ -72,6 +90,7 @@ export class PlayerController {
     this.prevX = x;
     this.prevY = y;
     this.prevZ = z;
+    this.peakY = y;
   }
 
   look(dx: number, dy: number, sensitivity: number): void {
@@ -81,14 +100,14 @@ export class PlayerController {
     if (this.pitch < -PITCH_LIMIT) this.pitch = -PITCH_LIMIT;
   }
 
-  fixedUpdate(input: Input, world: WorldView, dt: number): void {
+  fixedUpdate(input: ControlInput, world: WorldView, dt: number): void {
     this.time += dt;
     const body = this.body;
     this.prevX = body.x;
     this.prevY = body.y;
     this.prevZ = body.z;
 
-    if (input.takePressed('KeyF')) {
+    if (input.takePressed('KeyF') && this.mode !== 'survival') {
       this.flying = !this.flying;
       body.vy = 0;
     }
@@ -141,8 +160,32 @@ export class PlayerController {
 
     moveBody(world.isSolid, body, body.vx * dt, body.vy * dt, body.vz * dt, this.moveResult);
 
+    if (this.mode === 'survival') this.trackFall();
+
     if (body.y < RESPAWN_Y) {
       this.teleport(this.spawnX, this.spawnY, this.spawnZ);
+    }
+  }
+
+  /** Fall-damage bookkeeping: water entry and flight always break a fall. */
+  private trackFall(): void {
+    const body = this.body;
+    if (this.flying || this.inWater) {
+      this.peakY = body.y;
+    } else if (!body.onGround) {
+      if (body.y > this.peakY) this.peakY = body.y;
+    } else {
+      const damage = computeFallDamage(this.peakY - body.y);
+      if (damage > 0) this.applyDamage(damage);
+      this.peakY = body.y;
+    }
+  }
+
+  private applyDamage(amount: number): void {
+    this.hp = Math.max(0, this.hp - amount);
+    if (this.hp === 0) {
+      this.teleport(this.spawnX, this.spawnY, this.spawnZ);
+      this.hp = MAX_HP;
     }
   }
 

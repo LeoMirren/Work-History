@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export interface MenuCallbacks {
-  onPlay(seed: string): void;
+  onPlay(seed: string, survival: boolean): void;
   onResume(): void;
   onSave(): void;
   onNewWorld(seed: string): void;
@@ -29,6 +29,7 @@ export class Menus {
   private readonly title: HTMLDivElement;
   private readonly pause: HTMLDivElement;
   private readonly titleSeedInput: HTMLInputElement;
+  private readonly survivalCheckbox: HTMLInputElement;
   private readonly pauseSeedInput: HTMLInputElement;
   private readonly saveButton: HTMLButtonElement;
   private readonly sliders: { rd: HTMLInputElement; sens: HTMLInputElement; fov: HTMLInputElement };
@@ -54,18 +55,27 @@ export class Menus {
     this.titleSeedInput.type = 'text';
     this.titleSeedInput.value = randomSeed();
     seedRow.append(seedLabel, this.titleSeedInput);
+    const modeRow = document.createElement('div');
+    modeRow.className = 'menu-row checkbox-row';
+    this.survivalCheckbox = document.createElement('input');
+    this.survivalCheckbox.type = 'checkbox';
+    this.survivalCheckbox.id = 'survival-mode';
+    const modeLabel = document.createElement('label');
+    modeLabel.htmlFor = 'survival-mode';
+    modeLabel.textContent = 'Survival mode (HP, fall damage, timed breaking)';
+    modeRow.append(this.survivalCheckbox, modeLabel);
     const playButton = document.createElement('button');
     playButton.textContent = 'Play';
     playButton.className = 'primary';
     playButton.addEventListener('click', () => {
       const seed = this.titleSeedInput.value.trim() || randomSeed();
-      this.callbacks.onPlay(seed);
+      this.callbacks.onPlay(seed, this.survivalCheckbox.checked);
     });
     const controls = document.createElement('p');
     controls.className = 'controls-hint';
     controls.textContent =
       'WASD move · Space jump · Shift sneak · Ctrl sprint · F fly · LMB break · RMB place · 1-9 hotbar · F3 debug · Esc menu';
-    titlePanel.append(h1, tagline, seedRow, playButton, controls);
+    titlePanel.append(h1, tagline, seedRow, modeRow, playButton, controls);
     this.title.appendChild(titlePanel);
     parent.appendChild(this.title);
 
@@ -169,6 +179,10 @@ export class Menus {
 
   setTitleSeed(seed: string): void {
     this.titleSeedInput.value = seed;
+  }
+
+  setTitleSurvival(survival: boolean): void {
+    this.survivalCheckbox.checked = survival;
   }
 
   setPauseSeed(seed: string): void {

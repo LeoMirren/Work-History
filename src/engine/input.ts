@@ -7,6 +7,7 @@ export class Input {
   private readonly keysDown = new Set<string>();
   private readonly pressedQueue = new Set<string>();
   private readonly clickQueue: number[] = [];
+  private readonly buttonsDown = new Set<number>();
   private mouseDX = 0;
   private mouseDY = 0;
   private wheelAcc = 0;
@@ -28,8 +29,12 @@ export class Input {
       }
     });
     document.addEventListener('mousedown', (e) => {
-      if (this.locked) this.clickQueue.push(e.button);
+      if (this.locked) {
+        this.clickQueue.push(e.button);
+        this.buttonsDown.add(e.button);
+      }
     });
+    document.addEventListener('mouseup', (e) => this.buttonsDown.delete(e.button));
     document.addEventListener(
       'wheel',
       (e) => {
@@ -54,6 +59,11 @@ export class Input {
 
   isDown(code: string): boolean {
     return this.keysDown.has(code);
+  }
+
+  /** Mouse button currently held (0=left, 2=right). */
+  isButtonDown(button: number): boolean {
+    return this.buttonsDown.has(button);
   }
 
   /** True exactly once per physical key press. */
@@ -85,6 +95,7 @@ export class Input {
   clearTransient(): void {
     this.pressedQueue.clear();
     this.clickQueue.length = 0;
+    this.buttonsDown.clear();
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.wheelAcc = 0;

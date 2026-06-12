@@ -103,6 +103,63 @@ body {
   image-rendering: pixelated;
 }
 
+#hearts {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 20;
+  font-size: 18px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.heart {
+  color: #e23b3b;
+}
+
+.heart.half {
+  color: #e23b3b;
+  opacity: 0.55;
+}
+
+.heart.empty {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+#break-bar {
+  position: fixed;
+  top: 54%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#break-fill {
+  height: 100%;
+  width: 0;
+  background: #e8f0ff;
+  border-radius: 2px;
+}
+
+.menu-row.checkbox-row label {
+  flex: 1;
+  cursor: pointer;
+}
+
+.menu-row.checkbox-row input {
+  width: 18px;
+  height: 18px;
+}
+
 .menu-screen {
   position: fixed;
   inset: 0;

@@ -6,7 +6,8 @@
 export interface WorldMeta {
   version: 1;
   seed: string;
-  player: { x: number; y: number; z: number; yaw: number; pitch: number; flying: boolean };
+  mode: 'creative' | 'survival';
+  player: { x: number; y: number; z: number; yaw: number; pitch: number; flying: boolean; hp: number };
   settings: { renderDistance: number; mouseSensitivity: number; fov: number };
   timeOfDay: number;
 }

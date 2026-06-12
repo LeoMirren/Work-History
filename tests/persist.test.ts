@@ -18,7 +18,8 @@ import type { WorkerJob } from '../src/workers/protocol';
 const sampleMeta: WorldMeta = {
   version: 1,
   seed: 'persist-test',
-  player: { x: 1.5, y: 70, z: -3.5, yaw: 0.4, pitch: -0.2, flying: true },
+  mode: 'survival',
+  player: { x: 1.5, y: 70, z: -3.5, yaw: 0.4, pitch: -0.2, flying: true, hp: 13 },
   settings: { renderDistance: 6, mouseSensitivity: 1.4, fov: 90 },
   timeOfDay: 200,
 };

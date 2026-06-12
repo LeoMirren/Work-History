@@ -11,12 +11,38 @@ export class Hud {
   selectedSlot = 0;
   private readonly slots: HTMLDivElement[] = [];
   private readonly overlay: HTMLDivElement;
+  private readonly heartsRow: HTMLDivElement;
+  private readonly hearts: HTMLSpanElement[] = [];
+  private readonly breakBar: HTMLDivElement;
+  private readonly breakFill: HTMLDivElement;
+  private lastHp = -1;
+  private lastBreakPct = -1;
   private debugVisible = true;
 
   constructor(parent: HTMLElement, atlasCanvas: HTMLCanvasElement) {
     const crosshair = document.createElement('div');
     crosshair.id = 'crosshair';
     parent.appendChild(crosshair);
+
+    this.heartsRow = document.createElement('div');
+    this.heartsRow.id = 'hearts';
+    this.heartsRow.style.display = 'none';
+    for (let i = 0; i < 10; i++) {
+      const heart = document.createElement('span');
+      heart.className = 'heart';
+      heart.textContent = '♥';
+      this.heartsRow.appendChild(heart);
+      this.hearts.push(heart);
+    }
+    parent.appendChild(this.heartsRow);
+
+    this.breakBar = document.createElement('div');
+    this.breakBar.id = 'break-bar';
+    this.breakFill = document.createElement('div');
+    this.breakFill.id = 'break-fill';
+    this.breakBar.appendChild(this.breakFill);
+    this.breakBar.style.display = 'none';
+    parent.appendChild(this.breakBar);
 
     const hotbar = document.createElement('div');
     hotbar.id = 'hotbar';
@@ -74,6 +100,34 @@ export class Hud {
   stepSlot(steps: number): void {
     const n = this.slots.length;
     this.selectSlot((((this.selectedSlot + steps) % n) + n) % n);
+  }
+
+  /** Show/hide the survival widgets (hearts, break progress). */
+  setSurvivalVisible(visible: boolean): void {
+    this.heartsRow.style.display = visible ? 'flex' : 'none';
+    if (!visible) this.breakBar.style.display = 'none';
+    this.lastHp = -1;
+    this.lastBreakPct = -1;
+  }
+
+  /** hp in half-hearts, 0..20. DOM only touched when the value changes. */
+  setHealth(hp: number): void {
+    if (hp === this.lastHp) return;
+    this.lastHp = hp;
+    for (let i = 0; i < 10; i++) {
+      const heart = this.hearts[i];
+      if (!heart) continue;
+      heart.className = hp >= (i + 1) * 2 ? 'heart' : hp === i * 2 + 1 ? 'heart half' : 'heart empty';
+    }
+  }
+
+  /** Survival break progress 0..1; bar hidden at 0. */
+  setBreakProgress(progress: number): void {
+    const pct = Math.round(progress * 50) * 2; // 2% buckets to limit DOM writes
+    if (pct === this.lastBreakPct) return;
+    this.lastBreakPct = pct;
+    this.breakBar.style.display = pct > 0 ? 'block' : 'none';
+    this.breakFill.style.width = `${pct}%`;
   }
 
   toggleDebug(): void {
