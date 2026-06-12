@@ -5,9 +5,19 @@
  */
 import type { WorkerJob, WorkerRequest, WorkerResponse } from './protocol';
 
-type ResponseHandler = (res: WorkerResponse) => void;
+export type ResponseHandler = (res: WorkerResponse) => void;
 
-export class WorkerPool {
+/**
+ * What the World needs from a pool. Tests substitute a synchronous
+ * implementation so streaming logic runs headless.
+ */
+export interface JobPool {
+  readonly inFlight: number;
+  readonly hasIdle: boolean;
+  submit(job: WorkerJob, transfer: ArrayBuffer[], onDone: ResponseHandler): void;
+}
+
+export class WorkerPool implements JobPool {
   private readonly idle: Worker[] = [];
   private readonly busyOf = new Map<number, Worker>();
   private readonly handlers = new Map<number, ResponseHandler>();

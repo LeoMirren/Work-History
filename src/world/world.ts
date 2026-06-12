@@ -12,9 +12,9 @@
  */
 import * as THREE from 'three';
 import { SOLID } from './blocks';
-import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord } from './chunk';
-import { PAD, PADDED_VOLUME, paddedIndex, type ChunkMeshData, type MeshArrays } from './mesher';
-import type { WorkerPool } from '../workers/pool';
+import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord, localCoord } from './chunk';
+import { meshChunk, PAD, PADDED_VOLUME, paddedIndex, type ChunkMeshData, type MeshArrays } from './mesher';
+import type { JobPool } from '../workers/pool';
 
 export const MAX_JOBS_IN_FLIGHT = 6;
 const MAX_UPLOADS_PER_FRAME = 2;
@@ -42,6 +42,25 @@ function chunkKey(cx: number, cz: number): number {
   return cx * 0x4000000 + cz; // unique while |cx|,|cz| < 2^25
 }
 
+/**
+ * Chunk offsets whose padded snapshot contains a cell at local (lx, lz):
+ * always the chunk itself, plus cardinal/diagonal neighbors when the cell
+ * sits on a border (meshing — culling and AO — reads 1 block across).
+ */
+export function editAffectedOffsets(lx: number, lz: number): Array<readonly [number, number]> {
+  const xs: number[] = [0];
+  const zs: number[] = [0];
+  if (lx === 0) xs.push(-1);
+  if (lx === CHUNK_SIZE - 1) xs.push(1);
+  if (lz === 0) zs.push(-1);
+  if (lz === CHUNK_SIZE - 1) zs.push(1);
+  const out: Array<readonly [number, number]> = [];
+  for (const dx of xs) {
+    for (const dz of zs) out.push([dx, dz] as const);
+  }
+  return out;
+}
+
 export interface WorldStats {
   chunksLoaded: number;
   chunksMeshed: number;
@@ -55,7 +74,7 @@ export class World {
   readonly seed: string;
   private readonly scene: THREE.Scene;
   private readonly material: THREE.Material;
-  private readonly pool: WorkerPool;
+  private readonly pool: JobPool;
   private readonly chunks = new Map<number, ChunkRecord>();
   private renderDistance: number;
   private centerCx = Number.NaN;
@@ -68,7 +87,7 @@ export class World {
   private cachedKey = Number.NaN;
   private cachedRec: ChunkRecord | null = null;
 
-  constructor(opts: { seed: string; scene: THREE.Scene; material: THREE.Material; pool: WorkerPool; renderDistance: number }) {
+  constructor(opts: { seed: string; scene: THREE.Scene; material: THREE.Material; pool: JobPool; renderDistance: number }) {
     this.seed = opts.seed;
     this.scene = opts.scene;
     this.material = opts.material;
@@ -89,6 +108,94 @@ export class World {
     const rec = this.recAt(chunkCoord(wx), chunkCoord(wz));
     if (!rec || !rec.data) return 0;
     return rec.data[blockIndex(wx - rec.cx * CHUNK_SIZE, wy, wz - rec.cz * CHUNK_SIZE)] ?? 0;
+  }
+
+  /** getBlock as a bound function, for raycast/controller consumers. */
+  readonly blockAt = (wx: number, wy: number, wz: number): number => this.getBlock(wx, wy, wz);
+
+  /**
+   * Edit one block (§4.5 edits): writes data, marks the chunk modified, and
+   * synchronously remeshes the edited chunk plus every neighbor whose padded
+   * snapshot contains the edited cell — visible the same frame, well inside
+   * the ~50ms budget.
+   */
+  setBlock(wx: number, wy: number, wz: number, id: number): boolean {
+    if (wy < 0 || wy >= CHUNK_HEIGHT) return false;
+    const cx = chunkCoord(wx);
+    const cz = chunkCoord(wz);
+    const rec = this.recAt(cx, cz);
+    if (!rec || !rec.data) return false;
+    const lx = localCoord(wx);
+    const lz = localCoord(wz);
+    rec.data[blockIndex(lx, wy, lz)] = id;
+    rec.modified = true;
+    for (const [dx, dz] of editAffectedOffsets(lx, lz)) {
+      const neighbor = dx === 0 && dz === 0 ? rec : this.chunks.get(chunkKey(cx + dx, cz + dz));
+      if (!neighbor) continue;
+      neighbor.meshSeq++;
+      if (neighbor.meshed) {
+        this.remeshNow(neighbor);
+      } else {
+        this.scanNeeded = true;
+      }
+    }
+    return true;
+  }
+
+  /** Synchronous remesh, bypassing workers and the upload throttle. */
+  private remeshNow(rec: ChunkRecord): void {
+    const padded = this.buildPaddedSnapshot(rec.cx, rec.cz);
+    if (!padded) {
+      rec.meshed = false;
+      this.scanNeeded = true;
+      return;
+    }
+    this.installMesh(rec, meshChunk(padded));
+  }
+
+  /**
+   * Install chunk data directly (persisted chunks override generation; also
+   * the test seam). Marks data modified so it is never discarded on unload.
+   */
+  injectChunk(cx: number, cz: number, data: Uint8Array, modified: boolean): void {
+    const key = chunkKey(cx, cz);
+    let rec = this.chunks.get(key);
+    if (!rec) {
+      rec = {
+        cx,
+        cz,
+        key,
+        data,
+        genQueued: false,
+        genPending: false,
+        meshQueued: false,
+        meshPending: false,
+        meshSeq: 0,
+        meshed: false,
+        meshes: { opaque: null },
+        modified,
+        dist: this.chebyshev({ cx, cz }),
+        };
+      this.chunks.set(key, rec);
+    } else {
+      rec.data = data;
+      rec.modified = rec.modified || modified;
+      rec.meshSeq++;
+      rec.meshed = false;
+    }
+    // Any already-meshed neighbor meshed against the old border data.
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dz === 0) continue;
+        const nb = this.chunks.get(chunkKey(cx + dx, cz + dz));
+        if (nb?.meshed) {
+          nb.meshSeq++;
+          nb.meshed = false;
+        }
+      }
+    }
+    if (this.cachedKey === key) this.cachedRec = rec;
+    this.scanNeeded = true;
   }
 
   /** True when the chunk containing this column has data (physics readiness). */

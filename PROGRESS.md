@@ -40,13 +40,13 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M4 — Interaction
 
-- [ ] DDA raycast
-- [ ] Break/place
-- [ ] Block outline
-- [ ] Hotbar + icons + selection
-- [ ] ✅ Raycast unit tests (hits, miss, face normals)
-- [ ] ✅ Placement-rejection-inside-player test
-- [ ] ✅ Edits trigger neighbor remesh when on a border
+- [x] DDA raycast
+- [x] Break/place
+- [x] Block outline
+- [x] Hotbar + icons + selection
+- [x] ✅ Raycast unit tests (hits, miss, face normals)
+- [x] ✅ Placement-rejection-inside-player test
+- [x] ✅ Edits trigger neighbor remesh when on a border (integration-tested via sync pool)
 
 ## M5 — Visual pass
 

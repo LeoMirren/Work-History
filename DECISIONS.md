@@ -21,3 +21,8 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Unloaded chunks are solid for collision, and physics is frozen until the chunks under the player AABB have data — both prevent falling through not-yet-generated terrain.
 - Fly mode: vertical speed equals the 10.8 horizontal fly speed (spec gives one number); sprint modifier ignored while flying; landing does not auto-exit fly (only F toggles).
 - Camera position interpolates between physics steps (smooth on >60Hz displays); mouse look applies directly each frame.
+- Edits remesh synchronously on the main thread (edited chunk + bordering neighbors): a few ms once per click beats worker round-trip latency and trivially meets the ~50ms visibility budget.
+- Raycast targets solid blocks only (water is swim-through, like creative-mode reach rules); the starting voxel is never reported; break/place are one action per click (no hold-repeat).
+- World takes a `JobPool` interface; tests inject a synchronous pool so streaming/edit logic runs headless in node — this is how M2's "flight stabilizes" acceptance is asserted programmatically.
+- Chunks between RD and RD+2 keep their meshes (spec only requires disposal beyond RD+2): cheap churn insurance, frustum culling hides them.
+- Hotbar icons use the block's side-face tile (grass band and bark read better than plain tops).

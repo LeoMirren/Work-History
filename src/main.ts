@@ -1,7 +1,6 @@
 /**
- * M3 bootstrap: streaming world with real player physics — gravity, jumping,
- * sprint/sneak, fly toggle (F) and swimming. Physics holds until the spawn
- * area's chunk data is in.
+ * M4 bootstrap: the interactive sandbox — streaming world, physics, block
+ * breaking/placing with outline and hotbar.
  */
 import './style.css';
 import * as THREE from 'three';
@@ -11,7 +10,9 @@ import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
 import { PlayerController } from './player/controller';
+import { Interaction } from './player/interaction';
 import { PLAYER_HALF_WIDTH } from './player/physics';
+import { Hud } from './ui/hud';
 import { createGenerator } from './world/worldgen';
 import { World, type WorldStats } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -21,11 +22,18 @@ const SEED = 'voxelheim';
 const RENDER_DISTANCE = 8;
 const MOUSE_SENSITIVITY = 0.002;
 
+function facingLabel(yaw: number): string {
+  const deg = ((((-yaw * 180) / Math.PI) % 360) + 360) % 360;
+  const names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return `${names[Math.round(deg / 45) % 8]} ${deg.toFixed(0)}°`;
+}
+
 function boot(): void {
   const app = document.getElementById('app');
   if (!app) throw new Error('#app missing');
 
-  const texture = new THREE.CanvasTexture(createAtlasCanvas(SEED));
+  const atlasCanvas = createAtlasCanvas(SEED);
+  const texture = new THREE.CanvasTexture(atlasCanvas);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   texture.generateMipmaps = false;
@@ -57,6 +65,9 @@ function boot(): void {
   player.setSpawn(0.5, spawnY, 0.5);
   player.teleport(0.5, spawnY, 0.5);
 
+  const hud = new Hud(app, atlasCanvas);
+  const interaction = new Interaction(gr.scene);
+
   /** Physics may run only when the chunks under the player AABB have data. */
   function physicsReady(): boolean {
     const { x, z } = player.body;
@@ -67,10 +78,6 @@ function boot(): void {
       world.hasDataAt(Math.floor(x + PLAYER_HALF_WIDTH), Math.floor(z + PLAYER_HALF_WIDTH))
     );
   }
-
-  const overlay = document.createElement('div');
-  overlay.id = 'debug-overlay';
-  app.appendChild(overlay);
 
   exposeDebug();
   const fps = new FpsCounter();
@@ -90,7 +97,17 @@ function boot(): void {
     },
     render(alpha) {
       input.takeMouseDelta(mouse);
-      if (input.locked) player.look(mouse.dx, mouse.dy, MOUSE_SENSITIVITY);
+      if (input.locked) {
+        player.look(mouse.dx, mouse.dy, MOUSE_SENSITIVITY);
+        // Hotbar: digits 1-9 and wheel.
+        for (let d = 1; d <= 9; d++) {
+          if (input.takePressed(`Digit${d}`)) hud.selectSlot(d - 1);
+        }
+        const wheel = input.takeWheel();
+        if (wheel !== 0) hud.stepSlot(wheel > 0 ? 1 : -1);
+        if (input.takePressed('F3')) hud.toggleDebug();
+        interaction.update(input, world, player, hud.selectedBlock);
+      }
       player.applyToCamera(gr.camera, alpha);
       world.update(player.body.x, player.body.z);
       gr.render();
@@ -100,6 +117,7 @@ function boot(): void {
       debugInfo.x = b.x;
       debugInfo.y = b.y;
       debugInfo.z = b.z;
+      debugInfo.facing = facingLabel(player.yaw);
       debugInfo.chunkX = chunkCoord(Math.floor(b.x));
       debugInfo.chunkZ = chunkCoord(Math.floor(b.z));
       debugInfo.chunksLoaded = stats.chunksLoaded;
@@ -112,12 +130,12 @@ function boot(): void {
       debugInfo.drawCalls = gr.info.render.calls;
       debugInfo.geometries = gr.info.memory.geometries;
       const mode = player.flying ? 'fly' : player.inWater ? 'swim' : b.onGround ? 'walk' : 'air';
-      overlay.textContent =
-        `voxelgame M3 | fps ${debugInfo.fps}\n` +
-        `pos ${b.x.toFixed(2)} ${b.y.toFixed(2)} ${b.z.toFixed(2)} | chunk ${debugInfo.chunkX},${debugInfo.chunkZ} | ${mode}\n` +
-        `chunks ${stats.chunksLoaded} loaded / ${stats.chunksMeshed} meshed | queue g${stats.genQueued} m${stats.meshQueued} | jobs ${stats.jobsInFlight}\n` +
-        `tris ${debugInfo.triangles} | calls ${debugInfo.drawCalls} | geoms ${debugInfo.geometries}\n` +
-        `WASD move · Space jump · Ctrl/2xW sprint · Shift sneak · F fly`;
+      hud.setDebugText(
+        `voxelgame M4 | fps ${debugInfo.fps}\n` +
+          `pos ${b.x.toFixed(2)} ${b.y.toFixed(2)} ${b.z.toFixed(2)} | facing ${debugInfo.facing} | chunk ${debugInfo.chunkX},${debugInfo.chunkZ} | ${mode}\n` +
+          `chunks ${stats.chunksLoaded} loaded / ${stats.chunksMeshed} meshed | queue g${stats.genQueued} m${stats.meshQueued} | jobs ${stats.jobsInFlight}\n` +
+          `tris ${debugInfo.triangles} | calls ${debugInfo.drawCalls} | geoms ${debugInfo.geometries}`,
+      );
     },
   });
 }

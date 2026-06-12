@@ -32,3 +32,73 @@ body {
   pointer-events: none;
   z-index: 30;
 }
+
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  mix-blend-mode: difference;
+  z-index: 20;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: '';
+  position: absolute;
+  background: #e8e8e8;
+}
+
+#crosshair::before {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+#crosshair::after {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+#hotbar {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(10, 14, 31, 0.55);
+  border: 2px solid rgba(232, 240, 255, 0.35);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hotbar-slot {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(232, 240, 255, 0.25);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.hotbar-slot.selected {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.hotbar-slot canvas {
+  image-rendering: pixelated;
+}

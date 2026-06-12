@@ -7,6 +7,7 @@ export interface DebugInfo {
   x: number;
   y: number;
   z: number;
+  facing: string;
   chunkX: number;
   chunkZ: number;
   chunksLoaded: number;
@@ -31,6 +32,7 @@ export const debugInfo: DebugInfo = {
   x: 0,
   y: 0,
   z: 0,
+  facing: 'N 0°',
   chunkX: 0,
   chunkZ: 0,
   chunksLoaded: 0,
