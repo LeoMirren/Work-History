@@ -72,14 +72,71 @@ const BIOME_DEFS: Record<number, BiomeDef> = {
   [Biome.snowy]: { surface: Block.snow, subsurface: Block.dirt, treeChanceDiv: 88, heightBias: 0 },
 };
 
+export type Dimension = 'overworld' | 'underworld';
+
 export interface Generator {
   readonly seed: string;
+  readonly dimension: Dimension;
   heightAt(wx: number, wz: number): number;
   biomeAt(wx: number, wz: number): number;
   generateChunk(cx: number, cz: number): Uint8Array;
 }
 
-export function createGenerator(seed: string): Generator {
+// Underworld: an enclosed cavern realm of ashstone lit by emberrock veins.
+const UW_FLOOR = 4;
+const UW_CEIL = 118;
+const UW_CAVERN_THRESHOLD = 0.2; // |noise| below this carves open cavern
+const UW_EMBER_THRESHOLD = 0.8;
+
+export function createGenerator(seed: string, dimension: Dimension = 'overworld'): Generator {
+  if (dimension === 'underworld') return createUnderworld(seed);
+  return createOverworld(seed);
+}
+
+function createUnderworld(seed: string): Generator {
+  const cavern: NoiseFunction3D = seededNoise3D(seed, 'uw:cavern');
+  const ember: NoiseFunction3D = seededNoise3D(seed, 'uw:ember');
+  const roof: NoiseFunction3D = seededNoise3D(seed, 'uw:roof');
+
+  function generateChunk(cx: number, cz: number): Uint8Array {
+    const data = createChunkData();
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const wx = cx * CHUNK_SIZE + x;
+        const wz = cz * CHUNK_SIZE + z;
+        // Bumpy floor/ceiling slabs of bedrock cap the realm.
+        const floorTop = UW_FLOOR + Math.round((roof(wx / 60, 0, wz / 60) + 1) * 2);
+        const ceilBot = UW_CEIL - Math.round((roof(wx / 60, 9, wz / 60) + 1) * 2);
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          let id: number = Block.air;
+          if (y <= 1 || y >= UW_CEIL) {
+            id = Block.bedrock;
+          } else if (y <= floorTop || y >= ceilBot) {
+            id = Block.ashstone;
+          } else {
+            // Solid ashstone except where the cavern noise opens space.
+            const open = Math.abs(cavern(wx / 34, y / 30, wz / 34)) < UW_CAVERN_THRESHOLD;
+            if (!open) {
+              id = ember(wx / 16, y / 16, wz / 16) > UW_EMBER_THRESHOLD ? Block.emberrock : Block.ashstone;
+            }
+          }
+          if (id !== Block.air) data[blockIndex(x, y, z)] = id;
+        }
+      }
+    }
+    return data;
+  }
+
+  return {
+    seed,
+    dimension: 'underworld',
+    heightAt: () => UW_FLOOR + 3,
+    biomeAt: () => 0,
+    generateChunk,
+  };
+}
+
+function createOverworld(seed: string): Generator {
   const continental: NoiseFunction2D = seededNoise2D(seed, 'continental');
   const hillMask: NoiseFunction2D = seededNoise2D(seed, 'hillMask');
   const hills: NoiseFunction2D = seededNoise2D(seed, 'hills');
@@ -203,7 +260,7 @@ export function createGenerator(seed: string): Generator {
     return data;
   }
 
-  return { seed, heightAt, biomeAt, generateChunk };
+  return { seed, dimension: 'overworld', heightAt, biomeAt, generateChunk };
 }
 
 function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number): void {

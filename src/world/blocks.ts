@@ -26,6 +26,9 @@ export const Block = {
   coalOre: 18,
   copperOre: 19,
   goldOre: 20,
+  ashstone: 21,
+  emberrock: 22,
+  riftframe: 23,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -76,6 +79,9 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.coalOre, name: 'coalOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.coalOre) },
   { id: Block.copperOre, name: 'copperOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.copperOre) },
   { id: Block.goldOre, name: 'goldOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.goldOre) },
+  { id: Block.ashstone, name: 'ashstone', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.ashstone) },
+  { id: Block.emberrock, name: 'emberrock', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.6, tiles: tiles(T.emberrock) },
+  { id: Block.riftframe, name: 'riftframe', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.riftframe) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -97,6 +103,7 @@ for (const def of BLOCK_DEFS) {
   for (let f = 0; f < 6; f++) FACE_TILES[def.id * 6 + f] = def.tiles[f] ?? 0;
 }
 LIGHT_EMIT[Block.lantern] = 14;
+LIGHT_EMIT[Block.emberrock] = 10;
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
-import { blockIndex, CHUNK_SIZE } from '../src/world/chunk';
+import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE } from '../src/world/chunk';
 import { createGenerator, SEA_LEVEL } from '../src/world/worldgen';
 
 function fnv1a(data: Uint8Array): number {
@@ -179,5 +179,59 @@ describe('worldgen content rules', () => {
     }
     expect(logs).toBeGreaterThan(0);
     expect(leaves).toBeGreaterThan(logs); // canopies dwarf trunks
+  });
+});
+
+describe('underworld dimension', () => {
+  it('is deterministic for the same seed + coords', () => {
+    const a = createGenerator(SEED, 'underworld');
+    const b = createGenerator(SEED, 'underworld');
+    for (const [cx, cz] of [
+      [0, 0],
+      [-3, 5],
+      [9, -2],
+    ] as const) {
+      expect(a.generateChunk(cx, cz)).toEqual(b.generateChunk(cx, cz));
+    }
+    expect(a.dimension).toBe('underworld');
+  });
+
+  it('differs from the overworld and from a different seed', () => {
+    const uw = createGenerator(SEED, 'underworld').generateChunk(0, 0);
+    const ow = createGenerator(SEED, 'overworld').generateChunk(0, 0);
+    expect(uw).not.toEqual(ow);
+    const uw2 = createGenerator('other-seed', 'underworld').generateChunk(0, 0);
+    expect(uw).not.toEqual(uw2);
+  });
+
+  it('is an enclosed ashstone realm: bedrock cap/floor, open caverns, ember light, no water', () => {
+    const gen = createGenerator(SEED, 'underworld');
+    let ashstone = 0;
+    let ember = 0;
+    let air = 0;
+    let water = 0;
+    for (let cz = -2; cz <= 2; cz++) {
+      for (let cx = -2; cx <= 2; cx++) {
+        const data = gen.generateChunk(cx, cz);
+        for (let z = 0; z < CHUNK_SIZE; z++) {
+          for (let x = 0; x < CHUNK_SIZE; x++) {
+            // Bedrock floor and ceiling enclose every column.
+            expect(data[blockIndex(x, 0, z)]).toBe(Block.bedrock);
+            expect(data[blockIndex(x, 127, z)]).toBe(Block.bedrock);
+            for (let y = 0; y < CHUNK_HEIGHT; y++) {
+              const id = data[blockIndex(x, y, z)];
+              if (id === Block.ashstone) ashstone++;
+              else if (id === Block.emberrock) ember++;
+              else if (id === Block.air) air++;
+              else if (id === Block.water) water++;
+            }
+          }
+        }
+      }
+    }
+    expect(ashstone).toBeGreaterThan(0);
+    expect(ember).toBeGreaterThan(0); // light sources present
+    expect(air).toBeGreaterThan(0); // caverns to walk through
+    expect(water).toBe(0); // no water down here
   });
 });

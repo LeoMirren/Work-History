@@ -145,3 +145,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Spitter variant of the night hostile: greenish, holds a preferred distance, lobs projectiles at the player from range
 - [x] Projectile system: straight-flight shots that damage on a player AABB hit, die on terrain or after a lifetime; cleared on world reset
 - [x] Melee gated to non-ranged stalkers so spitters kite instead of double-attacking
+
+## Post-spec: Second dimension — underworld generator (part 1)
+
+- [x] Dimension param on createGenerator (overworld | underworld), Generator carries its dimension
+- [x] Underworld: an enclosed ashstone cavern realm — bedrock floor/ceiling, big 3D-noise caverns, emberrock veins that emit light (no sky light, no water); pure & deterministic, unit-tested
+- [x] New blocks: ashstone, emberrock (glow 10), riftframe (portal frame) with procedural tiles
+- [ ] Portal block + activation, dimension switching, separate persistence namespace (part 2, next)

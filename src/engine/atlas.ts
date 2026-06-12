@@ -48,6 +48,9 @@ export const Tiles = {
   goldIngot: 33,
   copperPickaxe: 34,
   goldPickaxe: 35,
+  ashstone: 36,
+  emberrock: 37,
+  riftframe: 38,
 } as const;
 
 type Rng = () => number;
@@ -514,6 +517,57 @@ const paintLantern: TilePainter = (set, rng) => {
   }
 };
 
+/** Dark violet-grey volcanic stone with coarse speckle. */
+const paintAshstone: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      let l = 70 + jitter(rng, 22);
+      if (rng() < 0.1) l -= 18;
+      set(x, y, l + 8, l, l + 14);
+    }
+  }
+};
+
+/** Ashstone shot through with glowing ember cracks. */
+const paintEmberrock: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const l = 70 + jitter(rng, 18);
+      set(x, y, l + 8, l, l + 14);
+    }
+  }
+  // A few bright lava veins.
+  for (let v = 0; v < 4; v++) {
+    let cx = 1 + Math.floor(rng() * 14);
+    let cy = 1 + Math.floor(rng() * 14);
+    const steps = 4 + Math.floor(rng() * 6);
+    for (let i = 0; i < steps; i++) {
+      const n = jitter(rng, 30);
+      set(cx, cy, 236 + n, 140 + n * 0.6, 48 + n * 0.3);
+      cx = Math.max(0, Math.min(15, cx + (rng() < 0.5 ? 1 : -1)));
+      cy = Math.max(0, Math.min(15, cy + (rng() < 0.5 ? 1 : -1)));
+    }
+  }
+};
+
+/** Rift frame: dark stone bezel around a faint violet swirl. */
+const paintRiftframe: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const edge = x === 0 || y === 0 || x === 15 || y === 15;
+      if (edge) {
+        const n = jitter(rng, 14);
+        set(x, y, 44 + n, 40 + n, 52 + n);
+      } else {
+        const d = Math.hypot(x - 7.5, y - 7.5);
+        const swirl = 0.5 + 0.5 * Math.sin(d * 1.4 - (x - y) * 0.4);
+        const n = jitter(rng, 12);
+        set(x, y, 70 + swirl * 60 + n, 40 + swirl * 20 + n, 110 + swirl * 80 + n);
+      }
+    }
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -550,6 +604,9 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.goldIngot, 'goldIngot', paintBar(226, 194, 78, 248, 232, 150)],
   [Tiles.copperPickaxe, 'copperPickaxe', paintPickaxe(196, 122, 78)],
   [Tiles.goldPickaxe, 'goldPickaxe', paintPickaxe(226, 194, 78)],
+  [Tiles.ashstone, 'ashstone', paintAshstone],
+  [Tiles.emberrock, 'emberrock', paintEmberrock],
+  [Tiles.riftframe, 'riftframe', paintRiftframe],
   [Tiles.lantern, 'lantern', paintLantern],
 ];
 
