@@ -125,10 +125,11 @@ on `beforeunload`, and via the pause menu's Save.
 
 ## Development notes
 
-- `npm test` — 80 tests over the pure core: chunk index math, worldgen
+- `npm test` — 88 tests over the pure core: chunk index math, worldgen
   determinism (checksummed), mesher culling/AO/winding, raycast DDA, AABB
-  physics, RLE codec, placement rules, plus headless streaming/persistence
-  integration through a synchronous worker-pool stand-in.
+  physics, RLE codec, placement rules, survival fall damage and break times,
+  plus headless streaming/persistence integration through a synchronous
+  worker-pool stand-in.
 - `DECISIONS.md` logs every judgment call made against the spec;
   `PROGRESS.md` tracks the milestone acceptance checklist.
 - Dependencies are deliberately minimal: `three` + `simplex-noise` at
