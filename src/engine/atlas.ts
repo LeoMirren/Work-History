@@ -26,6 +26,7 @@ export const Tiles = {
   snow: 12,
   bedrock: 13,
   brick: 14,
+  ore: 15,
 } as const;
 
 type Rng = () => number;
@@ -259,6 +260,34 @@ const paintBrick: TilePainter = (set, rng) => {
   }
 };
 
+/** Stone base with rust-colored mineral clusters. */
+const paintOre: TilePainter = (set, rng) => {
+  const clusters: Array<[number, number]> = [];
+  for (let i = 0; i < 6; i++) {
+    clusters.push([1 + Math.floor(rng() * 13), 1 + Math.floor(rng() * 13)]);
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      let l = 125 + jitter(rng, 24);
+      if (rng() < 0.08) l -= 28;
+      set(x, y, l, l, l + 2);
+    }
+  }
+  for (const [cx, cy] of clusters) {
+    for (const [dx, dy] of [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [1, 1],
+    ] as const) {
+      if (rng() < 0.8) {
+        const n = jitter(rng, 22);
+        set(cx + dx, cy + dy, 188 + n, 124 + n * 0.7, 58 + n * 0.4);
+      }
+    }
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -275,6 +304,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.snow, 'snow', paintSnow],
   [Tiles.bedrock, 'bedrock', paintBedrock],
   [Tiles.brick, 'brick', paintBrick],
+  [Tiles.ore, 'ore', paintOre],
 ];
 
 /**

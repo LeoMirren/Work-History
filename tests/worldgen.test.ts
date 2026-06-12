@@ -119,6 +119,24 @@ describe('worldgen content rules', () => {
     expect(caveAir).toBeGreaterThan(0);
   });
 
+  it('seeds ore veins only inside the stone band (stretch §9)', () => {
+    let oreCount = 0;
+    for (let cz = -3; cz <= 3; cz++) {
+      for (let cx = -3; cx <= 3; cx++) {
+        const data = gen.generateChunk(cx, cz);
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] === Block.ore) {
+            oreCount++;
+            const y = i >> 8;
+            expect(y).toBeGreaterThanOrEqual(5);
+            expect(y).toBeLessThanOrEqual(60);
+          }
+        }
+      }
+    }
+    expect(oreCount).toBeGreaterThan(0);
+  });
+
   it('plants trees only inside the canopy margin, with leaves around trunk tops', () => {
     let logs = 0;
     let leaves = 0;

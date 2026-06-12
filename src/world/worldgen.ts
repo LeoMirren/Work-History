@@ -11,6 +11,9 @@ import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, createChunkData } from './chunk';
 export const SEA_LEVEL = 52;
 const SNOW_LINE = 96; // surface block is snow above this height
 const CAVE_THRESHOLD = 0.58;
+const ORE_THRESHOLD = 0.74; // stretch §9: 3D-noise ore pockets
+const ORE_MIN_Y = 5;
+const ORE_MAX_Y = 60;
 const TREE_CHANCE_DIV = 48; // 1-in-48 columns
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
 
@@ -26,6 +29,7 @@ export function createGenerator(seed: string): Generator {
   const hills: NoiseFunction2D = seededNoise2D(seed, 'hills');
   const detail: NoiseFunction2D = seededNoise2D(seed, 'detail');
   const cave: NoiseFunction3D = seededNoise3D(seed, 'cave');
+  const ore: NoiseFunction3D = seededNoise3D(seed, 'ore');
   const treeSeed = cyrb128(`${seed} trees`)[0];
 
   function heightAt(wx: number, wz: number): number {
@@ -58,6 +62,13 @@ export function createGenerator(seed: string): Generator {
         // Beaches swap the dirt band under the surface for sand.
         const bandBlock = h >= SEA_LEVEL - 2 && h <= SEA_LEVEL + 1 ? Block.sand : Block.dirt;
         for (let y = 1; y < h - 4; y++) data[blockIndex(x, y, z)] = Block.stone;
+        // Ore veins replace stone in pockets where the 3D noise spikes.
+        const oreTop = Math.min(ORE_MAX_Y, h - 5);
+        for (let y = ORE_MIN_Y; y <= oreTop; y++) {
+          if (ore(wx / 18, y / 18, wz / 18) > ORE_THRESHOLD) {
+            data[blockIndex(x, y, z)] = Block.ore;
+          }
+        }
         for (let y = Math.max(1, h - 4); y < h; y++) data[blockIndex(x, y, z)] = bandBlock;
         data[blockIndex(x, h, z)] = surfaceBlockFor(h);
 
