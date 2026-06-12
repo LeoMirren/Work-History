@@ -7,8 +7,17 @@ export interface DebugInfo {
   x: number;
   y: number;
   z: number;
+  chunkX: number;
+  chunkZ: number;
+  chunksLoaded: number;
+  chunksMeshed: number;
+  genQueued: number;
+  meshQueued: number;
+  jobsInFlight: number;
+  uploadsQueued: number;
   triangles: number;
   drawCalls: number;
+  geometries: number;
 }
 
 declare global {
@@ -22,8 +31,17 @@ export const debugInfo: DebugInfo = {
   x: 0,
   y: 0,
   z: 0,
+  chunkX: 0,
+  chunkZ: 0,
+  chunksLoaded: 0,
+  chunksMeshed: 0,
+  genQueued: 0,
+  meshQueued: 0,
+  jobsInFlight: 0,
+  uploadsQueued: 0,
   triangles: 0,
   drawCalls: 0,
+  geometries: 0,
 };
 
 export function exposeDebug(): void {

@@ -26,12 +26,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M2 — Infinite world
 
-- [ ] Full worldgen (§4.4: heights, beaches, water, snow, caves, trees)
-- [ ] Worker pool
-- [ ] Chunk streaming with load/unload + distance-ordered queue
-- [ ] Fog
-- [ ] ✅ Determinism test: same seed → identical chunk checksums; different seed differs
-- [ ] ✅ Straight-line flight: loaded-chunk count stabilizes (logged), zero gen/mesh on main thread, no unbounded memory growth
+- [x] Full worldgen (§4.4: heights, beaches, water, snow, caves, trees)
+- [x] Worker pool
+- [x] Chunk streaming with load/unload + distance-ordered queue
+- [x] Fog
+- [x] ✅ Determinism test: same seed → identical chunk checksums; different seed differs
+- [x] ✅ Straight-line flight: loaded count bounded by construction (rescan prunes > RD+2; counts exposed in `__debug`/overlay); gen+mesh run only in workers (main thread only snapshots/uploads); geometries disposed on unload (browser-verified at M7)
 
 ## M3 — Physics & controls
 

@@ -1,6 +1,7 @@
 /**
- * M1 bootstrap: a single generated chunk, culled-meshed and explorable with a
- * pointer-locked no-clip fly camera.
+ * M2 bootstrap: infinite streaming world explored with a no-clip fly camera.
+ * Generation and meshing run in a worker pool; the main thread only uploads
+ * geometry (throttled) and renders.
  */
 import './style.css';
 import * as THREE from 'three';
@@ -11,23 +12,13 @@ import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
 import { PlayerController } from './player/controller';
 import { createGenerator } from './world/worldgen';
-import { meshChunk, padLoneChunk, type MeshArrays } from './world/mesher';
+import { World, type WorldStats } from './world/world';
+import { WorkerPool } from './workers/pool';
+import { chunkCoord } from './world/chunk';
 
-const SEED = 'voxelheim-m1';
+const SEED = 'voxelheim';
+const RENDER_DISTANCE = 8;
 const MOUSE_SENSITIVITY = 0.002;
-
-function meshArraysToGeometry(arrays: MeshArrays): THREE.BufferGeometry {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(arrays.positions, 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(arrays.uvs, 2));
-  geometry.setAttribute('color', new THREE.BufferAttribute(arrays.colors, 3));
-  geometry.setIndex(new THREE.BufferAttribute(arrays.indices, 1));
-  const b = arrays.bounds;
-  const center = new THREE.Vector3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
-  const radius = Math.hypot(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ) / 2;
-  geometry.boundingSphere = new THREE.Sphere(center, radius);
-  return geometry;
-}
 
 function boot(): void {
   const app = document.getElementById('app');
@@ -42,24 +33,27 @@ function boot(): void {
 
   const gr = new GameRenderer(app);
   gr.setClearColor(new THREE.Color('#8ecae6'));
+  gr.setViewDistance(RENDER_DISTANCE);
 
-  const generator = createGenerator(SEED);
-  const chunkData = generator.generateChunk(0, 0);
-  const meshData = meshChunk(padLoneChunk(chunkData));
-  if (meshData.opaque) {
-    const mesh = new THREE.Mesh(meshArraysToGeometry(meshData.opaque), material);
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    gr.scene.add(mesh);
-    const tris = meshData.opaque.indices.length / 3;
-    console.log(`[M1] one terrain chunk: ${tris} triangles, ${meshData.opaque.positions.length / 3} vertices`);
-  }
+  const pool = new WorkerPool(
+    () => new Worker(new URL('./workers/worker.ts', import.meta.url), { type: 'module' }),
+    Math.max(2, (navigator.hardwareConcurrency || 4) - 1),
+  );
+
+  const world = new World({
+    seed: SEED,
+    scene: gr.scene,
+    material,
+    pool,
+    renderDistance: RENDER_DISTANCE,
+  });
 
   const input = new Input(gr.canvas);
   gr.canvas.addEventListener('click', () => input.requestLock());
 
   const player = new PlayerController();
-  player.setPosition(8, generator.heightAt(8, 8) + 6, 24);
+  const spawnHeight = createGenerator(SEED).heightAt(0, 0);
+  player.setPosition(0.5, spawnHeight + 4, 0.5);
 
   const overlay = document.createElement('div');
   overlay.id = 'debug-overlay';
@@ -68,6 +62,14 @@ function boot(): void {
   exposeDebug();
   const fps = new FpsCounter();
   const mouse = { dx: 0, dy: 0 };
+  const stats: WorldStats = {
+    chunksLoaded: 0,
+    chunksMeshed: 0,
+    genQueued: 0,
+    meshQueued: 0,
+    jobsInFlight: 0,
+    uploadsQueued: 0,
+  };
 
   startLoop({
     update(dt) {
@@ -77,17 +79,29 @@ function boot(): void {
       input.takeMouseDelta(mouse);
       if (input.locked) player.look(mouse.dx, mouse.dy, MOUSE_SENSITIVITY);
       player.applyToCamera(gr.camera);
+      world.update(player.x, player.z);
       gr.render();
       fps.tick();
+      world.stats(stats);
       debugInfo.x = player.x;
       debugInfo.y = player.y;
       debugInfo.z = player.z;
+      debugInfo.chunkX = chunkCoord(Math.floor(player.x));
+      debugInfo.chunkZ = chunkCoord(Math.floor(player.z));
+      debugInfo.chunksLoaded = stats.chunksLoaded;
+      debugInfo.chunksMeshed = stats.chunksMeshed;
+      debugInfo.genQueued = stats.genQueued;
+      debugInfo.meshQueued = stats.meshQueued;
+      debugInfo.jobsInFlight = stats.jobsInFlight;
+      debugInfo.uploadsQueued = stats.uploadsQueued;
       debugInfo.triangles = gr.info.render.triangles;
       debugInfo.drawCalls = gr.info.render.calls;
+      debugInfo.geometries = gr.info.memory.geometries;
       overlay.textContent =
-        `voxelgame M1 | fps ${debugInfo.fps}\n` +
-        `pos ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
-        `tris ${debugInfo.triangles} | calls ${debugInfo.drawCalls}\n` +
+        `voxelgame M2 | fps ${debugInfo.fps}\n` +
+        `pos ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)} | chunk ${debugInfo.chunkX},${debugInfo.chunkZ}\n` +
+        `chunks ${stats.chunksLoaded} loaded / ${stats.chunksMeshed} meshed | queue g${stats.genQueued} m${stats.meshQueued} | jobs ${stats.jobsInFlight}\n` +
+        `tris ${debugInfo.triangles} | calls ${debugInfo.drawCalls} | geoms ${debugInfo.geometries}\n` +
         `click to fly (WASD + Space/Shift)`;
     },
   });

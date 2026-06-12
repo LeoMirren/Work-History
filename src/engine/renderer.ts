@@ -31,6 +31,21 @@ export class GameRenderer {
     this.renderer.setClearColor(color);
   }
 
+  /** Fog band tracks render distance: [RD*16*0.55, RD*16*0.95] (§4.10). */
+  setViewDistance(rd: number): void {
+    const range = rd * 16;
+    if (!this.scene.fog) this.scene.fog = new THREE.Fog(new THREE.Color('#8ecae6'), 1, 2);
+    this.scene.fog.near = range * 0.55;
+    this.scene.fog.far = range * 0.95;
+    this.camera.far = range * 1.2;
+    this.camera.updateProjectionMatrix();
+  }
+
+  setFov(fov: number): void {
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera);
   }
