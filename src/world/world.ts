@@ -11,6 +11,7 @@
  *    discarded (regen is cheap).
  */
 import * as THREE from 'three';
+import { SOLID } from './blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord } from './chunk';
 import { PAD, PADDED_VOLUME, paddedIndex, type ChunkMeshData, type MeshArrays } from './mesher';
 import type { WorkerPool } from '../workers/pool';
@@ -95,6 +96,19 @@ export class World {
     const rec = this.recAt(chunkCoord(wx), chunkCoord(wz));
     return rec !== null && rec.data !== null;
   }
+
+  /**
+   * Collision test for physics (bound so it can be passed as a SolidFn).
+   * Outside y-bounds is air; unloaded chunks are impassable so the player
+   * can never fall into not-yet-generated terrain.
+   */
+  readonly isSolid = (wx: number, wy: number, wz: number): boolean => {
+    if (wy < 0 || wy >= CHUNK_HEIGHT) return false;
+    const rec = this.recAt(chunkCoord(wx), chunkCoord(wz));
+    if (!rec || !rec.data) return true;
+    const id = rec.data[blockIndex(wx - rec.cx * CHUNK_SIZE, wy, wz - rec.cz * CHUNK_SIZE)] ?? 0;
+    return SOLID[id] === 1;
+  };
 
   private recAt(cx: number, cz: number): ChunkRecord | null {
     const key = chunkKey(cx, cz);

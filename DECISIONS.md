@@ -15,3 +15,9 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Job scheduling: gen and mesh queues are both distance-ascending; when both have a candidate, the closer wins and mesh wins ties (visible sooner).
 - Added `workers/protocol.ts` + `workers/pool.ts` beyond the spec's file list (message types and pool routing don't belong in worker.ts).
 - Chunk map keys are numeric `cx*2^26+cz` (collision-free for |c|<2^25, far beyond float-precision playability) — avoids per-lookup string allocation in hot paths.
+- Horizontal movement is direct velocity control (spec defines speeds but no accel/friction model); vertical velocity persists for gravity/jumps. Semi-implicit Euler, giving a discrete jump apex of ~1.19 blocks for v0=9.
+- Spec's water rules conflict (vertical clamp ±3 vs swim up at 4): clamp applies to passive motion, Space sets vy=4 exempt from the clamp.
+- Collision resolution is flush-exact (strict-inequality overlap) so "lands exactly on block tops" holds literally; the spec's 0.001 epsilon only guards sweep-loop termination.
+- Unloaded chunks are solid for collision, and physics is frozen until the chunks under the player AABB have data — both prevent falling through not-yet-generated terrain.
+- Fly mode: vertical speed equals the 10.8 horizontal fly speed (spec gives one number); sprint modifier ignored while flying; landing does not auto-exit fly (only F toggles).
+- Camera position interpolates between physics steps (smooth on >60Hz displays); mouse look applies directly each frame.

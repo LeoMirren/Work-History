@@ -35,8 +35,8 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M3 — Physics & controls
 
-- [ ] §4.7 in full: gravity, jump, sprint, sneak, fly toggle, water movement, per-axis AABB resolution
-- [ ] ✅ Collision tests: lands exactly on block tops; wall slide preserves tangent velocity; no tunneling at terminal velocity; jump apex ≈ 1.25 blocks
+- [x] §4.7 in full: gravity, jump, sprint, sneak, fly toggle, water movement, per-axis AABB resolution
+- [x] ✅ Collision tests: lands exactly on block tops; wall slide preserves tangent velocity; no tunneling at terminal velocity; jump apex ≈ 1.25 blocks (~1.19 with semi-implicit Euler, asserted in [1.1, 1.35])
 
 ## M4 — Interaction
 
