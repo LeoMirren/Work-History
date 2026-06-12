@@ -1,26 +1,23 @@
 /**
- * Pure chunk mesher (§4.5, §4.6). Input is a padded snapshot of one chunk
- * plus a 1-block border from its neighbors, so the function needs no world
- * access and runs identically on the main thread or in a worker.
+ * Pure chunk mesher (§4.5, §4.6) + light baking. Input is a 48×128×48
+ * snapshot — the meshed chunk centered in its full 3×3 neighborhood — so both
+ * face culling and 15-block light propagation see everything they need with
+ * no world access. Runs identically in a worker or on the main thread.
  *
- * Padded layout: px,pz in [0,17] (local -1..16), y in [0,127];
- * index = px + pz*18 + y*324.
- *
- * Emits up to three passes (opaque / cutout / translucent water). Vertex
- * colors bake directional face shade × ambient occlusion; quads flip their
- * triangulation diagonal when AO is anisotropic.
+ * Emits up to three passes (opaque / cutout / translucent water). Per vertex:
+ *  - color: directional face shade × ambient occlusion × foliage tint;
+ *  - light: (sky, block) channels 0..1, smoothed over the four cells meeting
+ *    at the vertex (the same cells AO samples). The shader combines them with
+ *    the day/night brightness so lanterns keep glowing at night.
  */
 import { Block, FACE_TILES, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE } from './blocks';
-import { CHUNK_HEIGHT, CHUNK_SIZE, blockIndex } from './chunk';
+import { CHUNK_HEIGHT, CHUNK_SIZE } from './chunk';
+import { computeLight, MAX_LIGHT, snapIndex } from './lighting';
 import { hash2 } from './noise';
 import { ATLAS_TILES } from '../engine/atlas';
 
-export const PAD = CHUNK_SIZE + 2; // 18
-export const PADDED_VOLUME = PAD * PAD * CHUNK_HEIGHT;
-
-export function paddedIndex(px: number, y: number, pz: number): number {
-  return px + pz * PAD + y * PAD * PAD;
-}
+/** The meshed chunk occupies snapshot cells [CENTER, CENTER+16). */
+export const CENTER = CHUNK_SIZE;
 
 /** §4.6: corner AO level 0..3 from the three neighboring occluders. */
 export function computeAO(side1: boolean, side2: boolean, corner: boolean): number {
@@ -32,19 +29,6 @@ export const AO_BRIGHTNESS: readonly number[] = [0.5, 0.7, 0.85, 1.0];
 
 /** Directional shade per face, order [+x, -x, +y, -y, +z, -z] (§4.5). */
 export const FACE_SHADE: readonly number[] = [0.75, 0.75, 1.0, 0.55, 0.85, 0.85];
-
-/**
- * Fake depth lighting: faces darken with distance below the column's top
- * cover (any non-air block, water and leaves included), bottoming out in
- * deep caves. Surfaces under open sky stay fully lit.
- */
-export const DEPTH_DARK_MIN = 0.35;
-export const DEPTH_DARK_FALLOFF = 0.045;
-
-export function depthBrightness(depthBelowCover: number): number {
-  if (depthBelowCover <= 0) return 1;
-  return Math.max(DEPTH_DARK_MIN, 1 - depthBelowCover * DEPTH_DARK_FALLOFF);
-}
 
 /** Foliage gets a subtle per-column warm/cool tint so plains aren't flat. */
 const TINT_SALT = 0x7e11a9;
@@ -103,9 +87,9 @@ export const FACES: readonly FaceDef[] = [
 ];
 
 /**
- * Per-face, per-vertex AO sample offsets (side1/side2/corner), derived from
- * the face tables: one step along the normal, then toward the vertex corner
- * along each in-plane axis.
+ * Per-face, per-vertex sample offsets (side1/side2/corner) derived from the
+ * face tables: one step along the normal, then toward the vertex corner along
+ * each in-plane axis. Shared by AO (occlusion) and light smoothing.
  */
 const FACE_AO: ReadonlyArray<ReadonlyArray<readonly number[]>> = FACES.map((face) => {
   const normal = [face.dx, face.dy, face.dz];
@@ -132,6 +116,8 @@ export interface MeshArrays {
   positions: Float32Array;
   uvs: Float32Array;
   colors: Float32Array;
+  /** Per-vertex (sky, block) light, 0..1. */
+  lights: Float32Array;
   indices: Uint32Array;
   /** Geometry extents in chunk-local coords, for bounding volumes. */
   bounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number };
@@ -147,6 +133,7 @@ class QuadSink {
   positions: number[] = [];
   uvs: number[] = [];
   colors: number[] = [];
+  lights: number[] = [];
   indices: number[] = [];
   minX = Infinity;
   minY = Infinity;
@@ -155,6 +142,7 @@ class QuadSink {
   maxY = -Infinity;
   maxZ = -Infinity;
 
+  /** vertexLight holds 8 floats: (sky, block) per corner, already 0..1. */
   pushQuad(
     x: number,
     y: number,
@@ -166,7 +154,7 @@ class QuadSink {
     ao1: number,
     ao2: number,
     ao3: number,
-    depthFactor: number,
+    vertexLight: ArrayLike<number>,
     tintR: number,
     tintB: number,
   ): void {
@@ -183,8 +171,9 @@ class QuadSink {
       this.positions.push(vx, vy, vz);
       this.uvs.push(tu + uv[0] / ATLAS_TILES, tv + uv[1] / ATLAS_TILES);
       const ao = c === 0 ? ao0 : c === 1 ? ao1 : c === 2 ? ao2 : ao3;
-      const light = shade * (AO_BRIGHTNESS[ao] ?? 1) * depthFactor;
-      this.colors.push(light * tintR, light, light * tintB);
+      const lit = shade * (AO_BRIGHTNESS[ao] ?? 1);
+      this.colors.push(lit * tintR, lit, lit * tintB);
+      this.lights.push(vertexLight[c * 2] ?? 1, vertexLight[c * 2 + 1] ?? 0);
       if (vx < this.minX) this.minX = vx;
       if (vy < this.minY) this.minY = vy;
       if (vz < this.minZ) this.minZ = vz;
@@ -206,6 +195,7 @@ class QuadSink {
       positions: Float32Array.from(this.positions),
       uvs: Float32Array.from(this.uvs),
       colors: Float32Array.from(this.colors),
+      lights: Float32Array.from(this.lights),
       indices: Uint32Array.from(this.indices),
       bounds: {
         minX: this.minX,
@@ -220,59 +210,49 @@ class QuadSink {
 }
 
 /**
- * Neighbor sample from padded data. Below the world reads as bedrock (culls
+ * Neighbor sample from the snapshot. Below the world reads as bedrock (culls
  * invisible undersides at y=0); above it as air.
  */
-function sampleAt(padded: Uint8Array, px: number, y: number, pz: number): number {
+function sampleAt(snapshot: Uint8Array, sx: number, y: number, sz: number): number {
   if (y < 0) return Block.bedrock;
   if (y >= CHUNK_HEIGHT) return Block.air;
-  return padded[paddedIndex(px, y, pz)] ?? 0;
+  return snapshot[snapIndex(sx, y, sz)] ?? 0;
 }
 
 /** Solid-opaque occluder test for AO (§4.6). */
-function occludes(padded: Uint8Array, px: number, y: number, pz: number): boolean {
+function occludes(snapshot: Uint8Array, sx: number, y: number, sz: number): boolean {
   if (y < 0 || y >= CHUNK_HEIGHT) return false;
-  return OPAQUE[padded[paddedIndex(px, y, pz)] ?? 0] === 1;
+  return OPAQUE[snapshot[snapIndex(sx, y, sz)] ?? 0] === 1;
 }
 
+// Scratch for per-quad vertex light (8 floats), reused across calls.
+const vertexLightScratch = new Float32Array(8);
+
 /**
- * Mesh one chunk from its padded snapshot. Pure — (cx, cz) only seed the
+ * Mesh the center chunk of a 3×3 snapshot. Pure — (cx, cz) only seed the
  * deterministic foliage tint hash.
  */
-export function meshChunk(padded: Uint8Array, cx: number, cz: number): ChunkMeshData {
+export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMeshData {
+  const light = computeLight(snapshot);
   const opaque = new QuadSink();
   const cutout = new QuadSink();
   const water = new QuadSink();
-  // Per padded column: topmost non-air y + 1 ("cover height") for depth light.
-  const cover = new Int16Array(PAD * PAD);
-  for (let pz = 0; pz < PAD; pz++) {
-    for (let px = 0; px < PAD; px++) {
-      let top = 0;
-      for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
-        if ((padded[paddedIndex(px, y, pz)] ?? 0) !== Block.air) {
-          top = y + 1;
-          break;
-        }
-      }
-      cover[pz * PAD + px] = top;
-    }
-  }
+
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
     for (let z = 0; z < CHUNK_SIZE; z++) {
-      const pz = z + 1;
+      const sz = z + CENTER;
       for (let x = 0; x < CHUNK_SIZE; x++) {
-        const px = x + 1;
-        const id = padded[paddedIndex(px, y, pz)] ?? 0;
+        const sx = x + CENTER;
+        const id = snapshot[snapIndex(sx, y, sz)] ?? 0;
         const pass = PASS[id] ?? PASS_NONE;
         if (pass === PASS_NONE) continue;
         const sink = pass === PASS_OPAQUE ? opaque : pass === PASS_CUTOUT ? cutout : water;
         for (let f = 0; f < 6; f++) {
           const face = FACES[f];
           if (!face) continue;
-          const nb = sampleAt(padded, px + face.dx, y + face.dy, pz + face.dz);
+          const nb = sampleAt(snapshot, sx + face.dx, y + face.dy, sz + face.dz);
           // §4.5 culling: emit iff the neighbor is non-opaque AND NOT
-          // (same id and both non-opaque) — water/glass/leaves internal
-          // faces cull, water against glass renders.
+          // (same id and both non-opaque).
           if (OPAQUE[nb] === 1) continue;
           if (nb === id && OPAQUE[id] !== 1) continue;
           const aoTable = FACE_AO[f];
@@ -280,26 +260,52 @@ export function meshChunk(padded: Uint8Array, cx: number, cz: number): ChunkMesh
           let ao1 = 3;
           let ao2 = 3;
           let ao3 = 3;
-          if (aoTable) {
-            for (let v = 0; v < 4; v++) {
-              const o = aoTable[v];
-              if (!o) continue;
-              const s1 = occludes(padded, px + (o[0] ?? 0), y + (o[1] ?? 0), pz + (o[2] ?? 0));
-              const s2 = occludes(padded, px + (o[3] ?? 0), y + (o[4] ?? 0), pz + (o[5] ?? 0));
-              const co = occludes(padded, px + (o[6] ?? 0), y + (o[7] ?? 0), pz + (o[8] ?? 0));
-              const ao = computeAO(s1, s2, co);
-              if (v === 0) ao0 = ao;
-              else if (v === 1) ao1 = ao;
-              else if (v === 2) ao2 = ao;
-              else ao3 = ao;
+          for (let v = 0; v < 4; v++) {
+            const o = aoTable?.[v];
+            if (!o) continue;
+            const s1 = occludes(snapshot, sx + (o[0] ?? 0), y + (o[1] ?? 0), sz + (o[2] ?? 0));
+            const s2 = occludes(snapshot, sx + (o[3] ?? 0), y + (o[4] ?? 0), sz + (o[5] ?? 0));
+            const co = occludes(snapshot, sx + (o[6] ?? 0), y + (o[7] ?? 0), sz + (o[8] ?? 0));
+            const ao = computeAO(s1, s2, co);
+            if (v === 0) ao0 = ao;
+            else if (v === 1) ao1 = ao;
+            else if (v === 2) ao2 = ao;
+            else ao3 = ao;
+
+            // Smooth light: average the lit cell + the three AO cells that
+            // are transparent. Out-of-world above is full sky.
+            let sky = 0;
+            let blk = 0;
+            let count = 0;
+            for (let cell = 0; cell < 4; cell++) {
+              const ox = cell === 0 ? face.dx : (o[(cell - 1) * 3] ?? 0);
+              const oy = cell === 0 ? face.dy : (o[(cell - 1) * 3 + 1] ?? 0);
+              const oz = cell === 0 ? face.dz : (o[(cell - 1) * 3 + 2] ?? 0);
+              const lx = sx + ox;
+              const ly = y + oy;
+              const lz = sz + oz;
+              if (ly >= CHUNK_HEIGHT) {
+                sky += MAX_LIGHT;
+                count++;
+                continue;
+              }
+              if (ly < 0) continue;
+              const li = snapIndex(lx, ly, lz);
+              if (OPAQUE[snapshot[li] ?? 0] === 1) continue;
+              sky += light.sky[li] ?? 0;
+              blk += light.block[li] ?? 0;
+              count++;
             }
+            if (count === 0) {
+              // Fully enclosed corner: fall back to the face's lit cell.
+              const li = snapIndex(sx + face.dx, Math.min(CHUNK_HEIGHT - 1, Math.max(0, y + face.dy)), sz + face.dz);
+              sky = light.sky[li] ?? 0;
+              blk = light.block[li] ?? 0;
+              count = 1;
+            }
+            vertexLightScratch[v * 2] = sky / count / MAX_LIGHT;
+            vertexLightScratch[v * 2 + 1] = blk / count / MAX_LIGHT;
           }
-          // Light the face by its air-side cell's depth below cover.
-          const nbPx = Math.min(PAD - 1, Math.max(0, px + face.dx));
-          const nbPz = Math.min(PAD - 1, Math.max(0, pz + face.dz));
-          const nbY = Math.min(CHUNK_HEIGHT - 1, Math.max(0, y + face.dy));
-          const depth = (cover[nbPz * PAD + nbPx] ?? 0) - 1 - nbY;
-          const depthFactor = depthBrightness(depth);
           let tintR = 1;
           let tintB = 1;
           if (TINTED.has(id)) {
@@ -309,31 +315,11 @@ export function meshChunk(padded: Uint8Array, cx: number, cz: number): ChunkMesh
           }
           sink.pushQuad(
             x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,
-            ao0, ao1, ao2, ao3, depthFactor, tintR, tintB,
+            ao0, ao1, ao2, ao3, vertexLightScratch, tintR, tintB,
           );
         }
       }
     }
   }
   return { opaque: opaque.toArrays(), cutout: cutout.toArrays(), water: water.toArrays() };
-}
-
-/**
- * Padded snapshot for a lone chunk: the border ring clamps to the chunk's own
- * edge columns, so world-edge side walls are culled as they would be with
- * real neighbors. Used by tests; streaming builds borders from real
- * neighbor chunks.
- */
-export function padLoneChunk(data: Uint8Array): Uint8Array {
-  const padded = new Uint8Array(PADDED_VOLUME);
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    for (let pz = 0; pz < PAD; pz++) {
-      const z = Math.min(CHUNK_SIZE - 1, Math.max(0, pz - 1));
-      for (let px = 0; px < PAD; px++) {
-        const x = Math.min(CHUNK_SIZE - 1, Math.max(0, px - 1));
-        padded[paddedIndex(px, y, pz)] = data[blockIndex(x, y, z)] ?? 0;
-      }
-    }
-  }
-  return padded;
 }

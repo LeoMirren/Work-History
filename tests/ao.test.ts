@@ -3,7 +3,8 @@
  * face-shade and quad-flip behavior as observed in actual mesh output.
  */
 import { describe, expect, it } from 'vitest';
-import { AO_BRIGHTNESS, computeAO, depthBrightness, FACE_SHADE, meshChunk, PADDED_VOLUME, paddedIndex } from '../src/world/mesher';
+import { AO_BRIGHTNESS, computeAO, FACE_SHADE, meshChunk } from '../src/world/mesher';
+import { SNAP_VOLUME, snapIndex } from '../src/world/lighting';
 import { Block } from '../src/world/blocks';
 
 describe('computeAO hand cases', () => {
@@ -24,10 +25,10 @@ describe('computeAO hand cases', () => {
   });
 });
 
-/** Padded buffer with the given blocks set (px = x+1 etc.). */
+/** Snapshot with blocks placed in the meshed center chunk (offset 16). */
 function padded(blocks: Array<[number, number, number, number]>): Uint8Array {
-  const buf = new Uint8Array(PADDED_VOLUME);
-  for (const [x, y, z, id] of blocks) buf[paddedIndex(x + 1, y, z + 1)] = id;
+  const buf = new Uint8Array(SNAP_VOLUME);
+  for (const [x, y, z, id] of blocks) buf[snapIndex(x + 16, y, z + 16)] = id;
   return buf;
 }
 
@@ -162,12 +163,9 @@ describe('face shading (§4.5)', () => {
     expect(FACE_SHADE).toEqual([0.75, 0.75, 1.0, 0.55, 0.85, 0.85]);
     const mesh = meshChunk(padded([[8, 10, 8, Block.stone]]), 0, 0).opaque!;
     // Lone block: faces emitted in table order (+x,-x,+y,-y,+z,-z), ao all 3.
-    // The underside's air cell sits 1 below the block's own cover, so depth
-    // lighting dims the -y face slightly.
     for (let f = 0; f < 6; f++) {
-      const depth = f === 3 ? depthBrightness(1) : 1;
       for (let v = 0; v < 4; v++) {
-        expect(mesh.colors[(f * 4 + v) * 3]).toBeCloseTo((FACE_SHADE[f] ?? -1) * depth, 6);
+        expect(mesh.colors[(f * 4 + v) * 3]).toBeCloseTo(FACE_SHADE[f] ?? -1, 6);
       }
     }
   });

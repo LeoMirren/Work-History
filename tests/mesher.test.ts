@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, createChunkData } from '../src/world/chunk';
-import { FACES, meshChunk, padLoneChunk, PADDED_VOLUME, paddedIndex } from '../src/world/mesher';
+import { FACES, meshChunk } from '../src/world/mesher';
+import { SNAP_VOLUME, snapIndex } from '../src/world/lighting';
 import { createGenerator } from '../src/world/worldgen';
 
-/** Padded buffer with air borders (an isolated chunk floating in vacuum). */
+/** Snapshot with the chunk at center and air neighbors (floating island). */
 function padWithAir(data: Uint8Array): Uint8Array {
-  const padded = new Uint8Array(PADDED_VOLUME);
+  const snapshot = new Uint8Array(SNAP_VOLUME);
   for (let y = 0; y < 128; y++) {
     for (let z = 0; z < 16; z++) {
       for (let x = 0; x < 16; x++) {
-        padded[paddedIndex(x + 1, y, z + 1)] = data[blockIndex(x, y, z)] ?? 0;
+        snapshot[snapIndex(x + 16, y, z + 16)] = data[blockIndex(x, y, z)] ?? 0;
       }
     }
   }
-  return padded;
+  return snapshot;
 }
 
 describe('mesher', () => {
@@ -100,11 +101,12 @@ describe('mesher', () => {
   it('meshes a real terrain chunk to low thousands of triangles (culling works)', () => {
     const generator = createGenerator('voxelheim-m1');
     const data = generator.generateChunk(0, 0);
-    const out = meshChunk(padLoneChunk(data), 0, 0);
+    // Air neighbors expose the chunk's side walls too; still far from ~393k.
+    const out = meshChunk(padWithAir(data), 0, 0);
     expect(out.opaque).not.toBeNull();
     const tris = out.opaque!.indices.length / 3;
-    console.log(`[M1 acceptance] terrain chunk triangles: ${tris}`);
+    console.log(`[M1 acceptance] terrain chunk triangles (with exposed sides): ${tris}`);
     expect(tris).toBeGreaterThan(100);
-    expect(tris).toBeLessThan(20000); // naive un-culled would be ~393k
+    expect(tris).toBeLessThan(40000); // naive un-culled would be ~393k
   });
 });

@@ -22,6 +22,7 @@ export const Block = {
   ore: 14,
   furnace: 15,
   chest: 16,
+  lantern: 17,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -68,6 +69,7 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.ore, name: 'ore', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.ore) },
   { id: Block.furnace, name: 'furnace', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.5, tiles: tiles(T.furnaceSide, T.furnaceSide, T.furnaceFront) },
   { id: Block.chest, name: 'chest', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 1.5, tiles: tiles(T.chestSide, T.chestTop, T.chestTop) },
+  { id: Block.lantern, name: 'lantern', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.3, tiles: tiles(T.lantern) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -76,6 +78,8 @@ export const OPAQUE = new Uint8Array(256);
 export const PASS = new Uint8Array(256);
 export const BREAKABLE = new Uint8Array(256);
 export const BREAK_TIME = new Float32Array(256);
+/** Block-light emission 0-15 (lighting engine sources). */
+export const LIGHT_EMIT = new Uint8Array(256);
 export const FACE_TILES = new Int32Array(256 * 6);
 
 for (const def of BLOCK_DEFS) {
@@ -86,6 +90,7 @@ for (const def of BLOCK_DEFS) {
   BREAK_TIME[def.id] = def.breakTime;
   for (let f = 0; f < 6; f++) FACE_TILES[def.id * 6 + f] = def.tiles[f] ?? 0;
 }
+LIGHT_EMIT[Block.lantern] = 14;
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [
@@ -97,7 +102,7 @@ export const HOTBAR_BLOCKS: readonly number[] = [
   Block.cobblestone,
   Block.glass,
   Block.log,
-  Block.brick,
+  Block.lantern,
 ];
 
 export function blockName(id: number): string {

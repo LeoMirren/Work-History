@@ -8,5 +8,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Streaming integration tests mesh hundreds of chunks incl. light BFS.
+    testTimeout: 60000,
   },
 });

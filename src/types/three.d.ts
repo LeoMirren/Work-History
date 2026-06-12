@@ -177,6 +177,19 @@ declare module 'three' {
     constructor(parameters?: MeshBasicMaterialParameters);
   }
 
+  export interface RawShaderMaterialParameters extends MaterialParameters {
+    vertexShader?: string;
+    fragmentShader?: string;
+    uniforms?: Record<string, { value: unknown }>;
+  }
+
+  export class RawShaderMaterial extends Material {
+    uniforms: Record<string, { value: unknown }>;
+    vertexShader: string;
+    fragmentShader: string;
+    constructor(parameters?: RawShaderMaterialParameters);
+  }
+
   export interface LineBasicMaterialParameters extends MaterialParameters {
     linewidth?: number;
   }

@@ -37,8 +37,9 @@ export const Tiles = {
   furnaceFront: 22,
   chestSide: 23,
   chestTop: 24,
-  charcoal: 23,
-  ingot: 24,
+  charcoal: 25,
+  ingot: 26,
+  lantern: 27,
 } as const;
 
 type Rng = () => number;
@@ -460,6 +461,24 @@ const paintIngot: TilePainter = (set, rng) => {
   for (let x = 4; x <= 9; x++) set(x, 6, 232, 234, 240); // highlight
 };
 
+/** Warm glowing core behind a dark cage frame. */
+const paintLantern: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
+      const n = jitter(rng, 14);
+      if (d > 6.5) {
+        set(x, y, 52 + n * 0.4, 44 + n * 0.4, 38 + n * 0.4); // frame
+      } else if ((x === 4 || x === 11) && y > 2 && y < 13) {
+        set(x, y, 60 + n * 0.4, 50 + n * 0.4, 42 + n * 0.4); // cage bars
+      } else {
+        const glow = Math.max(0, 1 - d / 7);
+        set(x, y, 232 + n, 196 + glow * 30 + n * 0.8, 96 + glow * 40 + n * 0.5);
+      }
+    }
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -488,6 +507,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.chestTop, 'chestTop', paintChestTop],
   [Tiles.charcoal, 'charcoal', paintCharcoal],
   [Tiles.ingot, 'ingot', paintIngot],
+  [Tiles.lantern, 'lantern', paintLantern],
 ];
 
 /**

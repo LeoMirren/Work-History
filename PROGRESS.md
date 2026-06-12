@@ -112,3 +112,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Right-click opens the chest screen (chest grid + your inventory) with a held-cursor: click to pick up/drop/merge/swap, shift-click to move across
 - [x] Breaking a chest spills its contents into your inventory; chest inventories persist with the world
 - [x] Generalized the Inventory class to a configurable size; cross-inventory transfer helper
+
+## Post-spec: Lighting engine (graphics overhaul, part 1)
+
+- [x] Real voxel light engine: sky light flood-fill (caves dark for real, dappled forest floors, water attenuation) + block light from emitters — pure BFS over a 48-wide 3x3-chunk snapshot, unit-tested
+- [x] Lantern block: crafted from charcoal + sticks, emits light 14, lights sealed rooms and caves; in the creative palette
+- [x] Smooth per-vertex light (sampled over the same 4 cells as AO) baked as a second attribute
+- [x] Custom chunk shader: final = albedo x tint x max(blockLight, skyLight x dayBrightness) — lanterns keep glowing at night while the sun dims; fog moved into the shader
+- [x] Fixed atlas tile collisions (charcoal/ingot were overpainting chest sides/tops)

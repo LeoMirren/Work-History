@@ -31,13 +31,9 @@ export class GameRenderer {
     this.renderer.setClearColor(color);
   }
 
-  /** Fog band tracks render distance: [RD*16*0.55, RD*16*0.95] (§4.10). */
+  /** Camera range tracks render distance; fog itself is shader uniforms. */
   setViewDistance(rd: number): void {
-    const range = rd * 16;
-    if (!this.scene.fog) this.scene.fog = new THREE.Fog(new THREE.Color('#8ecae6'), 1, 2);
-    this.scene.fog.near = range * 0.55;
-    this.scene.fog.far = range * 0.95;
-    this.camera.far = range * 1.2;
+    this.camera.far = rd * 16 * 1.2;
     this.camera.updateProjectionMatrix();
   }
 

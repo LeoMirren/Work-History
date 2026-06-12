@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import type { GameRenderer } from './renderer';
+import type { ChunkMaterialSet } from './materials';
 
 export const DAY_LENGTH_SECONDS = 480;
 /** New worlds start at noon (peak brightness). */
@@ -27,12 +28,15 @@ export class DayNight {
     this.time += dt;
   }
 
-  /** Push brightness into sky, fog and the shared materials. Call per frame. */
-  apply(renderer: GameRenderer, materials: readonly THREE.MeshBasicMaterial[]): void {
+  /** Push brightness into sky, fog uniforms and materials. Call per frame. */
+  apply(renderer: GameRenderer, chunk: ChunkMaterialSet, clouds: THREE.MeshBasicMaterial): void {
     const b = brightnessAt(this.time);
     this.sky.lerpColors(NIGHT_SKY, DAY_SKY, b);
     renderer.setClearColor(this.sky);
-    if (renderer.scene.fog) renderer.scene.fog.color.copy(this.sky);
-    for (const m of materials) m.color.setScalar(b);
+    for (const m of [chunk.opaque, chunk.cutout, chunk.water]) {
+      m.uniforms.uBrightness.value = b;
+      m.uniforms.fogColor.value.copy(this.sky);
+    }
+    clouds.color.setScalar(b);
   }
 }

@@ -13,7 +13,8 @@
 import * as THREE from 'three';
 import { SOLID } from './blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord, localCoord } from './chunk';
-import { meshChunk, PAD, PADDED_VOLUME, paddedIndex, type ChunkMeshData, type MeshArrays } from './mesher';
+import { meshChunk, type ChunkMeshData, type MeshArrays } from './mesher';
+import { SNAP_VOLUME, snapIndex } from './lighting';
 import type { JobPool } from '../workers/pool';
 
 export const MAX_JOBS_IN_FLIGHT = 6;
@@ -433,8 +434,9 @@ export class World {
   }
 
   /**
-   * Snapshot chunk + 1-block neighbor border into a PAD^2 x 128 buffer.
-   * Returns null unless the chunk and all 8 neighbors have data.
+   * Snapshot the full 3×3 chunk neighborhood into a 48×128×48 buffer (the
+   * mesher needs the whole ring so light propagation never clips at a chunk
+   * border). Returns null unless the chunk and all 8 neighbors have data.
    */
   buildPaddedSnapshot(cx: number, cz: number): Uint8Array | null {
     const grid: Array<Uint8Array | null> = [];
@@ -445,21 +447,22 @@ export class World {
       }
     }
     if (grid.some((g) => g === null)) return null;
-    const at = (dx: number, dz: number): Uint8Array => grid[(dz + 1) * 3 + (dx + 1)] as Uint8Array;
 
-    const padded = new Uint8Array(PADDED_VOLUME);
-    for (let y = 0; y < CHUNK_HEIGHT; y++) {
-      for (let pz = 0; pz < PAD; pz++) {
-        const zoneDz = pz === 0 ? -1 : pz === PAD - 1 ? 1 : 0;
-        const z = pz === 0 ? CHUNK_SIZE - 1 : pz === PAD - 1 ? 0 : pz - 1;
-        const mid = at(0, zoneDz);
-        const row = blockIndex(0, y, z);
-        padded.set(mid.subarray(row, row + CHUNK_SIZE), paddedIndex(1, y, pz));
-        padded[paddedIndex(0, y, pz)] = at(-1, zoneDz)[blockIndex(CHUNK_SIZE - 1, y, z)] ?? 0;
-        padded[paddedIndex(PAD - 1, y, pz)] = at(1, zoneDz)[blockIndex(0, y, z)] ?? 0;
+    const snapshot = new Uint8Array(SNAP_VOLUME);
+    for (let gz = 0; gz < 3; gz++) {
+      for (let gx = 0; gx < 3; gx++) {
+        const data = grid[gz * 3 + gx] as Uint8Array;
+        const ox = gx * CHUNK_SIZE;
+        const oz = gz * CHUNK_SIZE;
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          for (let z = 0; z < CHUNK_SIZE; z++) {
+            const row = blockIndex(0, y, z);
+            snapshot.set(data.subarray(row, row + CHUNK_SIZE), snapIndex(ox, y, oz + z));
+          }
+        }
       }
     }
-    return padded;
+    return snapshot;
   }
 
   private drainUploads(): void {
@@ -493,6 +496,7 @@ export class World {
     geometry.setAttribute('position', new THREE.BufferAttribute(arrays.positions, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(arrays.uvs, 2));
     geometry.setAttribute('color', new THREE.BufferAttribute(arrays.colors, 3));
+    geometry.setAttribute('light', new THREE.BufferAttribute(arrays.lights, 2));
     geometry.setIndex(new THREE.BufferAttribute(arrays.indices, 1));
     const b = arrays.bounds;
     geometry.boundingSphere = new THREE.Sphere(

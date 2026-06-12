@@ -6,6 +6,7 @@ import './style.css';
 import * as THREE from 'three';
 import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
+import { createChunkMaterials } from './engine/materials';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
 import { brightnessAt, DayNight, NOON_TIME } from './engine/daynight';
@@ -66,22 +67,11 @@ async function boot(): Promise<void> {
     if (session && !menus.pauseVisible) input.requestLock();
   });
 
-  // The three shared materials (§4.3) — every chunk mesh reuses these; only
-  // their map swaps on world change.
-  const materials = {
-    opaque: new THREE.MeshBasicMaterial({ vertexColors: true }),
-    cutout: new THREE.MeshBasicMaterial({ vertexColors: true, alphaTest: 0.5 }),
-    water: new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    }),
-  };
+  // The three shared chunk materials — every chunk mesh reuses these; only
+  // their texture/uniforms change at runtime.
+  const materials = createChunkMaterials();
   const materialList = [materials.opaque, materials.cutout, materials.water];
   const clouds = new Clouds(gr.scene, 'voxelheim');
-  // Everything brightness-dimmed by day/night, clouds included.
-  const litMaterials = [...materialList, clouds.material];
 
   const pool = new WorkerPool(
     () => new Worker(new URL('./workers/worker.ts', import.meta.url), { type: 'module' }),
@@ -138,6 +128,11 @@ async function boot(): Promise<void> {
   function applySettings(next: Settings): void {
     settings = { ...next };
     gr.setViewDistance(settings.renderDistance);
+    const range = settings.renderDistance * 16;
+    for (const m of materialList) {
+      m.uniforms.fogNear.value = range * 0.55;
+      m.uniforms.fogFar.value = range * 0.95;
+    }
     // FOV itself is driven by the render loop (sprint kick smoothing).
     session?.world.setRenderDistance(settings.renderDistance);
   }
@@ -195,8 +190,7 @@ async function boot(): Promise<void> {
     texture.generateMipmaps = false;
     texture.colorSpace = THREE.SRGBColorSpace;
     for (const m of materialList) {
-      m.map = texture;
-      m.needsUpdate = true;
+      m.uniforms.map.value = texture;
     }
     if (!hud) hud = new Hud(app as HTMLElement, atlasCanvas);
     else hud.redrawIcons(atlasCanvas);
@@ -339,10 +333,7 @@ async function boot(): Promise<void> {
         if (obj instanceof THREE.Mesh && obj.name !== 'clouds' && obj.name !== 'entity') seen.add(obj.material);
       });
       for (const m of seen) {
-        console.assert(
-          materialList.includes(m as THREE.MeshBasicMaterial),
-          'non-shared chunk material detected',
-        );
+        console.assert(materialList.some((mat) => mat === m), 'non-shared chunk material detected');
       }
       console.assert(seen.size <= 3, `expected <=3 shared materials, saw ${seen.size}`);
     }, 5000);
@@ -397,7 +388,7 @@ async function boot(): Promise<void> {
       }
     },
     render(alpha, frameDt) {
-      dayNight.apply(gr, litMaterials);
+      dayNight.apply(gr, materials, clouds.material);
       clouds.update(frameDt, player.body.x, player.body.z);
       const targetFov = settings.fov * (player.sprinting ? SPRINT_FOV_FACTOR : 1);
       currentFov += (targetFov - currentFov) * Math.min(1, frameDt * 12);

@@ -44,10 +44,11 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
   256×256 canvas atlas from a seeded PRNG. Zero asset files.
 - **Creative-lite gameplay**: instant break, infinite blocks, fly mode, water
   swimming, AABB physics with exact-contact collision.
-- **Lighting on the cheap**: per-vertex baked face shading and ambient
-  occlusion (with the classic quad-flip anisotropy fix), one global
-  day/night brightness multiplier and synced sky/fog colors. No scene
-  lights, no normals.
+- **A real voxel light engine**: flood-filled sky light (caves are genuinely
+  dark, forest floors dappled, water dims with depth) plus block light from
+  craftable lanterns — smoothed per vertex and combined in a tiny custom
+  shader with baked face shading and ambient occlusion, so lantern light
+  keeps glowing through the night. No scene lights, no normals.
 - **Local persistence**: edited chunks (RLE-compressed) and the player state
   autosave to IndexedDB every 10s; reload and pick up where you left off.
 - **Stretch extras**: sprint FOV kick, drifting blocky clouds, an optional
