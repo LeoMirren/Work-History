@@ -220,6 +220,12 @@ export class PlayerController {
     this.hunger = Math.min(MAX_HUNGER, this.hunger + food);
   }
 
+  /** External damage (mob melee). Survival only; routes through death/respawn. */
+  hurt(amount: number): void {
+    if (this.mode !== 'survival') return;
+    this.applyDamage(amount);
+  }
+
   /** Fall-damage bookkeeping: water entry and flight always break a fall. */
   private trackFall(): void {
     const body = this.body;

@@ -52,7 +52,8 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
   autosave to IndexedDB every 10s; reload and pick up where you left off.
 - **Stretch extras**: sprint FOV kick, drifting blocky clouds, an optional
   survival mode (hearts, hunger, fall damage, timed breaking — tick the box
-  on the title screen), ore veins to mine, and synthesized block-tap sounds.
+  on the title screen), ore veins to mine, hostile mobs after dark, and
+  synthesized block-tap sounds.
 - **Survival depth**: a 36-slot inventory with drops and stacking, a crafting
   recipe book (logs → planks → sticks → pickaxe tiers that mine faster and
   unlock ore), placement that consumes items, and two-system caves (rooms +

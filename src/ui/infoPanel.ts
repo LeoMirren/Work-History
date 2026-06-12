@@ -13,6 +13,7 @@ export interface PanelStatus {
   position: string;
   time: string;
   animals: number;
+  threats: number;
   fps: number;
 }
 
@@ -30,7 +31,7 @@ export class InfoPanel {
     const statusTitle = document.createElement('h2');
     statusTitle.textContent = 'Status';
     status.appendChild(statusTitle);
-    for (const key of ['Health', 'Hunger', 'Mode', 'Position', 'Time', 'Wildlife', 'FPS'] as const) {
+    for (const key of ['Health', 'Hunger', 'Mode', 'Position', 'Time', 'Wildlife', 'Threats', 'FPS'] as const) {
       const row = document.createElement('div');
       row.className = 'panel-row';
       const label = document.createElement('span');
@@ -85,6 +86,7 @@ export class InfoPanel {
     this.statusValues.get('Position')?.replaceChildren(s.position);
     this.statusValues.get('Time')?.replaceChildren(s.time);
     this.statusValues.get('Wildlife')?.replaceChildren(`${s.animals} nearby`);
+    this.statusValues.get('Threats')?.replaceChildren(s.threats > 0 ? `⚠ ${s.threats}` : 'none');
     this.statusValues.get('FPS')?.replaceChildren(String(s.fps));
   }
 }

@@ -15,6 +15,7 @@ import { breakSecondsFor, dropFor, isBlockId, Item, MEAT_FOOD } from '../world/i
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
 import type { AnimalSystem } from '../entities/animals';
+import type { HostileSystem } from '../entities/hostiles';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -45,6 +46,8 @@ export class Interaction {
   mode: GameMode = 'creative';
   /** Huntable wildlife (bound by main; punches hit these before blocks). */
   animals: AnimalSystem | null = null;
+  /** Hostile mobs (bound by main; struck by the same punch). */
+  hostiles: HostileSystem | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
@@ -105,7 +108,7 @@ export class Interaction {
     }
   }
 
-  /** Punch the nearest animal if it's closer than the targeted block. */
+  /** Punch the nearest entity (animal or hostile) if closer than the block. */
   private tryPunchAnimal(
     ox: number,
     oy: number,
@@ -115,12 +118,21 @@ export class Interaction {
     dz: number,
     inventory: Inventory | null,
   ): boolean {
-    const hit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH);
-    if (!hit) return false;
-    if (this.hasTarget && this.hit.distance < hit.distance) return false;
-    const drops = this.animals?.hurt(hit.animal) ?? null;
-    if (drops && inventory) inventory.add(drops.id, drops.count);
-    this.onEdit?.('break', Item.meat); // meaty thud
+    const animalHit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    const hostileHit = this.hostiles?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    // Pick the nearest of the two entity hits.
+    const useHostile =
+      hostileHit !== null && (animalHit === null || hostileHit.distance <= animalHit.distance);
+    const dist = useHostile ? hostileHit?.distance : animalHit?.distance;
+    if (dist === undefined) return false;
+    if (this.hasTarget && this.hit.distance < dist) return false;
+    if (useHostile && hostileHit) {
+      this.hostiles?.hurt(hostileHit.stalker);
+    } else if (animalHit) {
+      const drops = this.animals?.hurt(animalHit.animal) ?? null;
+      if (drops && inventory) inventory.add(drops.id, drops.count);
+    }
+    this.onEdit?.('break', Item.meat); // thud
     return true;
   }
 

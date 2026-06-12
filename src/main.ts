@@ -8,7 +8,7 @@ import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
-import { DayNight, NOON_TIME } from './engine/daynight';
+import { brightnessAt, DayNight, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
@@ -22,6 +22,7 @@ import { InventoryScreen } from './ui/inventoryScreen';
 import { Guide } from './ui/guide';
 import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
+import { HostileSystem } from './entities/hostiles';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -111,6 +112,8 @@ async function boot(): Promise<void> {
   }
   const animals = new AnimalSystem(gr.scene);
   interaction.animals = animals;
+  const hostiles = new HostileSystem(gr.scene);
+  interaction.hostiles = hostiles;
   let inventoryOpen = false;
   let hud: Hud | null = null;
   let session: Session | null = null;
@@ -236,7 +239,9 @@ async function boot(): Promise<void> {
     }
     player.setMode(mode);
     interaction.mode = mode;
-    animals.setWorld({ isSolid: world.isSolid, getBlock: world.blockAt });
+    const entityWorld = { isSolid: world.isSolid, getBlock: world.blockAt };
+    animals.setWorld(entityWorld);
+    hostiles.setWorld(mode === 'survival' ? entityWorld : null);
     infoPanel.show();
     hud.setSurvivalVisible(mode === 'survival');
     hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
@@ -359,6 +364,16 @@ async function boot(): Promise<void> {
       dayNight.advance(dt);
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
+      if (session.mode === 'survival') {
+        hostiles.fixedUpdate(
+          dt,
+          player.body.x,
+          player.body.y,
+          player.body.z,
+          brightnessAt(dayNight.time),
+          (dmg) => player.hurt(dmg),
+        );
+      }
     },
     render(alpha, frameDt) {
       dayNight.apply(gr, litMaterials);
@@ -457,6 +472,7 @@ async function boot(): Promise<void> {
         position: `${b.x.toFixed(0)}, ${b.y.toFixed(0)}, ${b.z.toFixed(0)}`,
         time: `${clockH}:${String(clockM).padStart(2, '0')}`,
         animals: animals.count,
+        threats: hostiles.count,
         fps: debugInfo.fps,
       });
       hud.setDebugText(

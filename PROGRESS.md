@@ -98,3 +98,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Hunger meter (0-20) with HUD pips + status panel readout, persisted
 - [x] Activity burns food (idle < walk < sprint); eating meat now restores hunger (RMB)
 - [x] Well-fed (≥18) slowly regenerates health; empty stomach starves down to a non-lethal floor
+
+## Post-spec: Hostile mobs & combat
+
+- [x] Stalkers: dark humanoids that spawn at night near the player on solid dark ground
+- [x] AI: chase within aggro range (hop over obstacles), wander otherwise; melee the player on contact with a cooldown
+- [x] Burn away after sustained daylight; despawn when far; killed in a few punches (shared entity ray-pick/hurt)
+- [x] Player takes damage in survival (routes through death/respawn); immune in creative; Threats readout on the status panel

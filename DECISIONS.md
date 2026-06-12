@@ -55,3 +55,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Biomes added: temperature/moisture noise classify columns into plains/forest/desert/savanna/snowy; each drives surface/subsurface block, tree density and a height bias. A separate mountain noise raises ranges. Original design — not modeled on any specific game's biome tables.
 
 - Hunger model (original numbers): activity-scaled exhaustion drains hunger; hunger >=18 regenerates health at a food cost; empty hunger starves to a 1-hp floor (never lethal, forgiving). Meat now restores hunger rather than healing directly, so the loop is hunt -> eat -> regen.
+
+- Hostile mobs ("stalkers") are original entities sharing the animal AABB physics and ray-pick/hurt interface; night-gated spawning via the day/night brightness value, sun burn-off in daylight, simple seek+hop AI, melee with cooldown. Player damage routed through a public hurt() that only applies in survival.
