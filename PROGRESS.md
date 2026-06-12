@@ -165,3 +165,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Rare hollow crystal geodes deep in the stone — one candidate per chunk (deterministic hash), kept chunk-local, only carving solid cells so they never float
 - [x] New blocks: geodeshell, crystal (glow 7); crystal needs a stone+ pickaxe and drops gems
 - [x] Gem item + gem pickaxe (apex tier 6, fastest mining), extending the tool ladder
+
+## Post-spec: Damage feedback
+
+- [x] Hurt flash on taking damage (intensity scales with the hit), decaying over ~1s
+- [x] Steady red low-health vignette below 6 HP, intensifying as health drops
+- [x] Pure HurtIndicator (unit-tested) drives a thin DOM vignette overlay; only updates the DOM on change

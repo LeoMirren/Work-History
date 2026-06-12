@@ -16,7 +16,9 @@ import { Input } from './engine/input';
 import { PlayerController, type GameMode } from './player/controller';
 import { Interaction, type HotbarState } from './player/interaction';
 import { Inventory } from './player/inventory';
+import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
+import { DamageOverlay } from './ui/damageOverlay';
 import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
@@ -97,6 +99,9 @@ async function boot(): Promise<void> {
   const guide = new Guide(app);
   let guideOpen = false;
   const infoPanel = new InfoPanel(app);
+  const damageOverlay = new DamageOverlay(app);
+  const hurt = new HurtIndicator();
+  let prevHp = MAX_HP;
 
   /** A furnace block within a small box around the player (smelting station). */
   function furnaceNearby(world: World): boolean {
@@ -439,6 +444,16 @@ async function boot(): Promise<void> {
         dayNight.apply(gr, materials, clouds.material);
       }
       clouds.update(frameDt, player.body.x, player.body.z);
+      // Damage feedback: flash on hp loss, steady vignette at low health.
+      if (session?.mode === 'survival') {
+        if (player.hp < prevHp) hurt.hit(prevHp - player.hp);
+        prevHp = player.hp;
+        hurt.update(frameDt);
+        damageOverlay.setIntensity(hurt.intensity(player.hp, MAX_HP));
+      } else {
+        prevHp = player.hp;
+        damageOverlay.setIntensity(0);
+      }
       const targetFov = settings.fov * (player.sprinting ? SPRINT_FOV_FACTOR : 1);
       currentFov += (targetFov - currentFov) * Math.min(1, frameDt * 12);
       if (Math.abs(currentFov - appliedFov) > 0.05) {

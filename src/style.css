@@ -530,3 +530,18 @@ body {
   color: #ffd75e;
   text-align: center;
 }
+
+#damage-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 28;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(160, 0, 0, 0) 35%,
+    rgba(150, 0, 0, 0.45) 80%,
+    rgba(110, 0, 0, 0.7) 100%
+  );
+  transition: opacity 0.08s linear;
+}
