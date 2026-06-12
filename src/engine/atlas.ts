@@ -1,0 +1,326 @@
+/**
+ * Procedural texture atlas: a 256x256 RGBA buffer of 16x16-pixel tiles, built
+ * once at boot from a seeded PRNG. `generateAtlasPixels` is pure (no DOM) so
+ * determinism is unit-testable; `createAtlasCanvas` blits it for rendering.
+ */
+import { rngFromSeed } from '../world/noise';
+
+export const TILE_PX = 16;
+export const ATLAS_TILES = 16;
+export const ATLAS_PX = TILE_PX * ATLAS_TILES;
+
+/** Tile slot indices in the atlas (all in row 0). */
+export const Tiles = {
+  stone: 0,
+  dirt: 1,
+  grassTop: 2,
+  grassSide: 3,
+  sand: 4,
+  water: 5,
+  logSide: 6,
+  logTop: 7,
+  leaves: 8,
+  planks: 9,
+  cobble: 10,
+  glass: 11,
+  snow: 12,
+  bedrock: 13,
+  brick: 14,
+} as const;
+
+type Rng = () => number;
+type TilePainter = (set: (x: number, y: number, r: number, g: number, b: number, a?: number) => void, rng: Rng) => void;
+
+function jitter(rng: Rng, amount: number): number {
+  return (rng() - 0.5) * amount;
+}
+
+const paintStone: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      let l = 125 + jitter(rng, 24);
+      if (rng() < 0.08) l -= 30;
+      set(x, y, l, l, l + 2);
+    }
+  }
+};
+
+const paintDirt: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 28);
+      set(x, y, 134 + n, 96 + n * 0.8, 67 + n * 0.6);
+    }
+  }
+};
+
+const paintGrassTop: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 26);
+      set(x, y, 96 + n * 0.7, 160 + n, 56 + n * 0.5);
+    }
+  }
+};
+
+/** Dirt with a 4px grass band on top; row 4 gets a ragged transition. */
+const paintGrassSide: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 26);
+      if (y < 4 || (y === 4 && rng() < 0.3)) {
+        set(x, y, 96 + n * 0.7, 160 + n, 56 + n * 0.5);
+      } else {
+        set(x, y, 134 + n, 96 + n * 0.8, 67 + n * 0.6);
+      }
+    }
+  }
+};
+
+const paintSand: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 18);
+      set(x, y, 218 + n, 206 + n, 160 + n * 0.8);
+    }
+  }
+};
+
+export const WATER_ALPHA = 166; // 0.65 * 255, baked into the tile
+
+const paintWater: TilePainter = (set) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      set(x, y, 52, 110, 198, WATER_ALPHA);
+    }
+  }
+};
+
+/** Vertical bark streaks: per-column darkness plus per-pixel grain. */
+const paintLogSide: TilePainter = (set, rng) => {
+  const colShade: number[] = [];
+  for (let x = 0; x < TILE_PX; x++) colShade.push(rng() < 0.35 ? -20 : rng() < 0.2 ? 14 : 0);
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 16) + (colShade[x] ?? 0);
+      set(x, y, 104 + n, 82 + n * 0.8, 50 + n * 0.5);
+    }
+  }
+};
+
+/** Concentric rings around the tile center, bark-colored rim. */
+const paintLogTop: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const dx = x - 7.5;
+      const dy = y - 7.5;
+      const r = Math.sqrt(dx * dx + dy * dy);
+      const n = jitter(rng, 10);
+      if (r > 7) {
+        set(x, y, 104 + n, 82 + n * 0.8, 50 + n * 0.5);
+      } else if (Math.floor(r * 1.6) % 2 === 0) {
+        set(x, y, 168 + n, 134 + n * 0.8, 82 + n * 0.5);
+      } else {
+        set(x, y, 134 + n, 106 + n * 0.8, 62 + n * 0.5);
+      }
+    }
+  }
+};
+
+export const LEAF_HOLE_CHANCE = 0.15;
+
+const paintLeaves: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      if (rng() < LEAF_HOLE_CHANCE) {
+        set(x, y, 0, 0, 0, 0);
+      } else {
+        const n = jitter(rng, 12);
+        if (rng() < 0.5) set(x, y, 54 + n, 118 + n, 40 + n * 0.5);
+        else set(x, y, 72 + n, 148 + n, 52 + n * 0.5);
+      }
+    }
+  }
+};
+
+/** Horizontal plank courses with seam lines and one vertical joint each. */
+const paintPlanks: TilePainter = (set, rng) => {
+  const tone: number[] = [];
+  const joint: number[] = [];
+  for (let b = 0; b < 4; b++) {
+    tone.push(jitter(rng, 20));
+    joint.push(Math.floor(rng() * TILE_PX));
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    const band = Math.floor(y / 4);
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 10) + (tone[band] ?? 0);
+      if (y % 4 === 3 || x === joint[band]) {
+        set(x, y, 110 + n * 0.5, 84 + n * 0.4, 48 + n * 0.3);
+      } else {
+        set(x, y, 168 + n, 134 + n * 0.8, 82 + n * 0.5);
+      }
+    }
+  }
+};
+
+/** Blobby grey stones separated by dark mortar, from smoothed lattice noise. */
+const paintCobble: TilePainter = (set, rng) => {
+  const L = 5;
+  const lattice: number[] = [];
+  for (let i = 0; i < L * L; i++) lattice.push(rng());
+  const sample = (x: number, y: number): number => {
+    const fx = (x / TILE_PX) * (L - 1);
+    const fy = (y / TILE_PX) * (L - 1);
+    const ix = Math.min(L - 2, Math.floor(fx));
+    const iy = Math.min(L - 2, Math.floor(fy));
+    const tx = fx - ix;
+    const ty = fy - iy;
+    const v00 = lattice[iy * L + ix] ?? 0;
+    const v10 = lattice[iy * L + ix + 1] ?? 0;
+    const v01 = lattice[(iy + 1) * L + ix] ?? 0;
+    const v11 = lattice[(iy + 1) * L + ix + 1] ?? 0;
+    return v00 * (1 - tx) * (1 - ty) + v10 * tx * (1 - ty) + v01 * (1 - tx) * ty + v11 * tx * ty;
+  };
+  const quant = (x: number, y: number): number => Math.min(2, Math.floor(sample(x, y) * 3));
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const q = quant(x, y);
+      const edge =
+        (x + 1 < TILE_PX && quant(x + 1, y) !== q) || (y + 1 < TILE_PX && quant(x, y + 1) !== q);
+      const n = jitter(rng, 14);
+      if (edge) {
+        set(x, y, 72 + n * 0.5, 72 + n * 0.5, 74 + n * 0.5);
+      } else {
+        const base = q === 0 ? 104 : q === 1 ? 128 : 148;
+        set(x, y, base + n, base + n, base + 2 + n);
+      }
+    }
+  }
+};
+
+/** 1px frame plus small corner notches; interior fully transparent. */
+const paintGlass: TilePainter = (set) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      set(x, y, 0, 0, 0, 0);
+    }
+  }
+  const frame = (x: number, y: number): void => set(x, y, 208, 228, 240, 255);
+  for (let i = 0; i < TILE_PX; i++) {
+    frame(i, 0);
+    frame(i, 15);
+    frame(0, i);
+    frame(15, i);
+  }
+  for (const [cx, cy] of [
+    [2, 2],
+    [13, 2],
+    [2, 13],
+    [13, 13],
+  ] as const) {
+    frame(cx, cy);
+    frame(cx + (cx < 8 ? 1 : -1), cy);
+    frame(cx, cy + (cy < 8 ? 1 : -1));
+  }
+};
+
+const paintSnow: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 10);
+      set(x, y, 236 + n, 240 + n, 246 + n);
+    }
+  }
+};
+
+const paintBedrock: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const l = 64 + jitter(rng, 56);
+      set(x, y, l, l, l + 2);
+    }
+  }
+};
+
+/** Red brick courses, light mortar rows and staggered vertical joints. */
+const paintBrick: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    const course = Math.floor(y / 4);
+    for (let x = 0; x < TILE_PX; x++) {
+      const shifted = (x + course * 4) % TILE_PX;
+      const n = jitter(rng, 16);
+      if (y % 4 === 0 || shifted % 8 === 0) {
+        set(x, y, 186 + n * 0.5, 178 + n * 0.5, 168 + n * 0.5);
+      } else {
+        set(x, y, 150 + n, 68 + n * 0.5, 56 + n * 0.4);
+      }
+    }
+  }
+};
+
+const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
+  [Tiles.stone, 'stone', paintStone],
+  [Tiles.dirt, 'dirt', paintDirt],
+  [Tiles.grassTop, 'grassTop', paintGrassTop],
+  [Tiles.grassSide, 'grassSide', paintGrassSide],
+  [Tiles.sand, 'sand', paintSand],
+  [Tiles.water, 'water', paintWater],
+  [Tiles.logSide, 'logSide', paintLogSide],
+  [Tiles.logTop, 'logTop', paintLogTop],
+  [Tiles.leaves, 'leaves', paintLeaves],
+  [Tiles.planks, 'planks', paintPlanks],
+  [Tiles.cobble, 'cobble', paintCobble],
+  [Tiles.glass, 'glass', paintGlass],
+  [Tiles.snow, 'snow', paintSnow],
+  [Tiles.bedrock, 'bedrock', paintBedrock],
+  [Tiles.brick, 'brick', paintBrick],
+];
+
+/**
+ * Pure atlas generation: RGBA pixels for the full 256x256 atlas. Each tile
+ * draws from its own (seed, tileName) PRNG stream, so output is deterministic
+ * and independent of paint order.
+ */
+export function generateAtlasPixels(seed: string): Uint8ClampedArray {
+  const px = new Uint8ClampedArray(ATLAS_PX * ATLAS_PX * 4);
+  for (const [tile, name, paint] of PAINTERS) {
+    const ox = (tile % ATLAS_TILES) * TILE_PX;
+    const oy = Math.floor(tile / ATLAS_TILES) * TILE_PX;
+    const set = (x: number, y: number, r: number, g: number, b: number, a = 255): void => {
+      const o = ((oy + y) * ATLAS_PX + (ox + x)) * 4;
+      px[o] = r;
+      px[o + 1] = g;
+      px[o + 2] = b;
+      px[o + 3] = a;
+    };
+    paint(set, rngFromSeed(seed, `tile:${name}`));
+  }
+  return px;
+}
+
+/** Blit the atlas pixels onto a canvas (DOM side, not used by tests). */
+export function createAtlasCanvas(seed: string): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = ATLAS_PX;
+  canvas.height = ATLAS_PX;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas context unavailable');
+  ctx.putImageData(new ImageData(generateAtlasPixels(seed), ATLAS_PX, ATLAS_PX), 0, 0);
+  return canvas;
+}
+
+/**
+ * UV rectangle for a tile. Canvas textures flip Y (v=0 is the canvas bottom),
+ * so the v range is computed from the bottom edge.
+ */
+export function tileUVRect(tile: number): { u0: number; v0: number; u1: number; v1: number } {
+  const tx = tile % ATLAS_TILES;
+  const ty = Math.floor(tile / ATLAS_TILES);
+  return {
+    u0: tx / ATLAS_TILES,
+    v0: (ATLAS_TILES - 1 - ty) / ATLAS_TILES,
+    u1: (tx + 1) / ATLAS_TILES,
+    v1: (ATLAS_TILES - ty) / ATLAS_TILES,
+  };
+}
