@@ -92,9 +92,10 @@ tests/                    vitest — all pure modules, no DOM/WebGL needed
 
 **Data flow.** The main thread owns chunk data and the scene. Workers do the
 heavy lifting: `gen` jobs turn `(seed, cx, cz)` into a 32KB block array;
-`mesh` jobs turn an 18×128×18 padded snapshot (chunk + 1-block neighbor
-border) into indexed geometry for up to three render passes (opaque / cutout
-/ translucent water). Every buffer crosses the thread boundary as a
+`mesh` jobs take a 48×128×48 snapshot (the chunk centered in its 3×3
+neighborhood), flood-fill both light channels over it, and emit indexed
+geometry for up to three render passes (opaque / cutout / translucent
+water). Every buffer crosses the thread boundary as a
 transferable — zero copies. Block edits skip the workers entirely and remesh
 the affected chunks synchronously for same-frame feedback.
 
@@ -103,8 +104,9 @@ everything past RD+2 unloads (geometry disposed; unmodified data discarded —
 regeneration is cheap, edited chunks are persisted). Jobs dispatch closest
 first, ≤6 in flight; at most 2 new geometries upload per frame.
 
-**Why it's fast.** Three shared `MeshBasicMaterial`s for the whole world (the
-texture atlas + vertex colors carry everything), no lights or normals,
+**Why it's fast.** Three shared chunk shader materials for the whole world
+(the texture atlas + two baked vertex channels carry everything), no scene
+lights or normals,
 numeric chunk-map keys, preallocated hot-path objects (zero steady-state
 allocations per frame), and one draw call per chunk-pass with per-mesh
 frustum culling. The F3 overlay (also `window.__debug`) reports fps,
@@ -132,7 +134,7 @@ on `beforeunload`, and via the pause menu's Save.
 
 ## Development notes
 
-- `npm test` — 88 tests over the pure core: chunk index math, worldgen
+- `npm test` — 160+ tests over the pure core: chunk index math, worldgen
   determinism (checksummed), mesher culling/AO/winding, raycast DDA, AABB
   physics, RLE codec, placement rules, survival fall damage and break times,
   plus headless streaming/persistence integration through a synchronous
