@@ -8,6 +8,7 @@ import { craft, craftableCount, RECIPES } from '../world/crafting';
 import { iconTileFor, itemName, isBlockId } from '../world/items';
 import { blockName } from '../world/blocks';
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from '../player/inventory';
+import { Cursor } from '../player/cursor';
 
 const ICON_PX = 36;
 
@@ -23,7 +24,8 @@ export class InventoryScreen {
   private readonly slotEls: HTMLDivElement[] = [];
   private inventory: Inventory | null = null;
   private atlasCanvas: HTMLCanvasElement | null = null;
-  private selectedSlot = -1;
+  private readonly cursor = new Cursor();
+  private readonly heldLabel: HTMLDivElement = document.createElement('div');
   private renderedVersion = -1;
   private furnaceAvailable = false;
 
@@ -52,7 +54,10 @@ export class InventoryScreen {
       const count = document.createElement('span');
       count.className = 'inv-count';
       slot.append(icon, count);
-      slot.addEventListener('click', (e) => this.onSlotClick(index, e.shiftKey));
+      slot.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.onSlotClick(index, e.button, e.shiftKey);
+      });
       this.grid.appendChild(slot);
       this.slotEls[index] = slot;
     }
@@ -61,10 +66,12 @@ export class InventoryScreen {
     this.recipeList.id = 'recipe-list';
 
     columns.append(this.grid, this.recipeList);
+    this.heldLabel.className = 'held-label';
     const hint = document.createElement('p');
     hint.className = 'controls-hint';
-    hint.textContent = 'click: pick/move stack · shift-click: quick-move · E/Esc: close';
-    panel.append(heading, columns, hint);
+    hint.textContent =
+      'left: pick up / drop · right: half / drop one · shift-click: quick-move · E/Esc: close';
+    panel.append(heading, columns, this.heldLabel, hint);
     this.root.appendChild(panel);
     parent.appendChild(this.root);
   }
@@ -73,7 +80,6 @@ export class InventoryScreen {
     this.inventory = inventory;
     this.atlasCanvas = atlasCanvas;
     this.furnaceAvailable = furnaceAvailable;
-    this.selectedSlot = -1;
     this.renderedVersion = -1;
     this.visible = true;
     this.root.classList.remove('hidden');
@@ -81,22 +87,21 @@ export class InventoryScreen {
   }
 
   close(): void {
+    if (this.inventory) this.cursor.returnTo(this.inventory);
     this.visible = false;
     this.inventory = null;
     this.root.classList.add('hidden');
   }
 
-  private onSlotClick(index: number, shift: boolean): void {
+  private onSlotClick(index: number, button: number, shift: boolean): void {
     const inv = this.inventory;
     if (!inv) return;
-    if (shift) {
+    if (shift && button === 0) {
       inv.quickMove(index);
-      this.selectedSlot = -1;
-    } else if (this.selectedSlot === -1) {
-      if (inv.slots[index]) this.selectedSlot = index;
-    } else {
-      inv.moveOrSwap(this.selectedSlot, index);
-      this.selectedSlot = -1;
+    } else if (button === 2) {
+      this.cursor.rightClick(inv, index);
+    } else if (button === 0) {
+      this.cursor.leftClick(inv, index);
     }
     this.render();
   }
@@ -127,8 +132,9 @@ export class InventoryScreen {
       if (icon) this.drawIcon(icon, stack?.id ?? 0);
       if (count) count.textContent = stack && stack.count > 1 ? String(stack.count) : '';
       el.title = stack ? `${nameFor(stack.id)} ×${stack.count}` : '';
-      el.classList.toggle('selected', index === this.selectedSlot);
     }
+    const held = this.cursor.held;
+    this.heldLabel.textContent = held ? `Holding: ${nameFor(held.id)} ×${held.count}` : '';
 
     this.recipeList.textContent = '';
     const ctx = { furnaceAvailable: this.furnaceAvailable };

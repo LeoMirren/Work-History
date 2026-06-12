@@ -4,8 +4,9 @@
  * swap (in either grid), shift-click to quick-transfer to the other grid.
  */
 import { ATLAS_TILES, TILE_PX } from '../engine/atlas';
-import { type Inventory, type ItemStack, transferStack } from '../player/inventory';
-import { stackLimit, iconTileFor, itemName, isBlockId } from '../world/items';
+import { type Inventory, transferStack } from '../player/inventory';
+import { Cursor } from '../player/cursor';
+import { iconTileFor, itemName, isBlockId } from '../world/items';
 import { blockName } from '../world/blocks';
 
 const ICON_PX = 34;
@@ -23,7 +24,7 @@ export class ChestScreen {
   private chest: Inventory | null = null;
   private player: Inventory | null = null;
   private atlasCanvas: HTMLCanvasElement | null = null;
-  private held: ItemStack | null = null;
+  private readonly cursor = new Cursor();
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -56,7 +57,6 @@ export class ChestScreen {
     this.chest = chest;
     this.player = player;
     this.atlasCanvas = atlasCanvas;
-    this.held = null;
     this.visible = true;
     this.buildGrid(this.chestGrid, chest.size, true);
     this.buildGrid(this.playerGrid, player.size, false);
@@ -66,10 +66,7 @@ export class ChestScreen {
 
   close(): void {
     // Return any held stack to the player so items are never lost on close.
-    if (this.held && this.player) {
-      this.player.add(this.held.id, this.held.count);
-      this.held = null;
-    }
+    if (this.player) this.cursor.returnTo(this.player);
     this.visible = false;
     this.chest = null;
     this.player = null;
@@ -87,44 +84,25 @@ export class ChestScreen {
       const count = document.createElement('span');
       count.className = 'inv-count';
       slot.append(icon, count);
-      slot.addEventListener('click', (e) => this.onClick(isChest, i, e.shiftKey));
+      slot.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.onClick(isChest, i, e.button, e.shiftKey);
+      });
       grid.appendChild(slot);
     }
   }
 
-  private onClick(isChest: boolean, index: number, shift: boolean): void {
+  private onClick(isChest: boolean, index: number, button: number, shift: boolean): void {
     const inv = isChest ? this.chest : this.player;
     const other = isChest ? this.player : this.chest;
     if (!inv || !other) return;
 
-    if (shift) {
+    if (shift && button === 0) {
       transferStack(inv, index, other);
-      this.render();
-      return;
-    }
-
-    const slot = inv.slots[index];
-    if (!this.held) {
-      if (slot) {
-        this.held = slot;
-        inv.slots[index] = null;
-        inv.version++;
-      }
-    } else if (!slot) {
-      inv.slots[index] = this.held;
-      this.held = null;
-      inv.version++;
-    } else if (slot.id === this.held.id) {
-      const limit = stackLimit(slot.id);
-      const take = Math.min(limit - slot.count, this.held.count);
-      slot.count += take;
-      this.held.count -= take;
-      if (this.held.count === 0) this.held = null;
-      inv.version++;
-    } else {
-      inv.slots[index] = this.held;
-      this.held = slot;
-      inv.version++;
+    } else if (button === 2) {
+      this.cursor.rightClick(inv, index);
+    } else if (button === 0) {
+      this.cursor.leftClick(inv, index);
     }
     this.render();
   }
@@ -158,8 +136,7 @@ export class ChestScreen {
     if (!this.visible || !this.chest || !this.player) return;
     this.paint(this.chestGrid, this.chest);
     this.paint(this.playerGrid, this.player);
-    this.heldLabel.textContent = this.held
-      ? `Holding: ${nameFor(this.held.id)} ×${this.held.count}`
-      : '';
+    const held = this.cursor.held;
+    this.heldLabel.textContent = held ? `Holding: ${nameFor(held.id)} ×${held.count}` : '';
   }
 }

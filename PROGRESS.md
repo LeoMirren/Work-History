@@ -120,3 +120,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Smooth per-vertex light (sampled over the same 4 cells as AO) baked as a second attribute
 - [x] Custom chunk shader: final = albedo x tint x max(blockLight, skyLight x dayBrightness) — lanterns keep glowing at night while the sun dims; fog moved into the shader
 - [x] Fixed atlas tile collisions (charcoal/ingot were overpainting chest sides/tops)
+
+## Post-spec: Inventory feel (shared held cursor)
+
+- [x] Extracted a pure, unit-tested Cursor (held-stack model) used by both the inventory and chest screens
+- [x] Left click: pick up whole / drop / merge (overflow stays in hand) / swap; right click: pick up half / drop one; shift-click: quick-move
+- [x] Held items spill back safely on close; "Holding: …" readout; replaced the old select-and-swap inventory interaction
