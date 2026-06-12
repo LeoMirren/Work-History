@@ -38,6 +38,7 @@ export const Biome = {
   desert: 2,
   savanna: 3,
   snowy: 4,
+  jungle: 5,
 } as const;
 
 export type BiomeId = (typeof Biome)[keyof typeof Biome];
@@ -54,6 +55,8 @@ export function biomeName(id: number): string {
       return 'savanna';
     case Biome.snowy:
       return 'snowy';
+    case Biome.jungle:
+      return 'jungle';
     default:
       return 'unknown';
   }
@@ -74,6 +77,7 @@ const BIOME_DEFS: Record<number, BiomeDef> = {
   [Biome.desert]: { surface: Block.sand, subsurface: Block.sand, treeChanceDiv: 0, heightBias: -1 },
   [Biome.savanna]: { surface: Block.grass, subsurface: Block.dirt, treeChanceDiv: 110, heightBias: -1 },
   [Biome.snowy]: { surface: Block.snow, subsurface: Block.dirt, treeChanceDiv: 88, heightBias: 0 },
+  [Biome.jungle]: { surface: Block.grass, subsurface: Block.dirt, treeChanceDiv: 8, heightBias: 1 },
 };
 
 export type Dimension = 'overworld' | 'underworld';
@@ -182,6 +186,7 @@ function createOverworld(seed: string): Generator {
     const t = temperature(wx / 620, wz / 620);
     const m = moisture(wx / 520, wz / 520);
     if (t > 0.45 && m < -0.05) return Biome.desert;
+    if (t > 0.2 && m > 0.5) return Biome.jungle; // hot & very wet
     if (t > 0.28 && m < 0.18) return Biome.savanna;
     if (t < -0.4) return Biome.snowy;
     if (m > 0.22) return Biome.forest;
@@ -278,7 +283,9 @@ function createOverworld(seed: string): Generator {
         if (div === 0) continue;
         const hsh = hash2(treeSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
         if (hsh % div !== 0) continue;
-        plantTree(data, x, z, h, 4 + ((hsh >>> 8) % 3));
+        const jungle = (biomes[z * CHUNK_SIZE + x] ?? Biome.plains) === Biome.jungle;
+        const trunk = jungle ? 7 + ((hsh >>> 8) % 4) : 4 + ((hsh >>> 8) % 3);
+        plantTree(data, x, z, h, trunk);
       }
     }
 

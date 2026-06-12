@@ -79,3 +79,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Underground geodes: a per-chunk hash places at most one hollow crystal pocket (radius 4, y 8-40), carved chunk-local (centre kept >=R+1 from borders) so it never crosses a chunk edge; only solid non-bedrock cells are overwritten so geodes do not float into caverns. Crystal (glow 7) needs a stone-tier pickaxe and drops gems; gems craft a gem pickaxe (tier 6, the apex, speed x12). Sealed geode air is excluded from the ocean-drain cave invariant in tests.
 
 - Damage feedback: a pure HurtIndicator (flash spikes on hp loss, decays ~2.2/s; low-hp vignette below 6 HP) drives a full-screen red radial overlay. Survival only; throttled DOM writes (rounded to 1%). Death still auto-respawns (a full death screen would gate the respawn instead).
+
+- Jungle biome: hot (t>0.2) and very wet (m>0.5) classification ahead of forest; densest tree chance (1-in-8) and taller trunks (7-10 logs vs 4-6 elsewhere), small height bias. Original biome — reuses the existing leaf/log tree with a taller trunk parameter.

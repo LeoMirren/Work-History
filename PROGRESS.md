@@ -171,3 +171,8 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Hurt flash on taking damage (intensity scales with the hit), decaying over ~1s
 - [x] Steady red low-health vignette below 6 HP, intensifying as health drops
 - [x] Pure HurtIndicator (unit-tested) drives a thin DOM vignette overlay; only updates the DOM on change
+
+## Post-spec: Jungle biome
+
+- [x] Jungle biome (hot + very wet) with dense canopy (1-in-8 tree chance) and tall trunks (7-10 logs)
+- [x] Classifier branch + biome def + name; appears across the world, tested for presence and tall trees

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE } from '../src/world/chunk';
-import { createGenerator, findSafeSpawnY, SEA_LEVEL } from '../src/world/worldgen';
+import { Biome, biomeName, createGenerator, findSafeSpawnY, SEA_LEVEL } from '../src/world/worldgen';
 
 function fnv1a(data: Uint8Array): number {
   let h = 0x811c9dc5;
@@ -318,5 +318,49 @@ describe('geodes', () => {
     expect(maxCrystalY).toBeLessThan(50); // deep underground
     // Determinism: same chunk regenerates identically.
     expect(gen.generateChunk(3, -5)).toEqual(createGenerator(SEED, 'overworld').generateChunk(3, -5));
+  });
+});
+
+describe('jungle biome', () => {
+  it('names jungle and exposes a dense-tree def', () => {
+    expect(biomeName(Biome.jungle)).toBe('jungle');
+  });
+
+  it('appears somewhere and grows tall dense trees', () => {
+    const gen = createGenerator(SEED);
+    // Find a chunk that contains jungle columns by scanning a wide area.
+    let jungleChunk: [number, number] | null = null;
+    for (let cz = -16; cz <= 16 && !jungleChunk; cz++) {
+      for (let cx = -16; cx <= 16 && !jungleChunk; cx++) {
+        let count = 0;
+        for (let z = 0; z < CHUNK_SIZE; z += 4) {
+          for (let x = 0; x < CHUNK_SIZE; x += 4) {
+            if (gen.biomeAt(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z) === Biome.jungle) count++;
+          }
+        }
+        if (count >= 4) jungleChunk = [cx, cz];
+      }
+    }
+    expect(jungleChunk).not.toBeNull();
+
+    // Trees grow there (dense biome), with at least one trunk 7+ tall.
+    let maxTrunk = 0;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const data = gen.generateChunk(jungleChunk![0] + dx, jungleChunk![1] + dz);
+        // Measure a trunk height by counting vertical logs over a column.
+        for (let z = 0; z < CHUNK_SIZE; z++) {
+          for (let x = 0; x < CHUNK_SIZE; x++) {
+            let run = 0;
+            for (let y = 1; y < CHUNK_HEIGHT; y++) {
+              if (data[blockIndex(x, y, z)] === Block.log) run++;
+              else if (run > 0) break;
+            }
+            maxTrunk = Math.max(maxTrunk, run);
+          }
+        }
+      }
+    }
+    expect(maxTrunk).toBeGreaterThanOrEqual(7); // jungle trunks are tall
   });
 });
