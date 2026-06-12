@@ -40,6 +40,14 @@ export const Tiles = {
   charcoal: 25,
   ingot: 26,
   lantern: 27,
+  coalOre: 28,
+  copperOre: 29,
+  goldOre: 30,
+  coal: 31,
+  copperIngot: 32,
+  goldIngot: 33,
+  copperPickaxe: 34,
+  goldPickaxe: 35,
 } as const;
 
 type Rng = () => number;
@@ -274,32 +282,37 @@ const paintBrick: TilePainter = (set, rng) => {
 };
 
 /** Stone base with rust-colored mineral clusters. */
-const paintOre: TilePainter = (set, rng) => {
-  const clusters: Array<[number, number]> = [];
-  for (let i = 0; i < 6; i++) {
-    clusters.push([1 + Math.floor(rng() * 13), 1 + Math.floor(rng() * 13)]);
-  }
-  for (let y = 0; y < TILE_PX; y++) {
-    for (let x = 0; x < TILE_PX; x++) {
-      let l = 125 + jitter(rng, 24);
-      if (rng() < 0.08) l -= 28;
-      set(x, y, l, l, l + 2);
+/** Stone base with mineral speckle clusters in the given ore color. */
+function paintOreTile(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    const clusters: Array<[number, number]> = [];
+    for (let i = 0; i < 6; i++) {
+      clusters.push([1 + Math.floor(rng() * 13), 1 + Math.floor(rng() * 13)]);
     }
-  }
-  for (const [cx, cy] of clusters) {
-    for (const [dx, dy] of [
-      [0, 0],
-      [1, 0],
-      [0, 1],
-      [1, 1],
-    ] as const) {
-      if (rng() < 0.8) {
-        const n = jitter(rng, 22);
-        set(cx + dx, cy + dy, 188 + n, 124 + n * 0.7, 58 + n * 0.4);
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) {
+        let l = 125 + jitter(rng, 24);
+        if (rng() < 0.08) l -= 28;
+        set(x, y, l, l, l + 2);
       }
     }
-  }
-};
+    for (const [cx, cy] of clusters) {
+      for (const [dx, dy] of [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ] as const) {
+        if (rng() < 0.8) {
+          const n = jitter(rng, 22);
+          set(cx + dx, cy + dy, r + n, g + n * 0.7, b + n * 0.5);
+        }
+      }
+    }
+  };
+}
+
+const paintOre = paintOreTile(188, 124, 58); // iron
 
 /** Slim diagonal stick on a transparent tile. */
 const paintStick: TilePainter = (set, rng) => {
@@ -445,21 +458,43 @@ const paintCharcoal: TilePainter = (set, rng) => {
   for (let i = 5; i <= 8; i++) set(i, 5, 96, 96, 104); // sheen
 };
 
-/** Ingot: a rounded metal bar with a highlight. */
-const paintIngot: TilePainter = (set, rng) => {
-  for (let y = 0; y < TILE_PX; y++) {
-    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
-  }
-  for (let y = 5; y <= 11; y++) {
-    for (let x = 3; x <= 12; x++) {
-      const inset = (y === 5 || y === 11) && (x === 3 || x === 12);
-      if (inset) continue;
-      const n = jitter(rng, 16);
-      set(x, y, 196 + n, 198 + n, 206 + n);
+/** Ingot/bar factory: a rounded metal bar in the given color with a highlight. */
+function paintBar(r: number, g: number, b: number, hr: number, hg: number, hb: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
     }
-  }
-  for (let x = 4; x <= 9; x++) set(x, 6, 232, 234, 240); // highlight
-};
+    for (let y = 5; y <= 11; y++) {
+      for (let x = 3; x <= 12; x++) {
+        const inset = (y === 5 || y === 11) && (x === 3 || x === 12);
+        if (inset) continue;
+        const n = jitter(rng, 16);
+        set(x, y, r + n, g + n, b + n);
+      }
+    }
+    for (let x = 4; x <= 9; x++) set(x, 6, hr, hg, hb); // highlight
+  };
+}
+
+const paintIngot = paintBar(196, 198, 206, 232, 234, 240); // iron
+
+/** Rounded lump (coal, etc.) in the given color. */
+function paintLump(r: number, g: number, b: number, sheen: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) {
+        if (Math.hypot(x - 7.5, y - 8) < 5.6) {
+          const n = jitter(rng, 18);
+          set(x, y, r + n, g + n, b + n);
+        }
+      }
+    }
+    for (let i = 5; i <= 8; i++) set(i, 5, sheen, sheen, sheen + 8); // sheen
+  };
+}
 
 /** Warm glowing core behind a dark cage frame. */
 const paintLantern: TilePainter = (set, rng) => {
@@ -507,6 +542,14 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.chestTop, 'chestTop', paintChestTop],
   [Tiles.charcoal, 'charcoal', paintCharcoal],
   [Tiles.ingot, 'ingot', paintIngot],
+  [Tiles.coalOre, 'coalOre', paintOreTile(46, 44, 50)],
+  [Tiles.copperOre, 'copperOre', paintOreTile(196, 118, 70)],
+  [Tiles.goldOre, 'goldOre', paintOreTile(224, 190, 70)],
+  [Tiles.coal, 'coal', paintLump(40, 38, 44, 96)],
+  [Tiles.copperIngot, 'copperIngot', paintBar(196, 122, 78, 234, 168, 120)],
+  [Tiles.goldIngot, 'goldIngot', paintBar(226, 194, 78, 248, 232, 150)],
+  [Tiles.copperPickaxe, 'copperPickaxe', paintPickaxe(196, 122, 78)],
+  [Tiles.goldPickaxe, 'goldPickaxe', paintPickaxe(226, 194, 78)],
   [Tiles.lantern, 'lantern', paintLantern],
 ];
 

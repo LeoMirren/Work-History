@@ -65,3 +65,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Fixed shipped atlas bug: charcoal/ingot tile ids collided with chest side/top, corrupting chest textures.
 
 - Inventory interaction unified on a pure `Cursor` (player/cursor.ts): left = pick-up/drop/merge/swap, right = half/drop-one, shift = quick-move; both InventoryScreen and ChestScreen drive it via mousedown button. Replaces the inventory screen's older select-then-swap model; held items are returned to the inventory on close so nothing is ever lost.
+
+- Ore tiers (original spin): coal/iron/copper/gold as separate vein systems with their own noise + depth band; pickaxe ladder wood<stone<copper<iron<gold with per-ore required tiers (coal=wood, iron/copper=stone, gold=iron) and a wrong-tool ×5 slowdown that also yields no drop. Coal ore drops a coal item (fuel); iron/copper/gold ore blocks drop themselves and smelt to ingots. blockName() humanizes camelCase registry keys for display.

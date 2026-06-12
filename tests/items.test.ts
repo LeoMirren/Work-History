@@ -2,7 +2,7 @@
  * Survival update: drop tables and tool-adjusted mining times.
  */
 import { describe, expect, it } from 'vitest';
-import { breakSecondsFor, dropFor, isBlockId, Item, pickaxeTier, stackLimit } from '../src/world/items';
+import { breakSecondsFor, dropFor, iconTileFor, isBlockId, Item, itemName, pickaxeTier, stackLimit } from '../src/world/items';
 import { Block } from '../src/world/blocks';
 
 describe('item basics', () => {
@@ -20,7 +20,7 @@ describe('item basics', () => {
     expect(pickaxeTier(Block.stone)).toBe(0);
     expect(pickaxeTier(Item.woodPickaxe)).toBe(1);
     expect(pickaxeTier(Item.stonePickaxe)).toBe(2);
-    expect(pickaxeTier(Item.ironPickaxe)).toBe(3);
+    expect(pickaxeTier(Item.ironPickaxe)).toBe(4);
   });
 });
 
@@ -44,10 +44,11 @@ describe('drop table', () => {
     expect(dropFor(Block.air, 0)).toBeNull();
   });
 
-  it('ore requires a pickaxe to drop', () => {
+  it('iron ore requires a stone pickaxe to drop', () => {
     expect(dropFor(Block.ore, 0)).toBeNull();
     expect(dropFor(Block.ore, Item.stick)).toBeNull();
-    expect(dropFor(Block.ore, Item.woodPickaxe)).toEqual({ id: Block.ore, count: 1 });
+    expect(dropFor(Block.ore, Item.woodPickaxe)).toBeNull(); // wood is too weak now
+    expect(dropFor(Block.ore, Item.stonePickaxe)).toEqual({ id: Block.ore, count: 1 });
     expect(dropFor(Block.ore, Item.ironPickaxe)).toEqual({ id: Block.ore, count: 1 });
   });
 });
@@ -62,9 +63,10 @@ describe('tool-adjusted break times', () => {
     expect(breakSecondsFor(Block.brick, Item.stonePickaxe)).toBeCloseTo(2.25 / 4);
   });
 
-  it('bare-handed ore is painfully slow', () => {
+  it('wrong-tool iron ore is painfully slow, right tool is quick', () => {
     expect(breakSecondsFor(Block.ore, 0)).toBeCloseTo(3 * 5);
-    expect(breakSecondsFor(Block.ore, Item.woodPickaxe)).toBeCloseTo(3 / 2);
+    expect(breakSecondsFor(Block.ore, Item.woodPickaxe)).toBeCloseTo(3 * 5); // still too weak
+    expect(breakSecondsFor(Block.ore, Item.stonePickaxe)).toBeCloseTo(3 / 4);
   });
 
   it('non-pick blocks ignore the tool; bedrock stays unbreakable', () => {
@@ -72,5 +74,51 @@ describe('tool-adjusted break times', () => {
     expect(breakSecondsFor(Block.log, Item.ironPickaxe)).toBeCloseTo(1.5);
     expect(breakSecondsFor(Block.bedrock, Item.ironPickaxe)).toBe(Infinity);
     expect(breakSecondsFor(Block.water, Item.ironPickaxe)).toBe(Infinity);
+  });
+});
+
+describe('ore tiers', () => {
+  it('ranks the full pickaxe ladder', () => {
+    expect(pickaxeTier(Item.woodPickaxe)).toBe(1);
+    expect(pickaxeTier(Item.stonePickaxe)).toBe(2);
+    expect(pickaxeTier(Item.copperPickaxe)).toBe(3);
+    expect(pickaxeTier(Item.ironPickaxe)).toBe(4);
+    expect(pickaxeTier(Item.goldPickaxe)).toBe(5);
+    expect(stackLimit(Item.copperPickaxe)).toBe(1);
+    expect(stackLimit(Item.goldPickaxe)).toBe(1);
+  });
+
+  it('gates each ore behind its required tier', () => {
+    // Coal: wood is enough.
+    expect(dropFor(Block.coalOre, 0)).toBeNull();
+    expect(dropFor(Block.coalOre, Item.woodPickaxe)).toEqual({ id: Item.coal, count: 1 });
+    // Iron/copper: need stone or better.
+    expect(dropFor(Block.ore, Item.woodPickaxe)).toBeNull();
+    expect(dropFor(Block.ore, Item.stonePickaxe)).toEqual({ id: Block.ore, count: 1 });
+    expect(dropFor(Block.copperOre, Item.woodPickaxe)).toBeNull();
+    expect(dropFor(Block.copperOre, Item.stonePickaxe)).toEqual({ id: Block.copperOre, count: 1 });
+    // Gold: needs iron or better; copper/stone aren't enough.
+    expect(dropFor(Block.goldOre, Item.copperPickaxe)).toBeNull();
+    expect(dropFor(Block.goldOre, Item.ironPickaxe)).toEqual({ id: Block.goldOre, count: 1 });
+    expect(dropFor(Block.goldOre, Item.goldPickaxe)).toEqual({ id: Block.goldOre, count: 1 });
+  });
+
+  it('mines wrong-tool ores punishingly slowly, right-tool quickly', () => {
+    const goldBare = breakSecondsFor(Block.goldOre, 0);
+    const goldRight = breakSecondsFor(Block.goldOre, Item.ironPickaxe);
+    expect(goldBare).toBeGreaterThan(goldRight * 10); // penalty ×5 vs speed ÷6
+    // Higher tiers mine the stone family faster.
+    expect(breakSecondsFor(Block.stone, Item.goldPickaxe)).toBeLessThan(
+      breakSecondsFor(Block.stone, Item.stonePickaxe),
+    );
+  });
+});
+
+describe('ore item names and icons resolve', () => {
+  it('names and tiles every new id', () => {
+    for (const id of [Item.coal, Item.copperIngot, Item.goldIngot, Item.copperPickaxe, Item.goldPickaxe]) {
+      expect(itemName(id)).not.toMatch(/^item /);
+      expect(iconTileFor(id)).toBeGreaterThan(0);
+    }
   });
 });

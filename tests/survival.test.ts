@@ -100,7 +100,7 @@ describe('break-time table', () => {
     expect(BREAK_TIME[Block.bedrock]).toBe(Infinity);
     expect(BREAK_TIME[Block.ore]).toBeCloseTo(3);
     expect(BREAKABLE[Block.bedrock]).toBe(0);
-    for (let id = 1; id <= Block.ore; id++) {
+    for (let id = 1; id <= Block.goldOre; id++) {
       if (BREAKABLE[id] === 1) expect(BREAK_TIME[id]).toBeGreaterThan(0);
     }
   });

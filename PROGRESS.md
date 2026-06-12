@@ -126,3 +126,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Extracted a pure, unit-tested Cursor (held-stack model) used by both the inventory and chest screens
 - [x] Left click: pick up whole / drop / merge (overflow stays in hand) / swap; right click: pick up half / drop one; shift-click: quick-move
 - [x] Held items spill back safely on close; "Holding: …" readout; replaced the old select-and-swap inventory interaction
+
+## Post-spec: Ore tiers & metals
+
+- [x] Four ore types in their own depth bands: coal (shallow, common, →fuel), iron (mid), copper (mid), gold (deep, rare) — independent 3D noise, rarer/deeper ores win contested cells
+- [x] Procedural ore tiles (coloured speckle) + item tiles (coal lump, copper/gold bars & pickaxes) via painter factories
+- [x] Full pickaxe ladder: wood(1) < stone(2) < copper(3) < iron(4) < gold(5); per-ore tool-tier gates and speed multipliers (gold fast but a luxury)
+- [x] Coal is furnace fuel; smelt copper/gold ore to ingots; craft copper & gold pickaxes; humanized block display names

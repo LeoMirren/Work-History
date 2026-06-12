@@ -23,6 +23,9 @@ export const Block = {
   furnace: 15,
   chest: 16,
   lantern: 17,
+  coalOre: 18,
+  copperOre: 19,
+  goldOre: 20,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -70,6 +73,9 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.furnace, name: 'furnace', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.5, tiles: tiles(T.furnaceSide, T.furnaceSide, T.furnaceFront) },
   { id: Block.chest, name: 'chest', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 1.5, tiles: tiles(T.chestSide, T.chestTop, T.chestTop) },
   { id: Block.lantern, name: 'lantern', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.3, tiles: tiles(T.lantern) },
+  { id: Block.coalOre, name: 'coalOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.coalOre) },
+  { id: Block.copperOre, name: 'copperOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.copperOre) },
+  { id: Block.goldOre, name: 'goldOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.goldOre) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -106,5 +112,8 @@ export const HOTBAR_BLOCKS: readonly number[] = [
 ];
 
 export function blockName(id: number): string {
-  return BLOCK_DEFS[id]?.name ?? 'unknown';
+  const name = BLOCK_DEFS[id]?.name;
+  if (!name) return 'unknown';
+  // Humanize camelCase registry keys for display (coalOre -> "coal ore").
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }

@@ -23,7 +23,7 @@ export interface Recipe {
 }
 
 /** Items accepted as furnace fuel, cheapest/most-abundant burned first. */
-export const FUEL_IDS: readonly number[] = [Block.log, Block.planks, Item.charcoal];
+export const FUEL_IDS: readonly number[] = [Block.log, Block.planks, Item.charcoal, Item.coal];
 
 export const RECIPES: readonly Recipe[] = [
   { name: 'planks', station: 'craft', output: Block.planks, outputCount: 4, inputs: [{ id: Block.log, count: 1 }] },
@@ -71,8 +71,30 @@ export const RECIPES: readonly Recipe[] = [
       { id: Item.stick, count: 4 },
     ],
   },
+  {
+    name: 'copper pickaxe',
+    station: 'craft',
+    output: Item.copperPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.copperIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  {
+    name: 'gold pickaxe',
+    station: 'craft',
+    output: Item.goldPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.goldIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
   // Smelting (furnace + fuel).
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
+  { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },
+  { name: 'gold ingot', station: 'smelt', output: Item.goldIngot, outputCount: 1, inputs: [{ id: Block.goldOre, count: 1 }] },
   { name: 'charcoal', station: 'smelt', output: Item.charcoal, outputCount: 1, inputs: [{ id: Block.log, count: 1 }] },
   { name: 'glass', station: 'smelt', output: Block.glass, outputCount: 1, inputs: [{ id: Block.sand, count: 1 }] },
 ];

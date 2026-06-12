@@ -123,22 +123,37 @@ describe('worldgen content rules', () => {
     expect(caveAir).toBeGreaterThan(0);
   });
 
-  it('seeds ore veins only inside the stone band (stretch §9)', () => {
-    let oreCount = 0;
-    for (let cz = -3; cz <= 3; cz++) {
-      for (let cx = -3; cx <= 3; cx++) {
+  it('seeds layered ore veins within their depth bands', () => {
+    const counts = new Map<number, number>();
+    const maxY = new Map<number, number>();
+    const bands: Array<[number, number]> = [
+      [Block.coalOre, 90],
+      [Block.ore, 60],
+      [Block.copperOre, 46],
+      [Block.goldOre, 28],
+    ];
+    for (let cz = -4; cz <= 4; cz++) {
+      for (let cx = -4; cx <= 4; cx++) {
         const data = gen.generateChunk(cx, cz);
         for (let i = 0; i < data.length; i++) {
-          if (data[i] === Block.ore) {
-            oreCount++;
-            const y = i >> 8;
-            expect(y).toBeGreaterThanOrEqual(5);
-            expect(y).toBeLessThanOrEqual(60);
+          const id = data[i] ?? 0;
+          for (const [ore] of bands) {
+            if (id === ore) {
+              counts.set(ore, (counts.get(ore) ?? 0) + 1);
+              const y = i >> 8;
+              expect(y).toBeGreaterThanOrEqual(5);
+              maxY.set(ore, Math.max(maxY.get(ore) ?? 0, y));
+            }
           }
         }
       }
     }
-    expect(oreCount).toBeGreaterThan(0);
+    // Every ore appears, each within its own band, and rarity is ordered.
+    for (const [ore, top] of bands) {
+      expect(counts.get(ore) ?? 0).toBeGreaterThan(0);
+      expect(maxY.get(ore) ?? 0).toBeLessThanOrEqual(top);
+    }
+    expect(counts.get(Block.coalOre)!).toBeGreaterThan(counts.get(Block.goldOre)!); // coal common, gold rare
   });
 
   it('plants trees only inside the canopy margin, with leaves around trunk tops', () => {

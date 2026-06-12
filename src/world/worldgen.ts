@@ -16,9 +16,16 @@ export const SEA_LEVEL = 52;
 const SNOW_LINE = 96; // surface block is snow above this height
 const CAVE_THRESHOLD = 0.58;
 const TUNNEL_WIDTH = 0.09; // spaghetti tunnels: both noises within this of zero
-const ORE_THRESHOLD = 0.74; // 3D-noise ore pockets
 const ORE_MIN_Y = 5;
-const ORE_MAX_Y = 60;
+// Each ore: noise scale, threshold (higher = rarer), and max depth band.
+const IRON_THRESHOLD = 0.74;
+const IRON_MAX_Y = 60;
+const COAL_THRESHOLD = 0.7; // common, shallow-to-deep
+const COAL_MAX_Y = 90;
+const COPPER_THRESHOLD = 0.78;
+const COPPER_MAX_Y = 46;
+const GOLD_THRESHOLD = 0.84; // rare, deep
+const GOLD_MAX_Y = 28;
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
 
 export const Biome = {
@@ -84,6 +91,9 @@ export function createGenerator(seed: string): Generator {
   const tunnelA: NoiseFunction3D = seededNoise3D(seed, 'tunnelA');
   const tunnelB: NoiseFunction3D = seededNoise3D(seed, 'tunnelB');
   const ore: NoiseFunction3D = seededNoise3D(seed, 'ore');
+  const coalN: NoiseFunction3D = seededNoise3D(seed, 'coal');
+  const copperN: NoiseFunction3D = seededNoise3D(seed, 'copper');
+  const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
   const treeSeed = cyrb128(`${seed} trees`)[0];
 
   function biomeAt(wx: number, wz: number): number {
@@ -137,12 +147,21 @@ export function createGenerator(seed: string): Generator {
         const beach = h >= SEA_LEVEL - 2 && h <= SEA_LEVEL + 1;
         const subsurface = beach ? Block.sand : BIOME_DEFS[biome]?.subsurface ?? Block.dirt;
         for (let y = 1; y < h - 4; y++) data[blockIndex(x, y, z)] = Block.stone;
-        // Ore veins replace stone in pockets where the 3D noise spikes.
-        const oreTop = Math.min(ORE_MAX_Y, h - 5);
+        // Ore veins replace stone where the 3D noise spikes, by depth band.
+        // Priority: rarer/deeper ores win the cell (gold > copper > iron > coal).
+        const oreTop = Math.min(COAL_MAX_Y, h - 5);
         for (let y = ORE_MIN_Y; y <= oreTop; y++) {
-          if (ore(wx / 18, y / 18, wz / 18) > ORE_THRESHOLD) {
-            data[blockIndex(x, y, z)] = Block.ore;
+          let placed = 0;
+          if (y <= GOLD_MAX_Y && goldN(wx / 13, y / 13, wz / 13) > GOLD_THRESHOLD) {
+            placed = Block.goldOre;
+          } else if (y <= COPPER_MAX_Y && copperN(wx / 16, y / 16, wz / 16) > COPPER_THRESHOLD) {
+            placed = Block.copperOre;
+          } else if (y <= IRON_MAX_Y && ore(wx / 18, y / 18, wz / 18) > IRON_THRESHOLD) {
+            placed = Block.ore;
+          } else if (coalN(wx / 22, y / 22, wz / 22) > COAL_THRESHOLD) {
+            placed = Block.coalOre;
           }
+          if (placed !== 0) data[blockIndex(x, y, z)] = placed;
         }
         for (let y = Math.max(1, h - 4); y < h; y++) data[blockIndex(x, y, z)] = subsurface;
         data[blockIndex(x, h, z)] = surfaceBlockFor(h, biome);
