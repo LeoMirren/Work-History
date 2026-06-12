@@ -270,6 +270,10 @@ async function boot(): Promise<void> {
     jobsInFlight: 0,
     uploadsQueued: 0,
   };
+  // Debug text/stat refresh is throttled: string building is the one
+  // per-frame heap allocation the render loop would otherwise make (§7).
+  const DEBUG_REFRESH_MS = 250;
+  let nextDebugRefresh = 0;
 
   startLoop({
     update(dt) {
@@ -295,6 +299,9 @@ async function boot(): Promise<void> {
       gr.render();
       fps.tick();
       if (!session || !hud) return;
+      const now = performance.now();
+      if (now < nextDebugRefresh) return;
+      nextDebugRefresh = now + DEBUG_REFRESH_MS;
       session.world.stats(stats);
       const b = player.body;
       debugInfo.x = b.x;

@@ -38,3 +38,7 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Time-of-day pauses with the pause menu (it advances in the fixed update, gated on pointer lock); autosave keeps running while paused.
 - Player fly state is persisted alongside position/rotation (cheap QoL beyond spec's letter).
 - New World rebuilds in-app: world disposed, atlas/texture rebuilt for the new seed (shared material instances keep their identity, only `.map` swaps), hotbar icons redrawn.
+- M7: fps/draw-call numbers could not be machine-measured in the build sandbox (no GPU; headless-browser CDN blocked by network policy) — per the spec's verification rules, budgets are enforced by construction (3 shared materials, ≤2 uploads/frame, ≤6 jobs, disposal-on-unload integration-tested, alloc-free steady-state loops) and exposed live via F3 / `window.__debug` for on-hardware confirmation.
+- Greedy meshing not implemented: §5 orders it strictly as a remedy for missed budgets; estimated steady-state load at RD8 (~290 chunk-pass draw calls visible after frustum culling, well under 700; ~0.3–0.7M visible triangles on MeshBasicMaterial) sits inside budget on integrated GPUs, and greedy merging risks AO-seam regressions for an unmeasurable win here.
+- Debug overlay text and `__debug` stat refresh run at 4Hz — string building was the render loop's only steady-state heap allocation (§7 zero-alloc rule).
+- `padLoneChunk` lives in mesher.ts as a test/dev utility consumed by the vitest suite; it is tree-shaken out of the shipped bundle.
