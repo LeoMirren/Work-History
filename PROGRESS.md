@@ -176,3 +176,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 - [x] Jungle biome (hot + very wet) with dense canopy (1-in-8 tree chance) and tall trunks (7-10 logs)
 - [x] Classifier branch + biome def + name; appears across the world, tested for presence and tall trees
+
+## Post-spec: Biome-aware wildlife
+
+- [x] Species follow biome: woollies in the snowy cold, mostly trundlers in temperate green; deserts stay barren
+- [x] Animals now also spawn on snow surfaces; biome lookup threaded from the overworld generator (none in the underworld)
+- [x] Spawn-gate seam (setSpawning) for deterministic tests

@@ -278,6 +278,7 @@ async function boot(): Promise<void> {
     interaction.mode = mode;
     const entityWorld = { isSolid: world.isSolid, getBlock: world.blockAt };
     animals.setWorld(entityWorld);
+    animals.setBiomeFn(dimension === 'overworld' ? createGenerator(seed, dimension).biomeAt : null);
     hostiles.setWorld(mode === 'survival' ? entityWorld : null);
     infoPanel.show();
     hud.setSurvivalVisible(mode === 'survival');

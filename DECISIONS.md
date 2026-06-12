@@ -81,3 +81,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Damage feedback: a pure HurtIndicator (flash spikes on hp loss, decays ~2.2/s; low-hp vignette below 6 HP) drives a full-screen red radial overlay. Survival only; throttled DOM writes (rounded to 1%). Death still auto-respawns (a full death screen would gate the respawn instead).
 
 - Jungle biome: hot (t>0.2) and very wet (m>0.5) classification ahead of forest; densest tree chance (1-in-8) and taller trunks (7-10 logs vs 4-6 elsewhere), small height bias. Original biome — reuses the existing leaf/log tree with a taller trunk parameter.
+
+- Biome-aware wildlife: the animal system takes an optional biome lookup (the overworld generator biomeAt); snowy biomes spawn woollies, deserts spawn nothing, temperate grass spawns a trundler-weighted mix. Animals now spawn on snow as well as grass. Added a setSpawning() gate (used by tests; usable for menus).

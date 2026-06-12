@@ -18,6 +18,9 @@ import {
   type MoveResult,
 } from '../player/physics';
 import type { WorldView } from '../player/controller';
+import { Biome } from '../world/worldgen';
+
+export type BiomeFn = (wx: number, wz: number) => number;
 
 export const ANIMAL_HALF_WIDTH = 0.35;
 export const ANIMAL_HEIGHT = 0.7;
@@ -104,6 +107,8 @@ function makeAnimalMesh(species: SpeciesId): THREE.Group {
 export class AnimalSystem {
   readonly animals: Animal[] = [];
   private world: WorldView | null = null;
+  private biomeFn: BiomeFn | null = null;
+  private spawnEnabled = true;
   private spawnTimer = 0;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
 
@@ -116,6 +121,16 @@ export class AnimalSystem {
   setWorld(world: WorldView | null): void {
     this.clear();
     this.world = world;
+  }
+
+  /** Biome lookup for species selection; null falls back to random species. */
+  setBiomeFn(fn: BiomeFn | null): void {
+    this.biomeFn = fn;
+  }
+
+  /** Pause/resume ambient spawning (existing animals keep updating). */
+  setSpawning(enabled: boolean): void {
+    this.spawnEnabled = enabled;
   }
 
   clear(): void {
@@ -145,7 +160,11 @@ export class AnimalSystem {
     return animal;
   }
 
-  /** Try to spawn one animal on grass near (but not next to) the player. */
+  /**
+   * Try to spawn one animal on grass or snow near the player. Species follows
+   * the biome: woollies in the snowy cold, trundlers in temperate green;
+   * deserts stay barren.
+   */
   private trySpawn(px: number, pz: number): void {
     const world = this.world;
     if (!world || this.animals.length >= MAX_ANIMALS) return;
@@ -156,18 +175,25 @@ export class AnimalSystem {
     for (let y = 120; y >= 1; y--) {
       const id = world.getBlock(x, y, z);
       if (id === Block.air) continue;
-      if (id === Block.grass) this.spawnAt(x + 0.5, y + 1, z + 0.5);
-      return; // hit a non-grass surface (or water): no spawn here
+      if (id !== Block.grass && id !== Block.snow) return; // sand/stone/water: no spawn
+      const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
+      if (biome === Biome.desert) return; // barren
+      const species =
+        biome === Biome.snowy ? Species.woolly : this.random() < 0.7 ? Species.trundler : Species.woolly;
+      this.spawnAt(x + 0.5, y + 1, z + 0.5, species);
+      return;
     }
   }
 
   fixedUpdate(dt: number, px: number, py: number, pz: number): void {
     const world = this.world;
     if (!world) return;
-    this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0) {
-      this.spawnTimer = SPAWN_INTERVAL_S;
-      this.trySpawn(px, pz);
+    if (this.spawnEnabled) {
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) {
+        this.spawnTimer = SPAWN_INTERVAL_S;
+        this.trySpawn(px, pz);
+      }
     }
     for (let i = this.animals.length - 1; i >= 0; i--) {
       const animal = this.animals[i];

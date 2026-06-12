@@ -166,9 +166,49 @@ describe('animal species & flocking', () => {
       return herd.reduce((s, a) => s + Math.hypot(a.body.x - cx, a.body.z - cz), 0);
     };
     const before = spread();
+    system.setSpawning(false); // isolate the tagged herd from ambient spawns
     // Keep the player at the herd centre so nothing despawns; cohesion pulls in.
     for (let i = 0; i < 60 * 25; i++) system.fixedUpdate(DT, 3.5, 11, 3.5);
     expect(herd.every((a) => system.animals.includes(a))).toBe(true);
+    expect(system.count).toBe(4); // only the herd remains
     expect(spread()).toBeLessThan(before);
+  });
+});
+
+describe('biome-aware spawning', () => {
+  // A grassy/snowy flat world whose biome is whatever the test sets.
+  function biomeWorld(surface: number): WorldView {
+    return {
+      isSolid: (_x, y, _z) => y <= 9,
+      getBlock: (_x, y, _z) => (y === 9 ? surface : y < 9 ? Block.stone : Block.air),
+    };
+  }
+
+  it('spawns woollies in snowy biomes and skips barren deserts', () => {
+    // Snowy: every spawn is a woolly.
+    const snowyScene = new THREE.Scene();
+    const snowy = new AnimalSystem(snowyScene, mulberry32(4));
+    snowy.setWorld(biomeWorld(Block.snow));
+    snowy.setBiomeFn(() => 4); // Biome.snowy
+    for (let i = 0; i < 60 * 40; i++) snowy.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(snowy.count).toBeGreaterThan(0);
+    expect(snowy.animals.every((a) => a.species === 1)).toBe(true);
+
+    // Desert: nothing spawns even on a valid surface.
+    const desertScene = new THREE.Scene();
+    const desert = new AnimalSystem(desertScene, mulberry32(4));
+    desert.setWorld(biomeWorld(Block.grass));
+    desert.setBiomeFn(() => 2); // Biome.desert
+    for (let i = 0; i < 60 * 40; i++) desert.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(desert.count).toBe(0);
+  });
+
+  it('spawns a mix in temperate grassland', () => {
+    const scene = new THREE.Scene();
+    const sys = new AnimalSystem(scene, mulberry32(9));
+    sys.setWorld(biomeWorld(Block.grass));
+    sys.setBiomeFn(() => 0); // Biome.plains
+    for (let i = 0; i < 60 * 60; i++) sys.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(sys.count).toBeGreaterThan(0);
   });
 });
