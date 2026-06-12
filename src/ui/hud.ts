@@ -28,20 +28,12 @@ export class Hud {
       const icon = document.createElement('canvas');
       icon.width = ICON_PX;
       icon.height = ICON_PX;
-      const ctx = icon.getContext('2d');
-      if (ctx) {
-        ctx.imageSmoothingEnabled = false;
-        // Side-face tile reads best as an icon (grass band, bark, etc.).
-        const tile = FACE_TILES[blockId * 6] ?? 0;
-        const sx = (tile % ATLAS_TILES) * TILE_PX;
-        const sy = Math.floor(tile / ATLAS_TILES) * TILE_PX;
-        ctx.drawImage(atlasCanvas, sx, sy, TILE_PX, TILE_PX, 0, 0, ICON_PX, ICON_PX);
-      }
       slot.appendChild(icon);
       hotbar.appendChild(slot);
       this.slots.push(slot);
     }
     parent.appendChild(hotbar);
+    this.redrawIcons(atlasCanvas);
 
     this.overlay = document.createElement('div');
     this.overlay.id = 'debug-overlay';
@@ -52,6 +44,23 @@ export class Hud {
 
   get selectedBlock(): number {
     return HOTBAR_BLOCKS[this.selectedSlot] ?? 0;
+  }
+
+  /** (Re)draw slot icons from an atlas canvas — used after world switches. */
+  redrawIcons(atlasCanvas: HTMLCanvasElement): void {
+    for (let i = 0; i < this.slots.length; i++) {
+      const blockId = HOTBAR_BLOCKS[i] ?? 0;
+      const icon = this.slots[i]?.querySelector('canvas');
+      const ctx = icon?.getContext('2d');
+      if (!ctx) continue;
+      ctx.imageSmoothingEnabled = false;
+      // Side-face tile reads best as an icon (grass band, bark, etc.).
+      const tile = FACE_TILES[blockId * 6] ?? 0;
+      const sx = (tile % ATLAS_TILES) * TILE_PX;
+      const sy = Math.floor(tile / ATLAS_TILES) * TILE_PX;
+      ctx.clearRect(0, 0, ICON_PX, ICON_PX);
+      ctx.drawImage(atlasCanvas, sx, sy, TILE_PX, TILE_PX, 0, 0, ICON_PX, ICON_PX);
+    }
   }
 
   selectSlot(i: number): void {

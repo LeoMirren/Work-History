@@ -18,6 +18,7 @@ import type { JobPool } from '../workers/pool';
 
 export const MAX_JOBS_IN_FLIGHT = 6;
 const MAX_UPLOADS_PER_FRAME = 2;
+const MAX_PERSIST_LOADS = 8; // concurrent IndexedDB chunk loads
 const UNLOAD_MARGIN = 2; // unload beyond RD + this
 
 interface ChunkRecord {
@@ -42,6 +43,16 @@ export interface ChunkMaterials {
   opaque: THREE.Material;
   cutout: THREE.Material;
   water: THREE.Material;
+}
+
+/**
+ * Persisted-chunk source: chunks with has()===true load from storage instead
+ * of generating. load() resolving null means the entry vanished/corrupted;
+ * the caller's has() must then return false so generation takes over.
+ */
+export interface ChunkPersistence {
+  has(cx: number, cz: number): boolean;
+  load(cx: number, cz: number): Promise<Uint8Array | null>;
 }
 
 function chunkKey(cx: number, cz: number): number {
@@ -92,6 +103,10 @@ export class World {
   /** Single-entry chunk cache for the hot getBlock path. */
   private cachedKey = Number.NaN;
   private cachedRec: ChunkRecord | null = null;
+  private readonly persistence: ChunkPersistence | null;
+  private pendingLoads = 0;
+  /** Chunks edited since the last save flush. */
+  private readonly dirtySet = new Set<ChunkRecord>();
 
   constructor(opts: {
     seed: string;
@@ -99,12 +114,14 @@ export class World {
     materials: ChunkMaterials;
     pool: JobPool;
     renderDistance: number;
+    persistence?: ChunkPersistence;
   }) {
     this.seed = opts.seed;
     this.scene = opts.scene;
     this.materials = opts.materials;
     this.pool = opts.pool;
     this.renderDistance = opts.renderDistance;
+    this.persistence = opts.persistence ?? null;
   }
 
   setRenderDistance(rd: number): void {
@@ -141,6 +158,7 @@ export class World {
     const lz = localCoord(wz);
     rec.data[blockIndex(lx, wy, lz)] = id;
     rec.modified = true;
+    this.dirtySet.add(rec);
     for (const [dx, dz] of editAffectedOffsets(lx, lz)) {
       const neighbor = dx === 0 && dz === 0 ? rec : this.chunks.get(chunkKey(cx + dx, cz + dz));
       if (!neighbor) continue;
@@ -364,6 +382,23 @@ export class World {
   private submitGen(rec: ChunkRecord): void {
     rec.genQueued = false;
     if (rec.data || rec.genPending || this.chebyshev(rec) > this.renderDistance + 1) return;
+    // Persisted chunks override generation (§4.11).
+    if (this.persistence?.has(rec.cx, rec.cz)) {
+      if (this.pendingLoads >= MAX_PERSIST_LOADS) {
+        rec.genQueued = true;
+        this.genQueue.push(rec); // retry next dispatch
+        return;
+      }
+      rec.genPending = true;
+      this.pendingLoads++;
+      void this.persistence.load(rec.cx, rec.cz).then((data) => {
+        this.pendingLoads--;
+        rec.genPending = false;
+        if (data) this.injectChunk(rec.cx, rec.cz, data, true);
+        else this.scanNeeded = true; // fall back to generation on next scan
+      });
+      return;
+    }
     rec.genPending = true;
     this.pool.submit({ kind: 'gen', seed: this.seed, cx: rec.cx, cz: rec.cz }, [], (res) => {
       rec.genPending = false;
@@ -482,6 +517,34 @@ export class World {
         rec.meshes[pass] = null;
       }
     }
+  }
+
+  /**
+   * Hand every dirty chunk's data to the saver and clear the dirty set.
+   * Returns the number of chunks flushed.
+   */
+  flushDirty(saver: (cx: number, cz: number, data: Uint8Array) => void): number {
+    let flushed = 0;
+    for (const rec of this.dirtySet) {
+      if (rec.data) {
+        saver(rec.cx, rec.cz, rec.data);
+        flushed++;
+      }
+    }
+    this.dirtySet.clear();
+    return flushed;
+  }
+
+  /** Tear down all scene meshes and chunk data (world switch). */
+  dispose(): void {
+    for (const rec of this.chunks.values()) this.disposeMeshes(rec);
+    this.chunks.clear();
+    this.genQueue.length = 0;
+    this.meshQueue.length = 0;
+    this.uploadQueue.length = 0;
+    this.dirtySet.clear();
+    this.cachedKey = Number.NaN;
+    this.cachedRec = null;
   }
 
   stats(out: WorldStats): WorldStats {

@@ -31,3 +31,10 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Water material is DoubleSide so the surface is visible from underneath while swimming (spec accepts minor translucency artifacts; cost is negligible overdraw).
 - New worlds start at noon (t=120s) so first impressions aren't pitch black.
 - Day/night brightness lerps sky/fog directly by the brightness value (t=0.18 night floor → near-night sky), matching the spec's "by brightness" wording.
+- Storage interface named `StorageBackend` (the spec's literal `Storage` collides with the DOM type); IndexedDB at runtime with an in-memory fallback if IDB fails to open.
+- Persisted chunk keys are loaded as a Set at session start; only keys in the Set hit IndexedDB on load (everything else goes straight to worker gen, no per-chunk IDB probe latency). Concurrent IDB chunk loads capped at 8.
+- Persisted chunks are marked modified after load, so they're retained in memory rather than re-fetched on unload/reload churn (they're few).
+- Title-screen Play with the saved world's seed resumes it; entering a different seed starts a fresh world (clears both stores) — the single 'default' world slot per spec.
+- Time-of-day pauses with the pause menu (it advances in the fixed update, gated on pointer lock); autosave keeps running while paused.
+- Player fly state is persisted alongside position/rotation (cheap QoL beyond spec's letter).
+- New World rebuilds in-app: world disposed, atlas/texture rebuilt for the new seed (shared material instances keep their identity, only `.map` swaps), hotbar icons redrawn.

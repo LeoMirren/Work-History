@@ -117,6 +117,7 @@ declare module 'three' {
     generateMipmaps: boolean;
     colorSpace: string;
     needsUpdate: boolean;
+    dispose(): void;
   }
 
   export class CanvasTexture extends Texture {
@@ -137,6 +138,7 @@ declare module 'three' {
     opacity: number;
     depthWrite: boolean;
     side: number;
+    needsUpdate: boolean;
     dispose(): void;
   }
 

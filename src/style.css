@@ -102,3 +102,114 @@ body {
 .hotbar-slot canvas {
   image-rendering: pixelated;
 }
+
+.menu-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 9, 20, 0.82);
+  z-index: 40;
+}
+
+.menu-screen.hidden {
+  display: none;
+}
+
+.menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 360px;
+  max-width: 440px;
+  padding: 28px 32px;
+  background: #11182f;
+  border: 2px solid #3a4a7a;
+  border-radius: 8px;
+  color: #e8f0ff;
+}
+
+.menu-panel h1 {
+  font-size: 30px;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.menu-panel .tagline {
+  text-align: center;
+  opacity: 0.7;
+  font-size: 13px;
+  margin-top: -8px;
+}
+
+.menu-panel .controls-hint {
+  font-size: 11px;
+  opacity: 0.55;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.menu-panel button {
+  padding: 10px;
+  font: inherit;
+  font-size: 15px;
+  color: #e8f0ff;
+  background: #1d2a4f;
+  border: 1px solid #3a4a7a;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu-panel button:hover {
+  background: #2a3a68;
+}
+
+.menu-panel button.primary {
+  background: #2c5e2e;
+  border-color: #4a8a4c;
+}
+
+.menu-panel button.primary:hover {
+  background: #3a7a3c;
+}
+
+.menu-panel button.danger {
+  background: #5e2c2c;
+  border-color: #8a4a4a;
+}
+
+.menu-panel button.danger:hover {
+  background: #7a3a3a;
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu-row label {
+  flex: 0 0 130px;
+  font-size: 13px;
+}
+
+.menu-row input[type='text'] {
+  flex: 1;
+  padding: 8px;
+  font: inherit;
+  color: #e8f0ff;
+  background: #0a0e1f;
+  border: 1px solid #3a4a7a;
+  border-radius: 4px;
+}
+
+.menu-row input[type='range'] {
+  flex: 1;
+}
+
+.slider-value {
+  flex: 0 0 44px;
+  text-align: right;
+  font-size: 13px;
+}

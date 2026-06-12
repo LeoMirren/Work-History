@@ -59,12 +59,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 ## M6 — Persistence & menus
 
-- [ ] Pause menu, settings (persisted), title screen with seed input
-- [ ] RLE codec
-- [ ] Autosave
-- [ ] World reload restores edits + player state
-- [ ] ✅ RLE round-trip tests
-- [ ] ✅ Integration test against in-memory storage: edit → save → reload → edits present
+- [x] Pause menu, settings (persisted), title screen with seed input
+- [x] RLE codec
+- [x] Autosave (10s dirty-only + beforeunload + menu Save)
+- [x] World reload restores edits + player state
+- [x] ✅ RLE round-trip tests (uniform, alternating worst case, real chunks, >65535 runs, malformed input)
+- [x] ✅ Integration test against in-memory storage: edit → save → reload → edits present (plus fake-indexeddb coverage of the real IDB path)
 
 ## M7 — Performance & ship
 
