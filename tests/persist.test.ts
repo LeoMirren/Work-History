@@ -92,10 +92,10 @@ class SyncJobPool implements JobPool {
 
   submit(job: WorkerJob, _transfer: ArrayBuffer[], onDone: ResponseHandler): void {
     if (job.kind === 'gen') {
-      let gen = this.generators.get(job.seed);
+      let gen = this.generators.get(`${job.seed}|${job.dimension}`);
       if (!gen) {
-        gen = createGenerator(job.seed);
-        this.generators.set(job.seed, gen);
+        gen = createGenerator(job.seed, job.dimension);
+        this.generators.set(`${job.seed}|${job.dimension}`, gen);
       }
       onDone({ id: 0, kind: 'gen', cx: job.cx, cz: job.cz, data: gen.generateChunk(job.cx, job.cz) });
     } else {

@@ -3,10 +3,12 @@
  * payload buffers are transferred (zero-copy) in both directions.
  */
 import type { ChunkMeshData } from '../world/mesher';
+import type { Dimension } from '../world/worldgen';
 
 export interface GenJob {
   kind: 'gen';
   seed: string;
+  dimension: Dimension;
   cx: number;
   cz: number;
 }

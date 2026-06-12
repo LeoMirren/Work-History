@@ -14,12 +14,17 @@ interface WorkerScope {
 
 const scope = globalThis as unknown as WorkerScope;
 
-let generator: Generator | null = null;
+const generators = new Map<string, Generator>();
 
 scope.onmessage = (e: MessageEvent<WorkerRequest>): void => {
   const req = e.data;
   if (req.kind === 'gen') {
-    if (!generator || generator.seed !== req.seed) generator = createGenerator(req.seed);
+    const key = `${req.seed}|${req.dimension}`;
+    let generator = generators.get(key);
+    if (!generator) {
+      generator = createGenerator(req.seed, req.dimension);
+      generators.set(key, generator);
+    }
     const data = generator.generateChunk(req.cx, req.cz);
     scope.postMessage({ id: req.id, kind: 'gen', cx: req.cx, cz: req.cz, data }, [
       data.buffer as ArrayBuffer,

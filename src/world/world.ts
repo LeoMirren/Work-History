@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { SOLID } from './blocks';
+import type { Dimension } from './worldgen';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord, localCoord } from './chunk';
 import { meshChunk, type ChunkMeshData, type MeshArrays } from './mesher';
 import { SNAP_VOLUME, snapIndex } from './lighting';
@@ -90,6 +91,7 @@ export interface WorldStats {
 
 export class World {
   readonly seed: string;
+  readonly dimension: Dimension;
   private readonly scene: THREE.Scene;
   private readonly materials: ChunkMaterials;
   private readonly pool: JobPool;
@@ -116,6 +118,7 @@ export class World {
     pool: JobPool;
     renderDistance: number;
     persistence?: ChunkPersistence;
+    dimension?: Dimension;
   }) {
     this.seed = opts.seed;
     this.scene = opts.scene;
@@ -123,6 +126,7 @@ export class World {
     this.pool = opts.pool;
     this.renderDistance = opts.renderDistance;
     this.persistence = opts.persistence ?? null;
+    this.dimension = opts.dimension ?? 'overworld';
   }
 
   setRenderDistance(rd: number): void {
@@ -401,7 +405,7 @@ export class World {
       return;
     }
     rec.genPending = true;
-    this.pool.submit({ kind: 'gen', seed: this.seed, cx: rec.cx, cz: rec.cz }, [], (res) => {
+    this.pool.submit({ kind: 'gen', seed: this.seed, dimension: this.dimension, cx: rec.cx, cz: rec.cz }, [], (res) => {
       rec.genPending = false;
       if (res.kind !== 'gen') return;
       if (this.chebyshev(rec) > this.renderDistance + UNLOAD_MARGIN) {
