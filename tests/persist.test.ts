@@ -27,6 +27,7 @@ const sampleMeta: WorldMeta = {
     pitch: -0.2,
     flying: true,
     hp: 13,
+    hunger: 15,
     inventory: [[1, 32], null, [101, 1]],
   },
   settings: { renderDistance: 6, mouseSensitivity: 1.4, fov: 90 },

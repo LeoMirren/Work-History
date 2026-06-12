@@ -8,6 +8,7 @@ import { CONTROLS } from './controls';
 export interface PanelStatus {
   hp: number;
   maxHp: number;
+  hunger: number;
   mode: string;
   position: string;
   time: string;
@@ -29,7 +30,7 @@ export class InfoPanel {
     const statusTitle = document.createElement('h2');
     statusTitle.textContent = 'Status';
     status.appendChild(statusTitle);
-    for (const key of ['Health', 'Mode', 'Position', 'Time', 'Wildlife', 'FPS'] as const) {
+    for (const key of ['Health', 'Hunger', 'Mode', 'Position', 'Time', 'Wildlife', 'FPS'] as const) {
       const row = document.createElement('div');
       row.className = 'panel-row';
       const label = document.createElement('span');
@@ -79,6 +80,7 @@ export class InfoPanel {
   setStatus(s: PanelStatus): void {
     if (!this.visible) return;
     this.statusValues.get('Health')?.replaceChildren(`${'♥'.repeat(Math.ceil(s.hp / 2))} ${s.hp}/${s.maxHp}`);
+    this.statusValues.get('Hunger')?.replaceChildren(`${'◆'.repeat(Math.ceil(s.hunger / 2))} ${s.hunger}/20`);
     this.statusValues.get('Mode')?.replaceChildren(s.mode);
     this.statusValues.get('Position')?.replaceChildren(s.position);
     this.statusValues.get('Time')?.replaceChildren(s.time);

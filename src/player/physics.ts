@@ -148,6 +148,7 @@ export function moveBody(
 }
 
 export const MAX_HP = 20;
+export const MAX_HUNGER = 20;
 
 /**
  * Stretch §9 survival: fall damage in half-hearts; falls of 3 blocks or less

@@ -92,3 +92,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Tool tiers speed mining (×2/×4/×6) and gate ore; survival placement consumes items
 - [x] Inventory screen: click move/merge/swap, shift-click quick-move, persisted with the world
 - [x] Caves v2: spaghetti tunnels (two-noise intersection) alongside cheese rooms
+
+## Post-spec: Hunger & survival loop
+
+- [x] Hunger meter (0-20) with HUD pips + status panel readout, persisted
+- [x] Activity burns food (idle < walk < sprint); eating meat now restores hunger (RMB)
+- [x] Well-fed (≥18) slowly regenerates health; empty stomach starves down to a non-lethal floor

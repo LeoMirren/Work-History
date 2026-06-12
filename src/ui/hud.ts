@@ -15,9 +15,12 @@ export class Hud {
   private readonly overlay: HTMLDivElement;
   private readonly heartsRow: HTMLDivElement;
   private readonly hearts: HTMLSpanElement[] = [];
+  private readonly hungerRow: HTMLDivElement;
+  private readonly drumsticks: HTMLSpanElement[] = [];
   private readonly breakBar: HTMLDivElement;
   private readonly breakFill: HTMLDivElement;
   private lastHp = -1;
+  private lastHunger = -1;
   private lastBreakPct = -1;
   private debugVisible = true;
   private inventory: Inventory | null = null;
@@ -41,6 +44,18 @@ export class Hud {
       this.hearts.push(heart);
     }
     parent.appendChild(this.heartsRow);
+
+    this.hungerRow = document.createElement('div');
+    this.hungerRow.id = 'hunger';
+    this.hungerRow.style.display = 'none';
+    for (let i = 0; i < 10; i++) {
+      const pip = document.createElement('span');
+      pip.className = 'drumstick';
+      pip.textContent = '◆';
+      this.hungerRow.appendChild(pip);
+      this.drumsticks.push(pip);
+    }
+    parent.appendChild(this.hungerRow);
 
     this.breakBar = document.createElement('div');
     this.breakBar.id = 'break-bar';
@@ -144,11 +159,13 @@ export class Hud {
     this.selectSlot((((this.selectedSlot + steps) % n) + n) % n);
   }
 
-  /** Show/hide the survival widgets (hearts, break progress). */
+  /** Show/hide the survival widgets (hearts, hunger, break progress). */
   setSurvivalVisible(visible: boolean): void {
     this.heartsRow.style.display = visible ? 'flex' : 'none';
+    this.hungerRow.style.display = visible ? 'flex' : 'none';
     if (!visible) this.breakBar.style.display = 'none';
     this.lastHp = -1;
+    this.lastHunger = -1;
     this.lastBreakPct = -1;
   }
 
@@ -160,6 +177,18 @@ export class Hud {
       const heart = this.hearts[i];
       if (!heart) continue;
       heart.className = hp >= (i + 1) * 2 ? 'heart' : hp === i * 2 + 1 ? 'heart half' : 'heart empty';
+    }
+  }
+
+  /** hunger 0..20, shown as 10 pips (full/half/empty). */
+  setHunger(hunger: number): void {
+    if (hunger === this.lastHunger) return;
+    this.lastHunger = hunger;
+    for (let i = 0; i < 10; i++) {
+      const pip = this.drumsticks[i];
+      if (!pip) continue;
+      pip.className =
+        hunger >= (i + 1) * 2 ? 'drumstick' : hunger === i * 2 + 1 ? 'drumstick half' : 'drumstick empty';
     }
   }
 

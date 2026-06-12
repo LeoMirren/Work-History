@@ -105,3 +105,62 @@ describe('break-time table', () => {
     }
   });
 });
+
+describe('hunger', () => {
+  const flatWorld: WorldView = {
+    isSolid: (_x, y, _z) => y <= 9,
+    getBlock: () => Block.air,
+  };
+
+  function survivalPlayer(): PlayerController {
+    const c = new PlayerController();
+    c.setMode('survival');
+    c.setSpawn(0.5, 11, 0.5);
+    c.teleport(0.5, 11, 0.5);
+    return c;
+  }
+
+  it('drains faster while sprinting than standing still', () => {
+    const idle = survivalPlayer();
+    const idleInput = new FakeInput();
+    for (let i = 0; i < 60 * 120; i++) idle.fixedUpdate(idleInput, flatWorld, DT);
+
+    const runner = survivalPlayer();
+    const runInput = new FakeInput();
+    runInput.downs.add('KeyW');
+    runInput.downs.add('ControlLeft');
+    for (let i = 0; i < 60 * 120; i++) runner.fixedUpdate(runInput, flatWorld, DT);
+
+    expect(runner.hunger).toBeLessThan(idle.hunger);
+    expect(runner.hunger).toBeLessThan(20); // sprinting clearly burns food
+    expect(idle.hunger).toBeLessThanOrEqual(20);
+  });
+
+  it('eating restores hunger up to the cap', () => {
+    const c = survivalPlayer();
+    c.hunger = 4;
+    c.eat(6);
+    expect(c.hunger).toBe(10);
+    c.eat(99);
+    expect(c.hunger).toBe(20);
+  });
+
+  it('regenerates health when well-fed and wounded', () => {
+    const c = survivalPlayer();
+    c.hp = 10;
+    c.hunger = 20;
+    const input = new FakeInput();
+    for (let i = 0; i < 60 * 12; i++) c.fixedUpdate(input, flatWorld, DT); // 12s
+    expect(c.hp).toBeGreaterThan(10);
+  });
+
+  it('starves down to a non-lethal floor when empty', () => {
+    const c = survivalPlayer();
+    c.hp = 20;
+    c.hunger = 0;
+    const input = new FakeInput();
+    for (let i = 0; i < 60 * 120; i++) c.fixedUpdate(input, flatWorld, DT); // 120s
+    expect(c.hp).toBe(1); // starvation never kills outright
+    expect(c.hunger).toBe(0);
+  });
+});

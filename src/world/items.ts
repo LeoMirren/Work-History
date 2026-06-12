@@ -16,8 +16,8 @@ export const Item = {
   ingot: 106,
 } as const;
 
-/** Half-hearts restored when eating meat (RMB while holding it). */
-export const MEAT_HEAL = 4;
+/** Hunger restored when eating meat (RMB while holding it). */
+export const MEAT_FOOD = 6;
 
 export const MAX_STACK = 64;
 

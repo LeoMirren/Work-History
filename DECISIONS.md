@@ -53,3 +53,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - E opens the inventory: pointer lock is released with a flag suppressing the pause menu; E/Esc closes and relocks.
 
 - Biomes added: temperature/moisture noise classify columns into plains/forest/desert/savanna/snowy; each drives surface/subsurface block, tree density and a height bias. A separate mountain noise raises ranges. Original design — not modeled on any specific game's biome tables.
+
+- Hunger model (original numbers): activity-scaled exhaustion drains hunger; hunger >=18 regenerates health at a food cost; empty hunger starves to a 1-hp floor (never lethal, forgiving). Meat now restores hunger rather than healing directly, so the loop is hunt -> eat -> regen.

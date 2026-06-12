@@ -11,8 +11,8 @@ import * as THREE from 'three';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { breakSecondsFor, dropFor, isBlockId, Item, MEAT_HEAL } from '../world/items';
-import { blockIntersectsBody, EYE_HEIGHT, MAX_HP, type Body } from './physics';
+import { breakSecondsFor, dropFor, isBlockId, Item, MEAT_FOOD } from '../world/items';
+import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
 import type { AnimalSystem } from '../entities/animals';
 import type { GameMode, PlayerController } from './controller';
@@ -124,14 +124,14 @@ export class Interaction {
     return true;
   }
 
-  /** Holding meat: right-click eats it when hurt. Returns true if consumed. */
+  /** Holding meat: right-click eats it when hungry. Returns true if consumed. */
   private tryEat(player: PlayerController, hotbar: HotbarState): boolean {
     const inventory = hotbar.inventory;
     const stack = inventory?.slots[hotbar.slot];
     if (!inventory || !stack || stack.id !== Item.meat) return false;
-    if (player.hp >= MAX_HP) return false;
+    if (player.hunger >= MAX_HUNGER) return false;
     if (!inventory.consumeOne(hotbar.slot)) return false;
-    player.heal(MEAT_HEAL);
+    player.eat(MEAT_FOOD);
     this.onEdit?.('place', Item.meat);
     return true;
   }

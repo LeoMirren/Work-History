@@ -11,6 +11,7 @@ import {
   createBody,
   EYE_HEIGHT,
   MAX_HP,
+  MAX_HUNGER,
   FLY_SPEED,
   GRAVITY,
   JUMP_VELOCITY,
@@ -55,8 +56,12 @@ export class PlayerController {
   sprinting = false;
   mode: GameMode = 'creative';
   hp = MAX_HP;
+  hunger = MAX_HUNGER;
   /** Highest y reached since last grounded, for fall damage. */
   private peakY = 0;
+  private exhaustion = 0;
+  private regenTimer = 0;
+  private starveTimer = 0;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;
@@ -160,11 +165,59 @@ export class PlayerController {
 
     moveBody(world.isSolid, body, body.vx * dt, body.vy * dt, body.vz * dt, this.moveResult);
 
-    if (this.mode === 'survival') this.trackFall();
+    if (this.mode === 'survival') {
+      this.trackFall();
+      this.updateHunger(dt, len > 0 && !this.flying);
+    }
 
     if (body.y < RESPAWN_Y) {
       this.teleport(this.spawnX, this.spawnY, this.spawnZ);
     }
+  }
+
+  /**
+   * Survival metabolism: activity burns food; being well-fed slowly regrows
+   * health; an empty stomach drains it to a non-lethal floor.
+   */
+  private updateHunger(dt: number, moving: boolean): void {
+    const EXHAUST_PER_HUNGER = 3;
+    const REGEN_INTERVAL = 4;
+    const STARVE_INTERVAL = 4;
+    const STARVE_FLOOR = 1;
+
+    let rate = 0.02; // resting metabolism
+    if (moving) rate += this.sprinting ? 0.3 : 0.1;
+    this.exhaustion += rate * dt;
+    while (this.exhaustion >= EXHAUST_PER_HUNGER && this.hunger > 0) {
+      this.exhaustion -= EXHAUST_PER_HUNGER;
+      this.hunger--;
+    }
+
+    if (this.hunger >= 18 && this.hp < MAX_HP) {
+      this.regenTimer += dt;
+      if (this.regenTimer >= REGEN_INTERVAL) {
+        this.regenTimer = 0;
+        this.hp = Math.min(MAX_HP, this.hp + 1);
+        this.exhaustion += EXHAUST_PER_HUNGER * 0.8; // healing costs food
+      }
+    } else {
+      this.regenTimer = 0;
+    }
+
+    if (this.hunger === 0 && this.hp > STARVE_FLOOR) {
+      this.starveTimer += dt;
+      if (this.starveTimer >= STARVE_INTERVAL) {
+        this.starveTimer = 0;
+        this.hp = Math.max(STARVE_FLOOR, this.hp - 1);
+      }
+    } else {
+      this.starveTimer = 0;
+    }
+  }
+
+  /** Eat food: restores hunger, clamped to the max. */
+  eat(food: number): void {
+    this.hunger = Math.min(MAX_HUNGER, this.hunger + food);
   }
 
   /** Fall-damage bookkeeping: water entry and flight always break a fall. */
@@ -191,6 +244,8 @@ export class PlayerController {
     if (this.hp === 0) {
       this.teleport(this.spawnX, this.spawnY, this.spawnZ);
       this.hp = MAX_HP;
+      this.hunger = MAX_HUNGER;
+      this.exhaustion = 0;
     }
   }
 

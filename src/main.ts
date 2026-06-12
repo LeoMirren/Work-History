@@ -15,7 +15,7 @@ import { Input } from './engine/input';
 import { PlayerController, type GameMode } from './player/controller';
 import { Interaction, type HotbarState } from './player/interaction';
 import { Inventory } from './player/inventory';
-import { MAX_HP, PLAYER_HALF_WIDTH } from './player/physics';
+import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
@@ -137,6 +137,7 @@ async function boot(): Promise<void> {
         pitch: player.pitch,
         flying: player.flying,
         hp: player.hp,
+        hunger: player.hunger,
         inventory: inventory.serialize(),
       },
       settings: { ...settings },
@@ -219,6 +220,8 @@ async function boot(): Promise<void> {
       player.flying = resume.player.flying === true;
       const hp = resume.player.hp;
       player.hp = Number.isFinite(hp) && hp >= 1 && hp <= MAX_HP ? Math.floor(hp) : MAX_HP;
+      const hunger = resume.player.hunger;
+      player.hunger = Number.isFinite(hunger) && hunger >= 0 && hunger <= MAX_HUNGER ? Math.floor(hunger) : MAX_HUNGER;
       inventory.load(resume.player.inventory);
       dayNight.time = resume.timeOfDay;
     } else {
@@ -227,6 +230,7 @@ async function boot(): Promise<void> {
       player.pitch = 0;
       player.flying = false;
       player.hp = MAX_HP;
+      player.hunger = MAX_HUNGER;
       inventory.load(undefined);
       dayNight.time = NOON_TIME;
     }
@@ -411,6 +415,7 @@ async function boot(): Promise<void> {
         interaction.update(input, session.world, player, frameDt, hotbarState);
         if (session.mode === 'survival') {
           hud.setHealth(player.hp);
+          hud.setHunger(player.hunger);
           hud.setBreakProgress(interaction.breakProgress);
           hud.updateHotbar();
         }
@@ -447,6 +452,7 @@ async function boot(): Promise<void> {
       infoPanel.setStatus({
         hp: player.hp,
         maxHp: MAX_HP,
+        hunger: player.hunger,
         mode: session.mode === 'survival' ? `survival (${mode})` : `creative (${mode})`,
         position: `${b.x.toFixed(0)}, ${b.y.toFixed(0)}, ${b.z.toFixed(0)}`,
         time: `${clockH}:${String(clockM).padStart(2, '0')}`,

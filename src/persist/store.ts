@@ -15,6 +15,7 @@ export interface WorldMeta {
     pitch: number;
     flying: boolean;
     hp: number;
+    hunger: number;
     inventory: Array<[number, number] | null>;
   };
   settings: { renderDistance: number; mouseSensitivity: number; fov: number };
