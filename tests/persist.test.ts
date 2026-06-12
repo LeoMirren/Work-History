@@ -19,7 +19,16 @@ const sampleMeta: WorldMeta = {
   version: 1,
   seed: 'persist-test',
   mode: 'survival',
-  player: { x: 1.5, y: 70, z: -3.5, yaw: 0.4, pitch: -0.2, flying: true, hp: 13 },
+  player: {
+    x: 1.5,
+    y: 70,
+    z: -3.5,
+    yaw: 0.4,
+    pitch: -0.2,
+    flying: true,
+    hp: 13,
+    inventory: [[1, 32], null, [101, 1]],
+  },
   settings: { renderDistance: 6, mouseSensitivity: 1.4, fov: 90 },
   timeOfDay: 200,
 };

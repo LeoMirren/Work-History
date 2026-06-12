@@ -2,8 +2,10 @@
  * HUD: crosshair, hotbar with atlas-drawn icons, F3 debug overlay (§4.9).
  * Pure DOM/CSS — no engine dependencies beyond the atlas canvas for icons.
  */
-import { FACE_TILES, HOTBAR_BLOCKS, blockName } from '../world/blocks';
+import { HOTBAR_BLOCKS, blockName } from '../world/blocks';
+import { iconTileFor, isBlockId, itemName } from '../world/items';
 import { ATLAS_TILES, TILE_PX } from '../engine/atlas';
+import type { Inventory } from '../player/inventory';
 
 const ICON_PX = 40;
 
@@ -18,6 +20,10 @@ export class Hud {
   private lastHp = -1;
   private lastBreakPct = -1;
   private debugVisible = true;
+  private inventory: Inventory | null = null;
+  private atlasCanvas: HTMLCanvasElement | null = null;
+  private renderedInvVersion = -1;
+  private readonly counts: HTMLSpanElement[] = [];
 
   constructor(parent: HTMLElement, atlasCanvas: HTMLCanvasElement) {
     const crosshair = document.createElement('div');
@@ -54,9 +60,12 @@ export class Hud {
       const icon = document.createElement('canvas');
       icon.width = ICON_PX;
       icon.height = ICON_PX;
-      slot.appendChild(icon);
+      const count = document.createElement('span');
+      count.className = 'inv-count';
+      slot.append(icon, count);
       hotbar.appendChild(slot);
       this.slots.push(slot);
+      this.counts.push(count);
     }
     parent.appendChild(hotbar);
     this.redrawIcons(atlasCanvas);
@@ -72,20 +81,53 @@ export class Hud {
     return HOTBAR_BLOCKS[this.selectedSlot] ?? 0;
   }
 
-  /** (Re)draw slot icons from an atlas canvas — used after world switches. */
+  /**
+   * Bind the hotbar's source: a survival inventory (slots 0-8 with counts)
+   * or null for the fixed creative palette.
+   */
+  bindInventory(inventory: Inventory | null, atlasCanvas: HTMLCanvasElement): void {
+    this.inventory = inventory;
+    this.atlasCanvas = atlasCanvas;
+    this.renderedInvVersion = -1;
+    this.redrawIcons(atlasCanvas);
+  }
+
+  /** (Re)draw slot icons — creative palette or live inventory stacks. */
   redrawIcons(atlasCanvas: HTMLCanvasElement): void {
+    this.atlasCanvas = atlasCanvas;
     for (let i = 0; i < this.slots.length; i++) {
-      const blockId = HOTBAR_BLOCKS[i] ?? 0;
+      const stack = this.inventory?.slots[i] ?? null;
+      const id = this.inventory ? (stack?.id ?? 0) : (HOTBAR_BLOCKS[i] ?? 0);
       const icon = this.slots[i]?.querySelector('canvas');
       const ctx = icon?.getContext('2d');
+      const count = this.counts[i];
       if (!ctx) continue;
-      ctx.imageSmoothingEnabled = false;
-      // Side-face tile reads best as an icon (grass band, bark, etc.).
-      const tile = FACE_TILES[blockId * 6] ?? 0;
-      const sx = (tile % ATLAS_TILES) * TILE_PX;
-      const sy = Math.floor(tile / ATLAS_TILES) * TILE_PX;
       ctx.clearRect(0, 0, ICON_PX, ICON_PX);
-      ctx.drawImage(atlasCanvas, sx, sy, TILE_PX, TILE_PX, 0, 0, ICON_PX, ICON_PX);
+      if (id > 0) {
+        ctx.imageSmoothingEnabled = false;
+        // Side-face tile reads best as an icon (grass band, bark, etc.).
+        const tile = iconTileFor(id);
+        const sx = (tile % ATLAS_TILES) * TILE_PX;
+        const sy = Math.floor(tile / ATLAS_TILES) * TILE_PX;
+        ctx.drawImage(atlasCanvas, sx, sy, TILE_PX, TILE_PX, 0, 0, ICON_PX, ICON_PX);
+      }
+      if (count) count.textContent = stack && stack.count > 1 ? String(stack.count) : '';
+      const slot = this.slots[i];
+      if (slot) {
+        slot.title = this.inventory
+          ? stack
+            ? `${i + 1}: ${isBlockId(stack.id) ? blockName(stack.id) : itemName(stack.id)} ×${stack.count}`
+            : `${i + 1}: empty`
+          : `${i + 1}: ${blockName(HOTBAR_BLOCKS[i] ?? 0)}`;
+      }
+    }
+    if (this.inventory) this.renderedInvVersion = this.inventory.version;
+  }
+
+  /** Per-frame: repaint the hotbar only when the inventory changed. */
+  updateHotbar(): void {
+    if (this.inventory && this.atlasCanvas && this.inventory.version !== this.renderedInvVersion) {
+      this.redrawIcons(this.atlasCanvas);
     }
   }
 

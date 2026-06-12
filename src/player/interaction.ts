@@ -2,14 +2,20 @@
  * Block targeting and editing (§4.8): per-frame raycast drives the outline;
  * clicks break (LMB) or place (RMB) with placement rejected inside the player
  * AABB or into non-air/water cells.
+ *
+ * Creative: instant break, infinite placement from the fixed hotbar.
+ * Survival: hold-to-break with tool-adjusted times, drops collected into the
+ * inventory, placement consumes from the selected stack.
  */
 import * as THREE from 'three';
-import { Block, BREAK_TIME, BREAKABLE, SOLID } from '../world/blocks';
+import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
+import { breakSecondsFor, dropFor, isBlockId } from '../world/items';
 import { blockIntersectsBody, EYE_HEIGHT, type Body } from './physics';
 import type { Input } from '../engine/input';
 import type { GameMode, PlayerController } from './controller';
+import type { Inventory } from './inventory';
 import type { World } from '../world/world';
 
 export const REACH = 5.0;
@@ -21,6 +27,15 @@ export function canPlaceAt(currentId: number, bx: number, by: number, bz: number
   if (by < 0 || by >= CHUNK_HEIGHT) return false;
   if (currentId !== Block.air && currentId !== Block.water) return false;
   return !blockIntersectsBody(bx, by, bz, body);
+}
+
+export interface HotbarState {
+  /** Placement block in creative mode. */
+  creativeBlock: number;
+  /** Survival inventory (null in creative). */
+  inventory: Inventory | null;
+  /** Selected hotbar slot index. */
+  slot: number;
 }
 
 export class Interaction {
@@ -47,7 +62,7 @@ export class Interaction {
   }
 
   /** Per-frame: refresh the targeted block and apply queued clicks. */
-  update(input: Input, world: World, player: PlayerController, selectedBlock: number, dt: number): void {
+  update(input: Input, world: World, player: PlayerController, dt: number, hotbar: HotbarState): void {
     const body = player.body;
     const eyeY = body.y + EYE_HEIGHT;
     const cosPitch = Math.cos(player.pitch);
@@ -65,22 +80,32 @@ export class Interaction {
     }
 
     input.takeClicks(this.clicks);
-    if (this.mode === 'survival') {
-      this.updateTimedBreaking(input, world, dt);
+    if (this.mode === 'survival' && hotbar.inventory) {
+      this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
       for (const button of this.clicks) {
-        if (button === 2 && this.hasTarget) this.tryPlace(world, body, selectedBlock);
+        if (button === 2 && this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
       }
     } else {
       for (const button of this.clicks) {
         if (!this.hasTarget) continue;
         if (button === 0) this.tryBreak(world);
-        else if (button === 2) this.tryPlace(world, body, selectedBlock);
+        else if (button === 2) this.tryPlace(world, body, hotbar.creativeBlock);
       }
     }
   }
 
-  /** Survival: hold LMB on one block until its break time elapses. */
-  private updateTimedBreaking(input: Input, world: World, dt: number): void {
+  private heldId(hotbar: HotbarState): number {
+    return hotbar.inventory?.slots[hotbar.slot]?.id ?? 0;
+  }
+
+  /** Survival: hold LMB on one block until its tool-adjusted time elapses. */
+  private updateTimedBreaking(
+    input: Input,
+    world: World,
+    dt: number,
+    inventory: Inventory,
+    hotbar: HotbarState,
+  ): void {
     if (!this.hasTarget || !input.isButtonDown(0)) {
       this.breakProgress = 0;
       this.breakX = Number.NaN;
@@ -99,9 +124,13 @@ export class Interaction {
       this.breakZ = bz;
       this.breakProgress = 0;
     }
-    this.breakProgress += dt / (BREAK_TIME[id] || Infinity);
+    const held = this.heldId(hotbar);
+    const seconds = breakSecondsFor(id, held);
+    this.breakProgress += Number.isFinite(seconds) && seconds > 0 ? dt / seconds : 0;
     if (this.breakProgress >= 1) {
       world.setBlock(bx, by, bz, Block.air);
+      const drop = dropFor(id, held);
+      if (drop) inventory.add(drop.id, drop.count); // overflow is simply lost
       this.onEdit?.('break', id);
       this.breakProgress = 0;
       this.breakX = Number.NaN;
@@ -120,7 +149,23 @@ export class Interaction {
     const bx = this.hit.bx + this.hit.nx;
     const by = this.hit.by + this.hit.ny;
     const bz = this.hit.bz + this.hit.nz;
+    if (blockId <= 0) return;
     if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) return;
+    world.setBlock(bx, by, bz, blockId);
+    this.onEdit?.('place', blockId);
+  }
+
+  /** Survival placement consumes one item from the selected stack. */
+  private trySurvivalPlace(world: World, body: Body, hotbar: HotbarState): void {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || !isBlockId(stack.id)) return;
+    const bx = this.hit.bx + this.hit.nx;
+    const by = this.hit.by + this.hit.ny;
+    const bz = this.hit.bz + this.hit.nz;
+    if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) return;
+    const blockId = stack.id;
+    if (!inventory.consumeOne(hotbar.slot)) return;
     world.setBlock(bx, by, bz, blockId);
     this.onEdit?.('place', blockId);
   }

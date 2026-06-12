@@ -27,6 +27,11 @@ export const Tiles = {
   bedrock: 13,
   brick: 14,
   ore: 15,
+  // Row 1: item tiles.
+  stick: 16,
+  woodPickaxe: 17,
+  stonePickaxe: 18,
+  ironPickaxe: 19,
 } as const;
 
 type Rng = () => number;
@@ -288,6 +293,44 @@ const paintOre: TilePainter = (set, rng) => {
   }
 };
 
+/** Slim diagonal stick on a transparent tile. */
+const paintStick: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let i = 3; i <= 12; i++) {
+    const n = jitter(rng, 14);
+    set(i, 15 - i, 124 + n, 92 + n * 0.7, 56 + n * 0.5);
+    set(i + 1, 15 - i, 104 + n, 78 + n * 0.7, 46 + n * 0.5);
+  }
+};
+
+/** Pickaxe: diagonal handle plus an arced head in the tier material. */
+function paintPickaxe(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    // Handle from bottom-left toward the head.
+    for (let i = 2; i <= 11; i++) {
+      const n = jitter(rng, 12);
+      set(i, 15 - i, 124 + n, 92 + n * 0.7, 56 + n * 0.5);
+      set(i + 1, 15 - i, 104 + n, 78 + n * 0.7, 46 + n * 0.5);
+    }
+    // Head arc.
+    const head: Array<[number, number]> = [
+      [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2],
+      [3, 3], [4, 3], [5, 3], [10, 3], [11, 3], [12, 3],
+      [2, 4], [3, 4], [12, 4], [13, 4],
+      [2, 5], [13, 5], [13, 6], [2, 6],
+    ];
+    for (const [hx, hy] of head) {
+      const n = jitter(rng, 18);
+      set(hx, hy, r + n, g + n * 0.8, b + n * 0.6);
+    }
+  };
+}
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -305,6 +348,10 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.bedrock, 'bedrock', paintBedrock],
   [Tiles.brick, 'brick', paintBrick],
   [Tiles.ore, 'ore', paintOre],
+  [Tiles.stick, 'stick', paintStick],
+  [Tiles.woodPickaxe, 'woodPickaxe', paintPickaxe(150, 112, 66)],
+  [Tiles.stonePickaxe, 'stonePickaxe', paintPickaxe(128, 128, 130)],
+  [Tiles.ironPickaxe, 'ironPickaxe', paintPickaxe(208, 204, 200)],
 ];
 
 /**

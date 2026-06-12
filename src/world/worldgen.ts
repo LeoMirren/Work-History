@@ -11,6 +11,7 @@ import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, createChunkData } from './chunk';
 export const SEA_LEVEL = 52;
 const SNOW_LINE = 96; // surface block is snow above this height
 const CAVE_THRESHOLD = 0.58;
+const TUNNEL_WIDTH = 0.09; // spaghetti tunnels: both noises within this of zero
 const ORE_THRESHOLD = 0.74; // stretch §9: 3D-noise ore pockets
 const ORE_MIN_Y = 5;
 const ORE_MAX_Y = 60;
@@ -29,6 +30,8 @@ export function createGenerator(seed: string): Generator {
   const hills: NoiseFunction2D = seededNoise2D(seed, 'hills');
   const detail: NoiseFunction2D = seededNoise2D(seed, 'detail');
   const cave: NoiseFunction3D = seededNoise3D(seed, 'cave');
+  const tunnelA: NoiseFunction3D = seededNoise3D(seed, 'tunnelA');
+  const tunnelB: NoiseFunction3D = seededNoise3D(seed, 'tunnelB');
   const ore: NoiseFunction3D = seededNoise3D(seed, 'ore');
   const treeSeed = cyrb128(`${seed} trees`)[0];
 
@@ -77,11 +80,16 @@ export function createGenerator(seed: string): Generator {
         }
 
         // Caves: never carve near/below sea level columns (keeps oceans full).
+        // Two systems: "cheese" rooms (threshold) plus winding "spaghetti"
+        // tunnels where two independent noises both pass near zero.
         if (h >= SEA_LEVEL + 2) {
           for (let y = 5; y <= h - 6; y++) {
-            if (cave(wx / 40, y / 28, wz / 40) > CAVE_THRESHOLD) {
-              data[blockIndex(x, y, z)] = Block.air;
-            }
+            const room = cave(wx / 40, y / 28, wz / 40) > CAVE_THRESHOLD;
+            const tunnel =
+              !room &&
+              Math.abs(tunnelA(wx / 70, y / 42, wz / 70)) < TUNNEL_WIDTH &&
+              Math.abs(tunnelB(wx / 70, y / 42, wz / 70)) < TUNNEL_WIDTH;
+            if (room || tunnel) data[blockIndex(x, y, z)] = Block.air;
           }
         }
       }

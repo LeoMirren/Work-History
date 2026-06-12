@@ -46,3 +46,8 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Stretch order honored (§9): all five items shipped. Survival specifics: damage = floor(fall−3) half-hearts, water/flight cancel falls, death respawns at spawn with full HP (no inventory/drops — still out of scope); fly is disabled in survival; pause-menu New World inherits the current mode, the title checkbox sets it for fresh worlds.
 - Ore veins use threshold 0.74 at /18 scale (small clustered pockets, roughly MC-iron density); ore is mineable but not in the 9-slot hotbar (spec fixes the hotbar contents).
 - Cloud plane is frustumCulled=false (it always spans the view) and excluded from the shared-material assertion by name; its material joins the day/night brightness list.
+- User-directed post-spec expansion: Voxelheim grows genre-standard survival systems as original clean-room implementations (own names, recipes, pixel art, data tables) — explicitly not a copy of any Mojang content, per the spec's own hard constraint and IP policy.
+- Survival drops auto-collect into the inventory on break (no drop entities yet — simpler and lag-free; entities may come with mobs).
+- Crafting is a recipe-book list (click to craft from totals) rather than a placement grid — original interaction, less UI surface.
+- Iron pickaxe crafts directly from raw ore for now (no furnace/smelting yet; planned with the next tranche).
+- E opens the inventory: pointer lock is released with a flag suppressing the pause menu; E/Esc closes and relocks.

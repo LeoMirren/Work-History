@@ -7,7 +7,16 @@ export interface WorldMeta {
   version: 1;
   seed: string;
   mode: 'creative' | 'survival';
-  player: { x: number; y: number; z: number; yaw: number; pitch: number; flying: boolean; hp: number };
+  player: {
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    pitch: number;
+    flying: boolean;
+    hp: number;
+    inventory: Array<[number, number] | null>;
+  };
   settings: { renderDistance: number; mouseSensitivity: number; fov: number };
   timeOfDay: number;
 }

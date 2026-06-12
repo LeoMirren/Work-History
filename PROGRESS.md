@@ -83,3 +83,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Survival mode: HP hearts HUD, fall damage (3 safe blocks, water cancels), death→respawn, hold-to-break with per-block times + progress bar; mode chosen at world creation and persisted
 - [x] Ore veins: 3D-noise pockets (block id 14) in the stone band y∈[5,60]
 - [x] Procedural WebAudio block-tap sounds (per-block pitched blip + noise tap, zero assets)
+
+## Post-spec: Survival Update 1 (user-directed expansion)
+
+- [x] Items & 36-slot inventory (9 hotbar + 27 main), stacking to 64, tools unstackable
+- [x] Drops: broken blocks collected to inventory (stone→cobblestone, grass→dirt, ore gated by pickaxe)
+- [x] Crafting recipe book (E screen): planks, sticks, wood/stone/iron pickaxes, bricks, glass
+- [x] Tool tiers speed mining (×2/×4/×6) and gate ore; survival placement consumes items
+- [x] Inventory screen: click move/merge/swap, shift-click quick-move, persisted with the world
+- [x] Caves v2: spaghetti tunnels (two-noise intersection) alongside cheese rooms

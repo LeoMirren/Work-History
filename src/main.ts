@@ -13,9 +13,11 @@ import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
 import { PlayerController, type GameMode } from './player/controller';
-import { Interaction } from './player/interaction';
+import { Interaction, type HotbarState } from './player/interaction';
+import { Inventory } from './player/inventory';
 import { MAX_HP, PLAYER_HALF_WIDTH } from './player/physics';
 import { Hud } from './ui/hud';
+import { InventoryScreen } from './ui/inventoryScreen';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -33,6 +35,7 @@ interface Session {
   mode: GameMode;
   world: World;
   texture: THREE.Texture;
+  atlasCanvas: HTMLCanvasElement;
   persistedKeys: Set<string>;
 }
 
@@ -82,9 +85,13 @@ async function boot(): Promise<void> {
   const interaction = new Interaction(gr.scene);
   const audio = new TapAudio();
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
+  const inventory = new Inventory();
+  const inventoryScreen = new InventoryScreen(app);
+  let inventoryOpen = false;
   let hud: Hud | null = null;
   let session: Session | null = null;
   let settings: Settings = { ...DEFAULT_SETTINGS };
+  const hotbarState: HotbarState = { creativeBlock: 0, inventory: null, slot: 0 };
 
   function applySettings(next: Settings): void {
     settings = { ...next };
@@ -106,6 +113,7 @@ async function boot(): Promise<void> {
         pitch: player.pitch,
         flying: player.flying,
         hp: player.hp,
+        inventory: inventory.serialize(),
       },
       settings: { ...settings },
       timeOfDay: dayNight.time,
@@ -187,6 +195,7 @@ async function boot(): Promise<void> {
       player.flying = resume.player.flying === true;
       const hp = resume.player.hp;
       player.hp = Number.isFinite(hp) && hp >= 1 && hp <= MAX_HP ? Math.floor(hp) : MAX_HP;
+      inventory.load(resume.player.inventory);
       dayNight.time = resume.timeOfDay;
     } else {
       player.teleport(0.5, spawnY, 0.5);
@@ -194,13 +203,19 @@ async function boot(): Promise<void> {
       player.pitch = 0;
       player.flying = false;
       player.hp = MAX_HP;
+      inventory.load(undefined);
       dayNight.time = NOON_TIME;
     }
     player.setMode(mode);
     interaction.mode = mode;
     hud.setSurvivalVisible(mode === 'survival');
+    hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
+    if (inventoryOpen) {
+      inventoryScreen.close();
+      inventoryOpen = false;
+    }
 
-    session = { seed, mode, world, texture, persistedKeys };
+    session = { seed, mode, world, texture, atlasCanvas, persistedKeys };
     menus.setPauseSeed(seed);
   }
 
@@ -248,7 +263,7 @@ async function boot(): Promise<void> {
   input.onLockChange = (locked) => {
     if (locked) {
       menus.hidePause();
-    } else if (session) {
+    } else if (session && !inventoryOpen) {
       menus.showPause();
     }
   };
@@ -320,6 +335,22 @@ async function boot(): Promise<void> {
         gr.setFov(currentFov);
       }
       input.takeMouseDelta(mouse);
+      // Inventory screen (E) swaps pointer lock for the cursor.
+      if (session && hud && session.mode === 'survival') {
+        if (inventoryOpen) {
+          if (input.takePressed('KeyE') || input.takePressed('Escape')) {
+            inventoryScreen.close();
+            inventoryOpen = false;
+            input.requestLock();
+          } else {
+            inventoryScreen.refreshIfStale();
+          }
+        } else if (input.locked && input.takePressed('KeyE')) {
+          inventoryOpen = true;
+          inventoryScreen.open(inventory, session.atlasCanvas);
+          document.exitPointerLock();
+        }
+      }
       if (session && input.locked && hud) {
         player.look(mouse.dx, mouse.dy, BASE_SENSITIVITY * settings.mouseSensitivity);
         for (let d = 1; d <= 9; d++) {
@@ -328,10 +359,14 @@ async function boot(): Promise<void> {
         const wheel = input.takeWheel();
         if (wheel !== 0) hud.stepSlot(wheel > 0 ? 1 : -1);
         if (input.takePressed('F3')) hud.toggleDebug();
-        interaction.update(input, session.world, player, hud.selectedBlock, frameDt);
+        hotbarState.creativeBlock = hud.selectedBlock;
+        hotbarState.inventory = session.mode === 'survival' ? inventory : null;
+        hotbarState.slot = hud.selectedSlot;
+        interaction.update(input, session.world, player, frameDt, hotbarState);
         if (session.mode === 'survival') {
           hud.setHealth(player.hp);
           hud.setBreakProgress(interaction.breakProgress);
+          hud.updateHotbar();
         }
       }
       player.applyToCamera(gr.camera, alpha);

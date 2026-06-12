@@ -31,6 +31,7 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
 | **Left click** | break block |
 | **Right click** | place block |
 | **1–9 / wheel** | hotbar selection |
+| **E** | inventory & crafting (survival) |
 | **F3** | debug overlay |
 | **Esc** | pause menu |
 
@@ -52,6 +53,10 @@ mouse. `npm run build` type-checks and produces a static bundle in `dist/`
 - **Stretch extras**: sprint FOV kick, drifting blocky clouds, an optional
   survival mode (hearts, fall damage, timed breaking — tick the box on the
   title screen), ore veins to mine, and synthesized block-tap sounds.
+- **Survival depth**: a 36-slot inventory with drops and stacking, a crafting
+  recipe book (logs → planks → sticks → pickaxe tiers that mine faster and
+  unlock ore), placement that consumes items, and two-system caves (rooms +
+  winding tunnels). Punch a tree and work your way up.
 
 ## Architecture
 
