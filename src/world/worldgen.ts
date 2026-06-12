@@ -333,35 +333,45 @@ function plantGeode(data: Uint8Array, gx: number, gy: number, gz: number): void 
   }
 }
 
-function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number): void {
-  const placeLeaf = (lx: number, ly: number, lz: number): void => {
-    if (ly >= CHUNK_HEIGHT) return;
-    const i = blockIndex(lx, ly, lz);
-    if (data[i] === Block.air) data[i] = Block.leaves; // leaves never overwrite logs/terrain
-  };
-
-  const top = h + trunkHeight;
+/**
+ * Tree shape as offsets from the base (the grass surface). `emit` receives
+ * dy>=1 cells with `isLog` marking the trunk. Logs are emitted before leaves
+ * so a consumer that only fills air still forms a clean trunk. Shared by
+ * worldgen and in-world sapling planting so both grow identical trees.
+ */
+export function forEachTreeBlock(
+  trunkHeight: number,
+  emit: (dx: number, dy: number, dz: number, id: number, isLog: boolean) => void,
+): void {
+  const top = trunkHeight;
+  for (let t = 1; t <= trunkHeight; t++) emit(0, t, 0, Block.log, true);
   // 5x5x2 slab with corners removed, under the trunk top.
   for (const ly of [top - 2, top - 1]) {
     for (let dx = -2; dx <= 2; dx++) {
       for (let dz = -2; dz <= 2; dz++) {
         if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
-        placeLeaf(x + dx, ly, z + dz);
+        emit(dx, ly, dz, Block.leaves, false);
       }
     }
   }
   // 3x3 layer at the trunk top.
   for (let dx = -1; dx <= 1; dx++) {
-    for (let dz = -1; dz <= 1; dz++) placeLeaf(x + dx, top, z + dz);
+    for (let dz = -1; dz <= 1; dz++) emit(dx, top, dz, Block.leaves, false);
   }
   // Plus-shape cap.
-  placeLeaf(x, top + 1, z);
-  placeLeaf(x - 1, top + 1, z);
-  placeLeaf(x + 1, top + 1, z);
-  placeLeaf(x, top + 1, z - 1);
-  placeLeaf(x, top + 1, z + 1);
+  emit(0, top + 1, 0, Block.leaves, false);
+  emit(-1, top + 1, 0, Block.leaves, false);
+  emit(1, top + 1, 0, Block.leaves, false);
+  emit(0, top + 1, -1, Block.leaves, false);
+  emit(0, top + 1, 1, Block.leaves, false);
+}
 
-  for (let t = 1; t <= trunkHeight; t++) {
-    if (h + t < CHUNK_HEIGHT) data[blockIndex(x, h + t, z)] = Block.log;
-  }
+function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number): void {
+  forEachTreeBlock(trunkHeight, (dx, dy, dz, id, isLog) => {
+    const ly = h + dy;
+    if (ly < 0 || ly >= CHUNK_HEIGHT) return;
+    const i = blockIndex(x + dx, ly, z + dz);
+    if (isLog) data[i] = id;
+    else if (data[i] === Block.air) data[i] = id; // leaves never overwrite
+  });
 }

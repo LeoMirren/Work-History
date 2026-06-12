@@ -11,7 +11,8 @@ import * as THREE from 'three';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { breakSecondsFor, dropFor, isBlockId, Item, MEAT_FOOD } from '../world/items';
+import { bonusDropFor, breakSecondsFor, dropFor, isBlockId, Item, MEAT_FOOD } from '../world/items';
+import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
 import type { AnimalSystem } from '../entities/animals';
@@ -211,6 +212,8 @@ export class Interaction {
       world.setBlock(bx, by, bz, Block.air);
       const drop = dropFor(id, held);
       if (drop) inventory.add(drop.id, drop.count); // overflow is simply lost
+      const bonus = bonusDropFor(id, Math.random());
+      if (bonus) inventory.add(bonus.id, bonus.count);
       this.onEdit?.('break', id);
       this.onBlockChanged?.('break', id, bx, by, bz);
       this.breakProgress = 0;
@@ -242,7 +245,13 @@ export class Interaction {
   private trySurvivalPlace(world: World, body: Body, hotbar: HotbarState): void {
     const inventory = hotbar.inventory;
     const stack = inventory?.slots[hotbar.slot];
-    if (!inventory || !stack || !isBlockId(stack.id)) return;
+    if (!inventory || !stack) return;
+    // Saplings aren't blocks: plant a tree on top of grass instead.
+    if (stack.id === Item.sapling) {
+      this.trySurvivalPlantSapling(world, hotbar);
+      return;
+    }
+    if (!isBlockId(stack.id)) return;
     const bx = this.hit.bx + this.hit.nx;
     const by = this.hit.by + this.hit.ny;
     const bz = this.hit.bz + this.hit.nz;
@@ -253,4 +262,30 @@ export class Interaction {
     this.onEdit?.('place', blockId);
     this.onBlockChanged?.('place', blockId, bx, by, bz);
   }
+
+  /** Plant a sapling: grow a tree above a grass block, consuming the item. */
+  private trySurvivalPlantSapling(world: World, hotbar: HotbarState): void {
+    const inventory = hotbar.inventory;
+    if (!inventory) return;
+    // Must target the top face of a grass block with air above it.
+    if (this.hit.ny !== 1 || world.getBlock(this.hit.bx, this.hit.by, this.hit.bz) !== Block.grass) return;
+    const bx = this.hit.bx;
+    const by = this.hit.by + 1;
+    const bz = this.hit.bz;
+    if (world.getBlock(bx, by, bz) !== Block.air) return;
+    if (!inventory.consumeOne(hotbar.slot)) return;
+    growTree(world, bx, by, bz);
+    this.onEdit?.('place', Block.log);
+  }
+}
+
+/** Grow a tree into the air above a planted spot (never destroys blocks). */
+export function growTree(world: World, bx: number, by: number, bz: number, trunkHeight = 5): void {
+  // The base block (the grass) is at by-1; tree offsets are dy>=1 from it.
+  forEachTreeBlock(trunkHeight, (dx, dy, dz, id) => {
+    const tx = bx + dx;
+    const ty = by - 1 + dy;
+    const tz = bz + dz;
+    if (world.getBlock(tx, ty, tz) === Block.air) world.setBlock(tx, ty, tz, id);
+  });
 }

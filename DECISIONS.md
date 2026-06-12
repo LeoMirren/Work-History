@@ -85,3 +85,5 @@ Judgment calls that deviate from or fill gaps in the spec, one line each.
 - Biome-aware wildlife: the animal system takes an optional biome lookup (the overworld generator biomeAt); snowy biomes spawn woollies, deserts spawn nothing, temperate grass spawns a trundler-weighted mix. Animals now spawn on snow as well as grass. Added a setSpawning() gate (used by tests; usable for menus).
 
 - Death screen: PlayerController gained dead/onDeath/respawn(). With an onDeath handler (the game) lethal damage freezes the player and shows a blocking death screen driving respawn(); without a handler (tests) it auto-respawns as before — preserving the existing fall/starve tests.
+
+- Saplings (renewable wood): forEachTreeBlock(trunkHeight, emit) is the single source of tree shape (logs emitted before leaves), used by worldgen plantTree and the in-world growTree; refactor preserves byte-identical worldgen. Leaves drop a sapling ~16% (pure bonusDropFor with caller-supplied roll). Right-clicking a sapling on a grass top grows a tree, consuming the item and only filling air.

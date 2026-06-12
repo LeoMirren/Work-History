@@ -55,6 +55,7 @@ export const Tiles = {
   crystal: 40,
   gem: 41,
   gemPickaxe: 42,
+  sapling: 43,
 } as const;
 
 type Rng = () => number;
@@ -613,6 +614,25 @@ const paintGem: TilePainter = (set, rng) => {
   set(6, 4, 220, 200, 250); // glint
 };
 
+/** A tiny seedling: a stem with a couple of leaf nubs, transparent tile. */
+const paintSapling: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 8; y <= 13; y++) {
+    const n = jitter(rng, 12);
+    set(7, y, 104 + n, 78 + n * 0.7, 46 + n * 0.5);
+    set(8, y, 92 + n, 68 + n * 0.7, 40 + n * 0.5);
+  }
+  for (const [x, y] of [
+    [5, 7], [6, 6], [7, 6], [8, 6], [9, 6], [10, 7],
+    [6, 8], [7, 7], [8, 7], [9, 8],
+  ] as const) {
+    const n = jitter(rng, 16);
+    set(x, y, 60 + n, 130 + n, 48 + n * 0.5);
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -656,6 +676,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.crystal, 'crystal', paintCrystal],
   [Tiles.gem, 'gem', paintGem],
   [Tiles.gemPickaxe, 'gemPickaxe', paintPickaxe(150, 120, 220)],
+  [Tiles.sapling, 'sapling', paintSapling],
   [Tiles.lantern, 'lantern', paintLantern],
 ];
 

@@ -188,3 +188,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Death now shows a blocking "You fell…" screen with a Respawn button (instead of silently teleporting)
 - [x] Player freezes on death until respawn; pointer lock released; pause menu suppressed while dead
 - [x] Controller keeps auto-respawn as the default (no handler) for tests; the game installs an onDeath handler
+
+## Post-spec: Saplings (renewable wood)
+
+- [x] Tree shape extracted to a shared pure forEachTreeBlock (worldgen + in-world planting agree); determinism preserved
+- [x] Leaves occasionally drop a sapling (chance-based bonus drop, pure & testable)
+- [x] Right-click a sapling on grass to grow a tree (consumes the sapling, only fills air — never destroys builds)

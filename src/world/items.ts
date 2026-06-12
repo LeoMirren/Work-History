@@ -21,6 +21,7 @@ export const Item = {
   goldPickaxe: 111,
   gem: 112,
   gemPickaxe: 113,
+  sapling: 114,
 } as const;
 
 /** Hunger restored when eating meat (RMB while holding it). */
@@ -64,6 +65,7 @@ const ITEM_TILE: Record<number, number> = {
   [Item.goldPickaxe]: Tiles.goldPickaxe,
   [Item.gem]: Tiles.gem,
   [Item.gemPickaxe]: Tiles.gemPickaxe,
+  [Item.sapling]: Tiles.sapling,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -87,6 +89,7 @@ const ITEM_NAME: Record<number, string> = {
   [Item.goldPickaxe]: 'gold pickaxe',
   [Item.gem]: 'gem',
   [Item.gemPickaxe]: 'gem pickaxe',
+  [Item.sapling]: 'sapling',
 };
 
 export function itemName(id: number): string {
@@ -176,4 +179,16 @@ export function dropFor(blockId: number, heldId: number): { id: number; count: n
   const ore = ORES.get(blockId);
   if (ore) return pickaxeTier(heldId) >= ore.requiredTier ? { ...ore.drop } : null;
   return { id: blockId, count: 1 };
+}
+
+const SAPLING_DROP_CHANCE = 0.16;
+
+/**
+ * Chance-based bonus drop for a broken block, given a 0..1 roll. Leaves
+ * occasionally yield a sapling (renewable wood). Pure: the caller supplies
+ * the roll so it's deterministic in tests.
+ */
+export function bonusDropFor(blockId: number, roll: number): { id: number; count: number } | null {
+  if (blockId === Block.leaves && roll < SAPLING_DROP_CHANCE) return { id: Item.sapling, count: 1 };
+  return null;
 }
