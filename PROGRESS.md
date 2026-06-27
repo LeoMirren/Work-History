@@ -199,3 +199,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 - [x] Smelt raw meat into cooked meat at a furnace (closes the hunt → cook → better-food loop)
 - [x] Food table: cooked meat restores ~10 hunger vs 6 raw; eating generalized to any food item
+
+## Post-spec: Surface structures (outpost huts)
+
+- [x] Deterministic per-chunk outpost huts on flat plains/savanna grass (border-safe, ~1/240 chunks)
+- [x] 5x5 cobblestone cabin: plank floor/roof, door gap, glass window, interior lantern (lights up via the light engine), and an empty chest
+- [x] Pure `tryPlantHut` (flatness/grass/build-line gated) + tests; worldgen stays byte-deterministic with structures on

@@ -31,6 +31,8 @@ const GEODE_CHANCE = 16; // ~1 chunk in 16 hosts a geode
 const GEODE_R = 4; // sphere radius; kept inside the chunk
 const GEODE_MIN_Y = 8;
 const GEODE_MAX_Y = 40;
+const HUT_CHANCE = 240; // ~1 chunk in 240 hosts an outpost hut
+const HUT_SIZE = 5; // 5x5 footprint, kept fully inside the chunk
 
 export const Biome = {
   plains: 0,
@@ -181,6 +183,7 @@ function createOverworld(seed: string): Generator {
   const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
   const treeSeed = cyrb128(`${seed} trees`)[0];
   const geodeSeed = cyrb128(`${seed} geodes`)[0];
+  const hutSeed = cyrb128(`${seed} huts`)[0];
 
   function biomeAt(wx: number, wz: number): number {
     const t = temperature(wx / 620, wz / 620);
@@ -299,6 +302,21 @@ function createOverworld(seed: string): Generator {
       plantGeode(data, gx, gy, gz);
     }
 
+    // Outpost huts: rare surface cabins on flat grassland (plains/savanna).
+    // One candidate per chunk, kept inside the interior so it never crosses a
+    // border, and only built where the 5x5 footprint is perfectly level.
+    const hhash = hash2(hutSeed, cx, cz);
+    if (hhash % HUT_CHANCE === 0) {
+      const margin = 2;
+      const span = CHUNK_SIZE - HUT_SIZE - 2 * margin;
+      const x0 = margin + ((hhash >>> 4) % span);
+      const z0 = margin + ((hhash >>> 12) % span);
+      const biome = biomes[(z0 + 2) * CHUNK_SIZE + (x0 + 2)] ?? Biome.plains;
+      if (biome === Biome.plains || biome === Biome.savanna) {
+        tryPlantHut(data, heights, x0, z0);
+      }
+    }
+
     return data;
   }
 
@@ -331,6 +349,52 @@ function plantGeode(data: Uint8Array, gx: number, gy: number, gz: number): void 
       }
     }
   }
+}
+
+/**
+ * Build a small outpost hut on a flat 5x5 grass footprint at local (x0, z0).
+ * Bails (leaving terrain untouched) unless every column under the footprint is
+ * grass at the same height, so the cabin never floats or buries into a slope.
+ * Cobblestone walls with a plank floor/roof, a door gap, a glass window, and a
+ * lantern inside for light; an empty chest waits in the corner.
+ */
+export function tryPlantHut(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  const baseY = heights[z0 * CHUNK_SIZE + x0] ?? 0;
+  if (baseY < SEA_LEVEL + 2 || baseY + 6 >= CHUNK_HEIGHT) return;
+  // Flatness + grass check across the whole footprint.
+  for (let dz = 0; dz < HUT_SIZE; dz++) {
+    for (let dx = 0; dx < HUT_SIZE; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      if ((heights[z * CHUNK_SIZE + x] ?? -1) !== baseY) return;
+      if (data[blockIndex(x, baseY, z)] !== Block.grass) return;
+    }
+  }
+
+  const floorY = baseY + 1;
+  const wallTop = floorY + 3; // three-tall walls
+  const last = HUT_SIZE - 1;
+  for (let dz = 0; dz < HUT_SIZE; dz++) {
+    for (let dx = 0; dx < HUT_SIZE; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      data[blockIndex(x, floorY, z)] = Block.planks; // floor
+      data[blockIndex(x, wallTop + 1, z)] = Block.planks; // roof
+      const edge = dx === 0 || dz === 0 || dx === last || dz === last;
+      for (let y = floorY + 1; y <= wallTop; y++) {
+        data[blockIndex(x, y, z)] = edge ? Block.cobblestone : Block.air; // walls / interior
+      }
+    }
+  }
+  // Door: a 2-tall gap centred on the front (-z) wall.
+  const doorX = x0 + (HUT_SIZE >> 1);
+  data[blockIndex(doorX, floorY + 1, z0)] = Block.air;
+  data[blockIndex(doorX, floorY + 2, z0)] = Block.air;
+  // Window: a glass pane on the opposite wall.
+  data[blockIndex(doorX, floorY + 2, z0 + last)] = Block.glass;
+  // A lantern hung at the interior centre, and a chest in a corner.
+  data[blockIndex(x0 + (HUT_SIZE >> 1), wallTop, z0 + (HUT_SIZE >> 1))] = Block.lantern;
+  data[blockIndex(x0 + 1, floorY + 1, z0 + 1)] = Block.chest;
 }
 
 /**
