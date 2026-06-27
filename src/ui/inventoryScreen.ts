@@ -5,7 +5,7 @@
  */
 import { ATLAS_TILES, TILE_PX } from '../engine/atlas';
 import { craft, craftableCount, RECIPES } from '../world/crafting';
-import { iconTileFor, itemName, isBlockId } from '../world/items';
+import { iconTileFor, itemName, isBlockId, isArmor } from '../world/items';
 import { blockName } from '../world/blocks';
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from '../player/inventory';
 import { Cursor } from '../player/cursor';
@@ -23,6 +23,8 @@ export class InventoryScreen {
   private readonly recipeList: HTMLDivElement;
   private readonly slotEls: HTMLDivElement[] = [];
   private inventory: Inventory | null = null;
+  private armor: Inventory | null = null;
+  private readonly armorSlotEl: HTMLDivElement = document.createElement('div');
   private atlasCanvas: HTMLCanvasElement | null = null;
   private readonly cursor = new Cursor();
   private readonly heldLabel: HTMLDivElement = document.createElement('div');
@@ -37,6 +39,22 @@ export class InventoryScreen {
     panel.className = 'menu-panel inventory-panel';
     const heading = document.createElement('h1');
     heading.textContent = 'Inventory';
+
+    // Worn-armor slot (single).
+    const armorRow = document.createElement('div');
+    armorRow.className = 'armor-row';
+    const armorLabel = document.createElement('span');
+    armorLabel.textContent = 'Armor';
+    this.armorSlotEl.className = 'inv-slot armor-slot';
+    const armorIcon = document.createElement('canvas');
+    armorIcon.width = ICON_PX;
+    armorIcon.height = ICON_PX;
+    this.armorSlotEl.appendChild(armorIcon);
+    this.armorSlotEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      this.onArmorClick(e.button);
+    });
+    armorRow.append(armorLabel, this.armorSlotEl);
 
     const columns = document.createElement('div');
     columns.className = 'inventory-columns';
@@ -71,18 +89,34 @@ export class InventoryScreen {
     hint.className = 'controls-hint';
     hint.textContent =
       'left: pick up / drop · right: half / drop one · shift-click: quick-move · E/Esc: close';
-    panel.append(heading, columns, this.heldLabel, hint);
+    panel.append(heading, armorRow, columns, this.heldLabel, hint);
     this.root.appendChild(panel);
     parent.appendChild(this.root);
   }
 
-  open(inventory: Inventory, atlasCanvas: HTMLCanvasElement, furnaceAvailable: boolean): void {
+  open(
+    inventory: Inventory,
+    armor: Inventory,
+    atlasCanvas: HTMLCanvasElement,
+    furnaceAvailable: boolean,
+  ): void {
     this.inventory = inventory;
+    this.armor = armor;
     this.atlasCanvas = atlasCanvas;
     this.furnaceAvailable = furnaceAvailable;
     this.renderedVersion = -1;
     this.visible = true;
     this.root.classList.remove('hidden');
+    this.render();
+  }
+
+  /** Armor slot accepts only armor items; left-click equips/unequips/swaps. */
+  private onArmorClick(button: number): void {
+    const armor = this.armor;
+    if (!armor || button !== 0) return;
+    const held = this.cursor.held;
+    if (held && !isArmor(held.id)) return; // junk can't be worn
+    this.cursor.leftClick(armor, 0);
     this.render();
   }
 
@@ -135,6 +169,12 @@ export class InventoryScreen {
     }
     const held = this.cursor.held;
     this.heldLabel.textContent = held ? `Holding: ${nameFor(held.id)} ×${held.count}` : '';
+
+    // Armor slot.
+    const worn = this.armor?.slots[0] ?? null;
+    const armorIcon = this.armorSlotEl.querySelector('canvas');
+    if (armorIcon) this.drawIcon(armorIcon, worn?.id ?? 0);
+    this.armorSlotEl.title = worn ? nameFor(worn.id) : 'armor';
 
     this.recipeList.textContent = '';
     const ctx = { furnaceAvailable: this.furnaceAvailable };

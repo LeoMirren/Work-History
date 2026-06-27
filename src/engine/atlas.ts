@@ -57,6 +57,9 @@ export const Tiles = {
   gemPickaxe: 42,
   sapling: 43,
   cookedMeat: 44,
+  ironVest: 45,
+  goldVest: 46,
+  gemVest: 47,
 } as const;
 
 type Rng = () => number;
@@ -487,6 +490,25 @@ function paintBar(r: number, g: number, b: number, hr: number, hg: number, hb: n
 
 const paintIngot = paintBar(196, 198, 206, 232, 234, 240); // iron
 
+/** A chest-plate / vest silhouette in the given metal colour. */
+function paintVest(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    for (let y = 3; y <= 13; y++) {
+      for (let x = 3; x <= 12; x++) {
+        // Shoulder notch and a neck gap at the top centre.
+        if (y === 3 && (x < 5 || x > 10)) continue;
+        if (y <= 4 && x >= 7 && x <= 8) continue;
+        const n = jitter(rng, 18);
+        set(x, y, r + n, g + n, b + n);
+      }
+    }
+    for (let x = 5; x <= 10; x++) set(x, 5, r + 40, g + 40, b + 40); // chest sheen
+  };
+}
+
 /** Rounded lump (coal, etc.) in the given color. */
 function paintLump(r: number, g: number, b: number, sheen: number): TilePainter {
   return (set, rng) => {
@@ -701,6 +723,9 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.sapling, 'sapling', paintSapling],
   [Tiles.cookedMeat, 'cookedMeat', paintCookedMeat],
   [Tiles.lantern, 'lantern', paintLantern],
+  [Tiles.ironVest, 'ironVest', paintVest(184, 188, 198)],
+  [Tiles.goldVest, 'goldVest', paintVest(226, 194, 78)],
+  [Tiles.gemVest, 'gemVest', paintVest(150, 120, 220)],
 ];
 
 /**

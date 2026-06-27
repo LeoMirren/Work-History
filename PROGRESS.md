@@ -205,3 +205,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Deterministic per-chunk outpost huts on flat plains/savanna grass (border-safe, ~1/240 chunks)
 - [x] 5x5 cobblestone cabin: plank floor/roof, door gap, glass window, interior lantern (lights up via the light engine), and an empty chest
 - [x] Pure `tryPlantHut` (flatness/grass/build-line gated) + tests; worldgen stays byte-deterministic with structures on
+
+## Post-spec: Armor
+
+- [x] Three vest tiers (iron 35% / gold 50% / gem 70% damage reduction), crafted from their metal/gem
+- [x] Worn in a dedicated 1-slot armor inventory (reuses Inventory + held Cursor; armor-only guard); persisted with the player
+- [x] Mob melee + projectile damage mitigated (always leaves ≥1 on a real hit); creative still immune
+- [x] Procedural vest tiles; pure mitigation math + crafting + controller tests

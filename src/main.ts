@@ -16,6 +16,7 @@ import { Input } from './engine/input';
 import { PlayerController, type GameMode } from './player/controller';
 import { Interaction, type HotbarState } from './player/interaction';
 import { Inventory } from './player/inventory';
+import { armorReductionOf } from './world/items';
 import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { DamageOverlay } from './ui/damageOverlay';
@@ -93,6 +94,7 @@ async function boot(): Promise<void> {
   const audio = new TapAudio();
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   const inventory = new Inventory();
+  const armorSlot = new Inventory(1); // single worn-vest slot
   const inventoryScreen = new InventoryScreen(app);
   const chestScreen = new ChestScreen(app);
   const containers = new ContainerStore();
@@ -183,6 +185,7 @@ async function boot(): Promise<void> {
         hp: player.hp,
         hunger: player.hunger,
         inventory: inventory.serialize(),
+        armor: armorSlot.serialize(),
       },
       settings: { ...settings },
       timeOfDay: dayNight.time,
@@ -277,6 +280,7 @@ async function boot(): Promise<void> {
       const hunger = resume.player.hunger;
       player.hunger = Number.isFinite(hunger) && hunger >= 0 && hunger <= MAX_HUNGER ? Math.floor(hunger) : MAX_HUNGER;
       inventory.load(resume.player.inventory);
+      armorSlot.load(resume.player.armor);
       dayNight.time = resume.timeOfDay;
     } else {
       player.teleport(0.5, spawnY, 0.5);
@@ -286,6 +290,7 @@ async function boot(): Promise<void> {
       player.hp = MAX_HP;
       player.hunger = MAX_HUNGER;
       inventory.load(undefined);
+      armorSlot.load(undefined);
       dayNight.time = NOON_TIME;
     }
     player.setMode(mode);
@@ -503,7 +508,7 @@ async function boot(): Promise<void> {
           }
         } else if (input.locked && input.takePressed('KeyE')) {
           inventoryOpen = true;
-          inventoryScreen.open(inventory, session.atlasCanvas, furnaceNearby(session.world));
+          inventoryScreen.open(inventory, armorSlot, session.atlasCanvas, furnaceNearby(session.world));
           document.exitPointerLock();
         }
       }
@@ -535,6 +540,7 @@ async function boot(): Promise<void> {
         hotbarState.slot = hud.selectedSlot;
         interaction.update(input, session.world, player, frameDt, hotbarState);
         if (session.mode === 'survival') {
+          player.armorReduction = armorReductionOf(armorSlot.slots[0]?.id ?? 0);
           hud.setHealth(player.hp);
           hud.setHunger(player.hunger);
           hud.setBreakProgress(interaction.breakProgress);

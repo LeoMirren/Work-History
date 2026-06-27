@@ -553,3 +553,17 @@ body {
 .death-panel h1 {
   color: #e26b6b;
 }
+
+.armor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.armor-row span {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.armor-slot {
+  border-color: #6a7bb0;
+}

@@ -60,6 +60,8 @@ export class PlayerController {
   /** Set by the game to drive a death screen; null means auto-respawn. */
   onDeath: (() => void) | null = null;
   hunger = MAX_HUNGER;
+  /** Worn-armor damage reduction (0..0.7); main keeps it in sync with the slot. */
+  armorReduction = 0;
   /** Highest y reached since last grounded, for fall damage. */
   private peakY = 0;
   private exhaustion = 0;
@@ -224,10 +226,14 @@ export class PlayerController {
     this.hunger = Math.min(MAX_HUNGER, this.hunger + food);
   }
 
-  /** External damage (mob melee). Survival only; routes through death/respawn. */
+  /**
+   * External damage (mob melee/projectiles). Survival only; worn armor reduces
+   * it (always leaving at least 1 on a real hit). Routes through respawn.
+   */
   hurt(amount: number): void {
-    if (this.mode !== 'survival') return;
-    this.applyDamage(amount);
+    if (this.mode !== 'survival' || amount <= 0) return;
+    const mitigated = Math.max(1, Math.round(amount * (1 - this.armorReduction)));
+    this.applyDamage(mitigated);
   }
 
   /** Fall-damage bookkeeping: water entry and flight always break a fall. */

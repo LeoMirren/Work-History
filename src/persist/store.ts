@@ -17,6 +17,7 @@ export interface WorldMeta {
     hp: number;
     hunger: number;
     inventory: Array<[number, number] | null>;
+    armor?: Array<[number, number] | null>;
   };
   settings: { renderDistance: number; mouseSensitivity: number; fov: number };
   timeOfDay: number;

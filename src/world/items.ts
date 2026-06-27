@@ -23,7 +23,32 @@ export const Item = {
   gemPickaxe: 113,
   sapling: 114,
   cookedMeat: 115,
+  ironVest: 116,
+  goldVest: 117,
+  gemVest: 118,
 } as const;
+
+/** Fraction of incoming damage a worn vest absorbs (capped well under 1). */
+const ARMOR_REDUCTION: Record<number, number> = {
+  [Item.ironVest]: 0.35,
+  [Item.goldVest]: 0.5,
+  [Item.gemVest]: 0.7,
+};
+
+export function isArmor(id: number): boolean {
+  return id in ARMOR_REDUCTION;
+}
+
+/** Damage-reduction fraction (0..0.7) for a worn item; 0 if not armor. */
+export function armorReductionOf(id: number): number {
+  return ARMOR_REDUCTION[id] ?? 0;
+}
+
+/** Apply a worn vest's reduction to raw damage; always leaves ≥1 if hit. */
+export function mitigatedDamage(raw: number, armorId: number): number {
+  if (raw <= 0) return 0;
+  return Math.max(1, Math.round(raw * (1 - armorReductionOf(armorId))));
+}
 
 /** Hunger restored per edible (RMB while holding it). */
 export const MEAT_FOOD = 6;
@@ -80,6 +105,9 @@ const ITEM_TILE: Record<number, number> = {
   [Item.gemPickaxe]: Tiles.gemPickaxe,
   [Item.sapling]: Tiles.sapling,
   [Item.cookedMeat]: Tiles.cookedMeat,
+  [Item.ironVest]: Tiles.ironVest,
+  [Item.goldVest]: Tiles.goldVest,
+  [Item.gemVest]: Tiles.gemVest,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -105,6 +133,9 @@ const ITEM_NAME: Record<number, string> = {
   [Item.gemPickaxe]: 'gem pickaxe',
   [Item.sapling]: 'sapling',
   [Item.cookedMeat]: 'cooked meat',
+  [Item.ironVest]: 'iron vest',
+  [Item.goldVest]: 'gold vest',
+  [Item.gemVest]: 'gem vest',
 };
 
 export function itemName(id: number): string {
