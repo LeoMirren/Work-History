@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, Item } from '../world/items';
+import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, Item, useBucketOn } from '../world/items';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
@@ -24,6 +24,8 @@ import type { World } from '../world/world';
 export const REACH = 5.0;
 
 const isTargetable = (id: number): boolean => SOLID[id] === 1;
+/** Buckets scoop water, so their ray stops at a water source too. */
+const isWaterOrSolid = (id: number): boolean => id === Block.water || SOLID[id] === 1;
 
 /** §4.8 placement rules, pure for testability. */
 export function canPlaceAt(currentId: number, bx: number, by: number, bz: number, body: Body): boolean {
@@ -106,6 +108,7 @@ export class Interaction {
           if (this.tryActivateRift(world)) continue;
           if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
+          if (this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
@@ -208,6 +211,54 @@ export class Interaction {
     this.onThrow(ox + dx * 0.6, oy + dy * 0.6, oz + dz * 0.6, dx, dy, dz);
     this.onEdit?.('break', stack.id);
     return true;
+  }
+
+  private readonly bucketHit: RaycastHit = { bx: 0, by: 0, bz: 0, nx: 0, ny: 0, nz: 0, distance: 0 };
+
+  /**
+   * Empty bucket scoops a water source along the view ray; a full bucket pours
+   * into the air cell against the targeted block. Buckets are unstackable, so
+   * the held stack's id is simply swapped in place.
+   */
+  private tryUseBucket(
+    world: World,
+    hotbar: HotbarState,
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+  ): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack) return false;
+
+    if (stack.id === Item.bucket) {
+      if (!raycast(world.blockAt, isWaterOrSolid, ox, oy, oz, dx, dy, dz, REACH, this.bucketHit)) return false;
+      const { bx, by, bz } = this.bucketHit;
+      const r = useBucketOn(stack.id, world.getBlock(bx, by, bz));
+      if (!r) return false;
+      world.setBlock(bx, by, bz, r.setCell);
+      stack.id = r.newHeld;
+      inventory.version++;
+      this.onEdit?.('break', Item.bucket);
+      return true;
+    }
+
+    if (stack.id === Item.waterBucket && this.hasTarget) {
+      const bx = this.hit.bx + this.hit.nx;
+      const by = this.hit.by + this.hit.ny;
+      const bz = this.hit.bz + this.hit.nz;
+      const r = useBucketOn(stack.id, world.getBlock(bx, by, bz));
+      if (!r) return false;
+      world.setBlock(bx, by, bz, r.setCell);
+      stack.id = r.newHeld;
+      inventory.version++;
+      this.onEdit?.('place', Block.water);
+      return true;
+    }
+    return false;
   }
 
   private heldId(hotbar: HotbarState): number {

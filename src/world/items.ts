@@ -27,7 +27,27 @@ export const Item = {
   goldVest: 117,
   gemVest: 118,
   throwingStone: 119,
+  bucket: 120,
+  waterBucket: 121,
 } as const;
+
+/**
+ * What a bucket does when used on a cell (pure). Empty bucket scoops a water
+ * source; a full bucket pours into an empty cell. Returns the cell's new block
+ * id and the bucket's new item id, or null if the action doesn't apply.
+ */
+export function useBucketOn(
+  heldId: number,
+  cellId: number,
+): { setCell: number; newHeld: number } | null {
+  if (heldId === Item.bucket && cellId === Block.water) {
+    return { setCell: Block.air, newHeld: Item.waterBucket };
+  }
+  if (heldId === Item.waterBucket && cellId === Block.air) {
+    return { setCell: Block.water, newHeld: Item.bucket };
+  }
+  return null;
+}
 
 /** Damage a thrown stone deals to a mob on a direct hit. */
 export const THROW_DAMAGE = 3;
@@ -92,8 +112,10 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket]);
+
 export function stackLimit(id: number): number {
-  return isToolId(id) ? 1 : MAX_STACK;
+  return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
 }
 
 const ITEM_TILE: Record<number, number> = {
@@ -117,6 +139,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.goldVest]: Tiles.goldVest,
   [Item.gemVest]: Tiles.gemVest,
   [Item.throwingStone]: Tiles.throwingStone,
+  [Item.bucket]: Tiles.bucket,
+  [Item.waterBucket]: Tiles.waterBucket,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -146,6 +170,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.goldVest]: 'gold vest',
   [Item.gemVest]: 'gem vest',
   [Item.throwingStone]: 'throwing stone',
+  [Item.bucket]: 'bucket',
+  [Item.waterBucket]: 'water bucket',
 };
 
 export function itemName(id: number): string {

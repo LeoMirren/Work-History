@@ -230,3 +230,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Throwing-stone item (craft 4 from 1 cobblestone); right-click to hurl along the view ray, consuming one
 - [x] ThrownProjectiles system: light-gravity arc, dies on terrain / after lifetime, sweeps each step for a mob hit (reuses entity ray-pick/hurt; animal kills drop meat to the inventory)
 - [x] Lets players answer the ranged spitters at distance; cleared on world/dimension switch; ballistics + strike + lifetime tested
+
+## Post-spec: Water buckets
+
+- [x] Craftable empty bucket (3 iron ingots); right-click a water source to scoop it, right-click an empty cell to pour it back
+- [x] Pure useBucketOn scoop/pour decision; the bucket ray stops at water sources (which the normal raycast passes through); buckets are unstackable
+- [x] Lets players carry/place water (static, no flow); decision + recipe + unstackability tested

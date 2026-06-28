@@ -63,6 +63,8 @@ export const Tiles = {
   bedTop: 48,
   bedSide: 49,
   throwingStone: 50,
+  bucket: 51,
+  waterBucket: 52,
 } as const;
 
 type Rng = () => number;
@@ -493,6 +495,32 @@ function paintBar(r: number, g: number, b: number, hr: number, hg: number, hb: n
 
 const paintIngot = paintBar(196, 198, 206, 232, 234, 240); // iron
 
+/** A metal pail; `fill` (>0) paints a coloured liquid band inside. */
+function paintBucket(fillR: number, fillG: number, fillB: number, filled: boolean): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    // Pail body: a downward taper from x[3,12] at the rim to x[5,10] at the base.
+    for (let y = 4; y <= 13; y++) {
+      const inset = Math.floor((y - 4) * 0.25);
+      for (let x = 3 + inset; x <= 12 - inset; x++) {
+        const n = jitter(rng, 14);
+        const rim = y === 4;
+        set(x, y, (rim ? 150 : 122) + n, (rim ? 154 : 126) + n, (rim ? 162 : 134) + n);
+      }
+    }
+    if (filled) {
+      for (let y = 5; y <= 7; y++) {
+        for (let x = 4; x <= 11; x++) {
+          const n = jitter(rng, 16);
+          set(x, y, fillR + n, fillG + n, fillB + n);
+        }
+      }
+    }
+  };
+}
+
 /** Bed top: a red quilt with a pale pillow stripe along one end. */
 const paintBedTop: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -754,6 +782,8 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.bedTop, 'bedTop', paintBedTop],
   [Tiles.bedSide, 'bedSide', paintBedSide],
   [Tiles.throwingStone, 'throwingStone', paintLump(120, 122, 128, 168)],
+  [Tiles.bucket, 'bucket', paintBucket(0, 0, 0, false)],
+  [Tiles.waterBucket, 'waterBucket', paintBucket(52, 110, 198, true)],
 ];
 
 /**
