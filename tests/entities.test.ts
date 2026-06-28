@@ -184,8 +184,8 @@ describe('biome-aware spawning', () => {
     };
   }
 
-  it('spawns woollies in snowy biomes and skips barren deserts', () => {
-    // Snowy: every spawn is a woolly.
+  it('spawns the right species per biome (woollies in snow, striders in desert)', () => {
+    // Snowy: every spawn is a woolly (species 1).
     const snowyScene = new THREE.Scene();
     const snowy = new AnimalSystem(snowyScene, mulberry32(4));
     snowy.setWorld(biomeWorld(Block.snow));
@@ -194,13 +194,14 @@ describe('biome-aware spawning', () => {
     expect(snowy.count).toBeGreaterThan(0);
     expect(snowy.animals.every((a) => a.species === 1)).toBe(true);
 
-    // Desert: nothing spawns even on a valid surface.
+    // Desert: now home to striders (species 2), not barren.
     const desertScene = new THREE.Scene();
     const desert = new AnimalSystem(desertScene, mulberry32(4));
     desert.setWorld(biomeWorld(Block.grass));
     desert.setBiomeFn(() => 2); // Biome.desert
     for (let i = 0; i < 60 * 40; i++) desert.fixedUpdate(DT, 0.5, 10, 0.5);
-    expect(desert.count).toBe(0);
+    expect(desert.count).toBeGreaterThan(0);
+    expect(desert.animals.every((a) => a.species === 2)).toBe(true);
   });
 
   it('spawns a mix in temperate grassland', () => {

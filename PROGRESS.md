@@ -218,3 +218,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Bed block (craft from 4 planks + 1 sapling) with procedural quilt/frame tiles
 - [x] Right-click a bed to set your respawn point; at night (overworld) it skips to morning, clearing the night's mobs
 - [x] Pure isNightTime / nextDay day-cycle helpers (jump strictly forward into a bright morning) + recipe; tested
+
+## Post-spec: Biome wildlife
+
+- [x] Two new passive species — desert striders (tall, sandy) and jungle hoppers (squat, green) — so deserts/jungles are no longer barren
+- [x] Pure speciesForBiome selector (desert→strider, jungle→hopper, snowy→woolly, temperate→trundler/woolly mix); all drop meat, all flock with their own kind
+- [x] Updated the barren-desert test to the new behaviour; species selector unit-tested across every biome

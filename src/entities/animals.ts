@@ -35,8 +35,8 @@ const HOP_VELOCITY = 7.4;
 const FLOCK_RADIUS = 9; // herd cohesion range (same species)
 const FLOCK_CHANCE = 0.5; // per decision, steer toward the herd centroid
 
-/** Two passive species — visual variety; both drop meat. */
-export const Species = { trundler: 0, woolly: 1 } as const;
+/** Passive species — biome-flavoured visual variety; all drop meat. */
+export const Species = { trundler: 0, woolly: 1, strider: 2, hopper: 3 } as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 interface SpeciesDef {
@@ -65,7 +65,33 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     bodyColor: 0xddd6c4,
     headColor: 0xc8bfa8,
   },
+  // Desert strider: tall, lean, sandy.
+  [Species.strider]: {
+    torso: [0.5, 0.4, 0.5],
+    torsoY: 0.55,
+    head: [0.3, 0.26, 0.3],
+    headY: 0.95,
+    bodyColor: 0xd8b873,
+    headColor: 0xb89a5c,
+  },
+  // Jungle hopper: small, squat, mossy green.
+  [Species.hopper]: {
+    torso: [0.5, 0.36, 0.5],
+    torsoY: 0.24,
+    head: [0.34, 0.3, 0.32],
+    headY: 0.48,
+    bodyColor: 0x6f9a4c,
+    headColor: 0x567b3a,
+  },
 };
+
+/** Which species belongs in a biome (pure; deserts/jungles now populated). */
+export function speciesForBiome(biome: number, random: () => number): SpeciesId {
+  if (biome === Biome.desert) return Species.strider;
+  if (biome === Biome.jungle) return Species.hopper;
+  if (biome === Biome.snowy) return Species.woolly;
+  return random() < 0.7 ? Species.trundler : Species.woolly;
+}
 
 export interface Animal {
   readonly body: Body;
@@ -86,6 +112,14 @@ const speciesMaterials: Record<SpeciesId, { body: THREE.MeshBasicMaterial; head:
   [Species.woolly]: {
     body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].bodyColor }),
     head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].headColor }),
+  },
+  [Species.strider]: {
+    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.strider].bodyColor }),
+    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.strider].headColor }),
+  },
+  [Species.hopper]: {
+    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.hopper].bodyColor }),
+    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.hopper].headColor }),
   },
 };
 
@@ -177,9 +211,7 @@ export class AnimalSystem {
       if (id === Block.air) continue;
       if (id !== Block.grass && id !== Block.snow) return; // sand/stone/water: no spawn
       const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
-      if (biome === Biome.desert) return; // barren
-      const species =
-        biome === Biome.snowy ? Species.woolly : this.random() < 0.7 ? Species.trundler : Species.woolly;
+      const species = speciesForBiome(biome, this.random);
       this.spawnAt(x + 0.5, y + 1, z + 0.5, species);
       return;
     }
