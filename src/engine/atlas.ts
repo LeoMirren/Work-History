@@ -65,6 +65,7 @@ export const Tiles = {
   throwingStone: 50,
   bucket: 51,
   waterBucket: 52,
+  torch: 53,
 } as const;
 
 type Rng = () => number;
@@ -495,6 +496,30 @@ function paintBar(r: number, g: number, b: number, hr: number, hg: number, hb: n
 
 const paintIngot = paintBar(196, 198, 206, 232, 234, 240); // iron
 
+/** A wall torch: dark stone surround, a central stick, and a bright flame. */
+const paintTorch: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 12);
+      set(x, y, 44 + n, 42 + n, 48 + n); // shadowed surround
+    }
+  }
+  for (let y = 6; y <= 14; y++) {
+    const n = jitter(rng, 12);
+    set(7, y, 120 + n, 88 + n * 0.7, 52 + n * 0.5); // stick
+    set(8, y, 104 + n, 76 + n * 0.7, 46 + n * 0.5);
+  }
+  // Flame.
+  for (let y = 2; y <= 6; y++) {
+    for (let x = 6; x <= 9; x++) {
+      const d = Math.abs(x - 7.5) + Math.abs(y - 4);
+      if (d > 3) continue;
+      const n = jitter(rng, 18);
+      set(x, y, 250, 200 + n, 90 + (6 - y) * 14);
+    }
+  }
+};
+
 /** A metal pail; `fill` (>0) paints a coloured liquid band inside. */
 function paintBucket(fillR: number, fillG: number, fillB: number, filled: boolean): TilePainter {
   return (set, rng) => {
@@ -784,6 +809,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.throwingStone, 'throwingStone', paintLump(120, 122, 128, 168)],
   [Tiles.bucket, 'bucket', paintBucket(0, 0, 0, false)],
   [Tiles.waterBucket, 'waterBucket', paintBucket(52, 110, 198, true)],
+  [Tiles.torch, 'torch', paintTorch],
 ];
 
 /**

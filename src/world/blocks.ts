@@ -32,6 +32,7 @@ export const Block = {
   geodeshell: 24,
   crystal: 25,
   bed: 26,
+  torch: 27,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -88,6 +89,7 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.geodeshell, name: 'geodeshell', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.geodeshell) },
   { id: Block.crystal, name: 'crystal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.crystal) },
   { id: Block.bed, name: 'bed', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.4, tiles: tiles(T.bedSide, T.bedTop, T.planks) },
+  { id: Block.torch, name: 'torch', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.1, tiles: tiles(T.torch) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -109,6 +111,7 @@ for (const def of BLOCK_DEFS) {
   for (let f = 0; f < 6; f++) FACE_TILES[def.id * 6 + f] = def.tiles[f] ?? 0;
 }
 LIGHT_EMIT[Block.lantern] = 14;
+LIGHT_EMIT[Block.torch] = 12; // cheaper, dimmer early-game light
 LIGHT_EMIT[Block.emberrock] = 10;
 LIGHT_EMIT[Block.crystal] = 7;
 

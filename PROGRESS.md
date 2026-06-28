@@ -236,3 +236,8 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Craftable empty bucket (3 iron ingots); right-click a water source to scoop it, right-click an empty cell to pour it back
 - [x] Pure useBucketOn scoop/pour decision; the bucket ray stops at water sources (which the normal raycast passes through); buckets are unstackable
 - [x] Lets players carry/place water (static, no flow); decision + recipe + unstackability tested
+
+## Post-spec: Torches
+
+- [x] Torch block — accessible early-game light (emits 12), crafted 4 from 1 coal + 1 stick with no furnace, filling the gap before lanterns/charcoal
+- [x] Procedural torch tile (stick + flame); reuses the lighting engine's emitter table; recipe + emission tested
