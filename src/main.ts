@@ -9,7 +9,7 @@ import { GameRenderer } from './engine/renderer';
 import { createChunkMaterials } from './engine/materials';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
-import { brightnessAt, DayNight, NOON_TIME } from './engine/daynight';
+import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
@@ -150,6 +150,14 @@ async function boot(): Promise<void> {
   interaction.onActivateRift = (_x, _y, _z) => {
     const target: Dimension = session?.dimension === 'underworld' ? 'overworld' : 'underworld';
     void enterDimension(target);
+    return true;
+  };
+  interaction.onUseBed = (x, y, z) => {
+    // A bed always (re)sets the respawn point; at night it skips to morning.
+    player.setSpawn(x + 0.5, y + 1, z + 0.5);
+    if (session?.dimension === 'overworld' && isNightTime(dayNight.time)) {
+      dayNight.time = nextDay(dayNight.time);
+    }
     return true;
   };
   let inventoryOpen = false;

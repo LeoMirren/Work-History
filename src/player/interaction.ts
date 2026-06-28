@@ -55,6 +55,8 @@ export class Interaction {
   onOpenContainer: ((x: number, y: number, z: number) => boolean) | null = null;
   /** Right-click a riftframe to travel between dimensions. */
   onActivateRift: ((x: number, y: number, z: number) => boolean) | null = null;
+  /** Right-click a bed to sleep / set respawn. */
+  onUseBed: ((x: number, y: number, z: number) => boolean) | null = null;
   /** Block placed/broken at a world cell, for container bookkeeping. */
   onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
@@ -100,6 +102,7 @@ export class Interaction {
           this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
         } else if (button === 2) {
           if (this.tryActivateRift(world)) continue;
+          if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
@@ -112,6 +115,7 @@ export class Interaction {
           if (this.hasTarget) this.tryBreak(world);
         } else if (button === 2 && this.hasTarget) {
           if (this.tryActivateRift(world)) continue;
+          if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           this.tryPlace(world, body, hotbar.creativeBlock);
         }
@@ -133,6 +137,14 @@ export class Interaction {
     const { bx, by, bz } = this.hit;
     if (world.getBlock(bx, by, bz) !== Block.riftframe) return false;
     return this.onActivateRift(bx, by, bz);
+  }
+
+  /** Right-click a bed: hand off to the sleep / set-respawn hook. */
+  private tryUseBed(world: World): boolean {
+    if (!this.hasTarget || !this.onUseBed) return false;
+    const { bx, by, bz } = this.hit;
+    if (world.getBlock(bx, by, bz) !== Block.bed) return false;
+    return this.onUseBed(bx, by, bz);
   }
 
   /** Punch the nearest entity (animal or hostile) if closer than the block. */

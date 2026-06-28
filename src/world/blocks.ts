@@ -31,6 +31,7 @@ export const Block = {
   riftframe: 23,
   geodeshell: 24,
   crystal: 25,
+  bed: 26,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -86,6 +87,7 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.riftframe, name: 'riftframe', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.riftframe) },
   { id: Block.geodeshell, name: 'geodeshell', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3, tiles: tiles(T.geodeshell) },
   { id: Block.crystal, name: 'crystal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.crystal) },
+  { id: Block.bed, name: 'bed', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.4, tiles: tiles(T.bedSide, T.bedTop, T.planks) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */

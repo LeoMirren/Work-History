@@ -60,6 +60,8 @@ export const Tiles = {
   ironVest: 45,
   goldVest: 46,
   gemVest: 47,
+  bedTop: 48,
+  bedSide: 49,
 } as const;
 
 type Rng = () => number;
@@ -490,6 +492,28 @@ function paintBar(r: number, g: number, b: number, hr: number, hg: number, hb: n
 
 const paintIngot = paintBar(196, 198, 206, 232, 234, 240); // iron
 
+/** Bed top: a red quilt with a pale pillow stripe along one end. */
+const paintBedTop: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 16);
+      if (y < 4) set(x, y, 226 + n, 226 + n, 214 + n); // pillow end
+      else set(x, y, 168 + n, 52 + n * 0.6, 58 + n * 0.6); // quilt
+    }
+  }
+};
+
+/** Bed side: a wooden frame with a coloured mattress band. */
+const paintBedSide: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 14);
+      if (y < 7) set(x, y, 168 + n, 52 + n * 0.6, 58 + n * 0.6); // mattress
+      else set(x, y, 120 + n, 88 + n * 0.7, 52 + n * 0.5); // wood frame
+    }
+  }
+};
+
 /** A chest-plate / vest silhouette in the given metal colour. */
 function paintVest(r: number, g: number, b: number): TilePainter {
   return (set, rng) => {
@@ -726,6 +750,8 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.ironVest, 'ironVest', paintVest(184, 188, 198)],
   [Tiles.goldVest, 'goldVest', paintVest(226, 194, 78)],
   [Tiles.gemVest, 'gemVest', paintVest(150, 120, 220)],
+  [Tiles.bedTop, 'bedTop', paintBedTop],
+  [Tiles.bedSide, 'bedSide', paintBedSide],
 ];
 
 /**

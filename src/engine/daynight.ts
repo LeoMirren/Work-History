@@ -20,6 +20,22 @@ export function brightnessAt(timeSeconds: number): number {
   return Math.min(1, Math.max(0.18, b));
 }
 
+/** Below this brightness it's dark enough to sleep (mirrors mob spawn). */
+export const SLEEP_BRIGHTNESS = 0.34;
+const MORNING_FRACTION = 0.2; // wake here (well into the rising day)
+
+export function isNightTime(timeSeconds: number): boolean {
+  return brightnessAt(timeSeconds) < SLEEP_BRIGHTNESS;
+}
+
+/** The next "morning" instant strictly after `time` (used by sleeping). */
+export function nextDay(timeSeconds: number): number {
+  const base = Math.floor(timeSeconds / DAY_LENGTH_SECONDS) * DAY_LENGTH_SECONDS;
+  let candidate = base + MORNING_FRACTION * DAY_LENGTH_SECONDS;
+  if (candidate <= timeSeconds) candidate += DAY_LENGTH_SECONDS;
+  return candidate;
+}
+
 export class DayNight {
   time = NOON_TIME;
   private readonly sky = new THREE.Color();

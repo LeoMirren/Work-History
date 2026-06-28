@@ -212,3 +212,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Worn in a dedicated 1-slot armor inventory (reuses Inventory + held Cursor; armor-only guard); persisted with the player
 - [x] Mob melee + projectile damage mitigated (always leaves ≥1 on a real hit); creative still immune
 - [x] Procedural vest tiles; pure mitigation math + crafting + controller tests
+
+## Post-spec: Beds (sleep + respawn point)
+
+- [x] Bed block (craft from 4 planks + 1 sapling) with procedural quilt/frame tiles
+- [x] Right-click a bed to set your respawn point; at night (overworld) it skips to morning, clearing the night's mobs
+- [x] Pure isNightTime / nextDay day-cycle helpers (jump strictly forward into a bright morning) + recipe; tested
