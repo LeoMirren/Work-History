@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, Item } from '../world/items';
+import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, Item } from '../world/items';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
@@ -57,6 +57,8 @@ export class Interaction {
   onActivateRift: ((x: number, y: number, z: number) => boolean) | null = null;
   /** Right-click a bed to sleep / set respawn. */
   onUseBed: ((x: number, y: number, z: number) => boolean) | null = null;
+  /** Throw the held throwing-stone from the eye along (dx,dy,dz). */
+  onThrow: ((ox: number, oy: number, oz: number, dx: number, dy: number, dz: number) => void) | null = null;
   /** Block placed/broken at a world cell, for container bookkeeping. */
   onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
@@ -105,6 +107,7 @@ export class Interaction {
           if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           if (this.tryEat(player, hotbar)) continue;
+          if (this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
         }
       }
@@ -184,6 +187,26 @@ export class Interaction {
     if (!inventory.consumeOne(hotbar.slot)) return false;
     player.eat(foodValue(stack.id));
     this.onEdit?.('place', stack.id);
+    return true;
+  }
+
+  /** Hurl the held throwing stone along the view ray, consuming one. */
+  private tryThrow(
+    hotbar: HotbarState,
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+  ): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || !isThrowable(stack.id) || !this.onThrow) return false;
+    if (!inventory.consumeOne(hotbar.slot)) return false;
+    // Launch just ahead of the eye so it never collides with the player cell.
+    this.onThrow(ox + dx * 0.6, oy + dy * 0.6, oz + dz * 0.6, dx, dy, dz);
+    this.onEdit?.('break', stack.id);
     return true;
   }
 

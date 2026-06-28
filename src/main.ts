@@ -30,6 +30,7 @@ import { ContainerStore } from './world/containers';
 import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
+import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -137,6 +138,23 @@ async function boot(): Promise<void> {
   interaction.animals = animals;
   const hostiles = new HostileSystem(gr.scene);
   interaction.hostiles = hostiles;
+  const projectiles = new ThrownProjectiles(gr.scene);
+  interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
+  /** Sweep a thrown-stone segment for a mob hit (hostiles first, then wildlife). */
+  const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
+    const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
+    if (h) {
+      hostiles.hurt(h.stalker);
+      return true;
+    }
+    const a = animals.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
+    if (a) {
+      const drops = animals.hurt(a.animal);
+      if (drops) inventory.add(drops.id, drops.count);
+      return true;
+    }
+    return false;
+  };
   interaction.onOpenContainer = (x, y, z) => {
     if (!session) return false;
     chestScreen.open(containers.get(x, y, z), inventory, session.atlasCanvas);
@@ -307,6 +325,7 @@ async function boot(): Promise<void> {
     animals.setWorld(entityWorld);
     animals.setBiomeFn(dimension === 'overworld' ? createGenerator(seed, dimension).biomeAt : null);
     hostiles.setWorld(mode === 'survival' ? entityWorld : null);
+    projectiles.clear();
     infoPanel.show();
     hud.setSurvivalVisible(mode === 'survival');
     hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
@@ -453,6 +472,7 @@ async function boot(): Promise<void> {
       dayNight.advance(dt);
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
+      projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
       if (session.mode === 'survival') {
         // The underworld is always dark and dangerous; the sun never reaches it.
         const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);

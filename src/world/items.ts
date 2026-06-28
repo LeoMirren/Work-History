@@ -26,7 +26,15 @@ export const Item = {
   ironVest: 116,
   goldVest: 117,
   gemVest: 118,
+  throwingStone: 119,
 } as const;
+
+/** Damage a thrown stone deals to a mob on a direct hit. */
+export const THROW_DAMAGE = 3;
+
+export function isThrowable(id: number): boolean {
+  return id === Item.throwingStone;
+}
 
 /** Fraction of incoming damage a worn vest absorbs (capped well under 1). */
 const ARMOR_REDUCTION: Record<number, number> = {
@@ -108,6 +116,7 @@ const ITEM_TILE: Record<number, number> = {
   [Item.ironVest]: Tiles.ironVest,
   [Item.goldVest]: Tiles.goldVest,
   [Item.gemVest]: Tiles.gemVest,
+  [Item.throwingStone]: Tiles.throwingStone,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -136,6 +145,7 @@ const ITEM_NAME: Record<number, string> = {
   [Item.ironVest]: 'iron vest',
   [Item.goldVest]: 'gold vest',
   [Item.gemVest]: 'gem vest',
+  [Item.throwingStone]: 'throwing stone',
 };
 
 export function itemName(id: number): string {

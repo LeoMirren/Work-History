@@ -62,6 +62,7 @@ export const Tiles = {
   gemVest: 47,
   bedTop: 48,
   bedSide: 49,
+  throwingStone: 50,
 } as const;
 
 type Rng = () => number;
@@ -752,6 +753,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.gemVest, 'gemVest', paintVest(150, 120, 220)],
   [Tiles.bedTop, 'bedTop', paintBedTop],
   [Tiles.bedSide, 'bedSide', paintBedSide],
+  [Tiles.throwingStone, 'throwingStone', paintLump(120, 122, 128, 168)],
 ];
 
 /**

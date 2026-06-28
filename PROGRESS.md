@@ -224,3 +224,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Two new passive species — desert striders (tall, sandy) and jungle hoppers (squat, green) — so deserts/jungles are no longer barren
 - [x] Pure speciesForBiome selector (desert→strider, jungle→hopper, snowy→woolly, temperate→trundler/woolly mix); all drop meat, all flock with their own kind
 - [x] Updated the barren-desert test to the new behaviour; species selector unit-tested across every biome
+
+## Post-spec: Throwing weapon
+
+- [x] Throwing-stone item (craft 4 from 1 cobblestone); right-click to hurl along the view ray, consuming one
+- [x] ThrownProjectiles system: light-gravity arc, dies on terrain / after lifetime, sweeps each step for a mob hit (reuses entity ray-pick/hurt; animal kills drop meat to the inventory)
+- [x] Lets players answer the ranged spitters at distance; cleared on world/dimension switch; ballistics + strike + lifetime tested
