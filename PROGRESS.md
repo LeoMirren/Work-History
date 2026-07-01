@@ -241,3 +241,21 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 - [x] Torch block — accessible early-game light (emits 12), crafted 4 from 1 coal + 1 stick with no furnace, filling the gap before lanterns/charcoal
 - [x] Procedural torch tile (stick + flame); reuses the lighting engine's emitter table; recipe + emission tested
+
+## Post-spec: Farming
+
+- [x] Hoe (2 planks + 2 sticks) tills grass/dirt into farmland; seeds (bonus drop from grass) plant crop sprouts on it
+- [x] Crops are walk-through cutout blocks whose growth stage IS the block id (persists free with chunk bytes); a random-tick CropGrowth driver samples columns near the player so fields ripen in ~1-2 minutes
+- [x] Harvest: immature crops refund a seed; ripe crops yield grain + guaranteed bonus seeds (self-sustaining fields); 3 grain bakes into bread (food 8); crops pop when their support block breaks
+- [x] Procedural farmland/crop/seed/grain/bread/hoe tiles; guide entry; rules, growth, drops and recipes tested
+
+## Post-spec: GPU headroom
+
+- [x] Render distance default 8 → 10 chunks; settings slider ceiling 12 → 16
+
+## Post-spec: Biome landmarks
+
+- [x] Sunken desert ruins: brick floor at ground level, hash-rolled broken wall stubs, a buried corner chest
+- [x] Snow dome shelters: hollow squashed-hemisphere snow shell, two-tall door gap, lantern set into the ceiling
+- [x] Overgrown shrines (jungle/forest): 3x3 cobblestone plinth, two-block pillar crowned with a glowing crystal, creeping leaf corners
+- [x] One candidate per chunk (1-in-120, biome-gated at the chunk centre), kept inside the chunk interior, bailing on unfit ground — worldgen stays byte-deterministic; all three planters unit-tested

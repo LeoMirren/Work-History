@@ -33,6 +33,10 @@ const GEODE_MIN_Y = 8;
 const GEODE_MAX_Y = 40;
 const HUT_CHANCE = 240; // ~1 chunk in 240 hosts an outpost hut
 const HUT_SIZE = 5; // 5x5 footprint, kept fully inside the chunk
+const STRUCT_CHANCE = 120; // ~1 chunk in 120 rolls a biome landmark
+const RUIN_SIZE = 6; // sunken desert ruin footprint
+const DOME_R = 3; // snow dome radius (7x7 footprint)
+const SHRINE_SIZE = 3; // overgrown shrine plinth
 
 export const Biome = {
   plains: 0,
@@ -184,6 +188,7 @@ function createOverworld(seed: string): Generator {
   const treeSeed = cyrb128(`${seed} trees`)[0];
   const geodeSeed = cyrb128(`${seed} geodes`)[0];
   const hutSeed = cyrb128(`${seed} huts`)[0];
+  const structSeed = cyrb128(`${seed} structures`)[0];
 
   function biomeAt(wx: number, wz: number): number {
     const t = temperature(wx / 620, wz / 620);
@@ -317,6 +322,32 @@ function createOverworld(seed: string): Generator {
       }
     }
 
+    // Biome landmarks: rarer structures keyed to the local biome — sunken
+    // brick ruins in deserts, hollow snow domes in snowfields, and
+    // crystal-topped shrines under jungle/forest canopies. Same rules as
+    // huts: one candidate per chunk, kept inside the interior, bailing
+    // unless the ground fits.
+    const shash = hash2(structSeed, cx, cz);
+    if (shash % STRUCT_CHANCE === 0) {
+      const margin = 2;
+      const originFor = (size: number): [number, number] => {
+        const span = CHUNK_SIZE - size - 2 * margin;
+        return [margin + ((shash >>> 4) % span), margin + ((shash >>> 12) % span)];
+      };
+      const mid = CHUNK_SIZE >> 1;
+      const cbiome = biomes[mid * CHUNK_SIZE + mid] ?? Biome.plains;
+      if (cbiome === Biome.desert) {
+        const [x0, z0] = originFor(RUIN_SIZE);
+        tryPlantRuin(data, heights, shash, x0, z0);
+      } else if (cbiome === Biome.snowy) {
+        const [x0, z0] = originFor(2 * DOME_R + 1);
+        tryPlantSnowDome(data, heights, x0 + DOME_R, z0 + DOME_R);
+      } else if (cbiome === Biome.jungle || cbiome === Biome.forest) {
+        const [x0, z0] = originFor(SHRINE_SIZE);
+        tryPlantShrine(data, heights, x0, z0);
+      }
+    }
+
     return data;
   }
 
@@ -395,6 +426,114 @@ export function tryPlantHut(data: Uint8Array, heights: Int32Array, x0: number, z
   // A lantern hung at the interior centre, and a chest in a corner.
   data[blockIndex(x0 + (HUT_SIZE >> 1), wallTop, z0 + (HUT_SIZE >> 1))] = Block.lantern;
   data[blockIndex(x0 + 1, floorY + 1, z0 + 1)] = Block.chest;
+}
+
+/**
+ * A sunken desert ruin: the broken brick shell of a small building half
+ * swallowed by the sand. A brick floor sits at ground level, per-column wall
+ * stubs (heights rolled from the chunk hash) ring the perimeter, and a chest
+ * survives in one corner. Bails unless the footprint is near-flat sand.
+ */
+export function tryPlantRuin(
+  data: Uint8Array,
+  heights: Int32Array,
+  hash: number,
+  x0: number,
+  z0: number,
+): void {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let dz = 0; dz < RUIN_SIZE; dz++) {
+    for (let dx = 0; dx < RUIN_SIZE; dx++) {
+      const h = heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? -1;
+      if (h < 0 || data[blockIndex(x0 + dx, h, z0 + dz)] !== Block.sand) return;
+      minY = Math.min(minY, h);
+      maxY = Math.max(maxY, h);
+    }
+  }
+  if (maxY - minY > 1) return; // ruins tolerate a one-block drift of sand
+  if (minY < SEA_LEVEL + 2 || minY + 5 >= CHUNK_HEIGHT) return;
+
+  const last = RUIN_SIZE - 1;
+  for (let dz = 0; dz < RUIN_SIZE; dz++) {
+    for (let dx = 0; dx < RUIN_SIZE; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      data[blockIndex(x, minY, z)] = Block.brick; // sunken floor
+      const edge = dx === 0 || dz === 0 || dx === last || dz === last;
+      if (!edge) continue;
+      const stub = hash2(hash, dx, dz) % 3; // broken walls, 0-2 tall
+      for (let y = 1; y <= stub; y++) data[blockIndex(x, minY + y, z)] = Block.brick;
+    }
+  }
+  data[blockIndex(x0 + 1, minY + 1, z0 + 1)] = Block.chest;
+}
+
+/**
+ * A hollow snow dome shelter: a squashed hemispheric snow shell with a door
+ * gap on the -z face and a lantern set into the ceiling. (sx, sz) is the
+ * dome centre. Bails unless the 7x7 footprint is near-flat snow.
+ */
+export function tryPlantSnowDome(data: Uint8Array, heights: Int32Array, sx: number, sz: number): void {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let dz = -DOME_R; dz <= DOME_R; dz++) {
+    for (let dx = -DOME_R; dx <= DOME_R; dx++) {
+      const h = heights[(sz + dz) * CHUNK_SIZE + (sx + dx)] ?? -1;
+      if (h < 0 || data[blockIndex(sx + dx, h, sz + dz)] !== Block.snow) return;
+      minY = Math.min(minY, h);
+      maxY = Math.max(maxY, h);
+    }
+  }
+  if (maxY - minY > 1) return;
+  if (minY < SEA_LEVEL + 2 || minY + DOME_R + 2 >= CHUNK_HEIGHT) return;
+
+  for (let dy = 0; dy <= DOME_R; dy++) {
+    for (let dz = -DOME_R; dz <= DOME_R; dz++) {
+      for (let dx = -DOME_R; dx <= DOME_R; dx++) {
+        // 1.3 squashes the sphere vertically into a low dome profile.
+        const d = Math.sqrt(dx * dx + dy * dy * 1.3 + dz * dz);
+        if (d > DOME_R + 0.4) continue;
+        const i = blockIndex(sx + dx, minY + 1 + dy, sz + dz);
+        data[i] = d >= DOME_R - 0.9 ? Block.snow : Block.air;
+      }
+    }
+  }
+  // Door: a two-tall gap through the -z rim of the shell.
+  data[blockIndex(sx, minY + 1, sz - DOME_R)] = Block.air;
+  data[blockIndex(sx, minY + 2, sz - DOME_R)] = Block.air;
+  // A lantern set into the ceiling cap keeps the shelter lit.
+  data[blockIndex(sx, minY + DOME_R, sz)] = Block.lantern;
+}
+
+/**
+ * An overgrown shrine: a 3x3 cobblestone plinth holding a two-block pillar
+ * crowned with a glowing crystal, with creeping leaves on two corners.
+ * Bails unless the 3x3 footprint is flat grass.
+ */
+export function tryPlantShrine(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  const base = heights[z0 * CHUNK_SIZE + x0] ?? -1;
+  if (base < SEA_LEVEL + 2 || base + 5 >= CHUNK_HEIGHT) return;
+  for (let dz = 0; dz < SHRINE_SIZE; dz++) {
+    for (let dx = 0; dx < SHRINE_SIZE; dx++) {
+      if ((heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? -1) !== base) return;
+      if (data[blockIndex(x0 + dx, base, z0 + dz)] !== Block.grass) return;
+    }
+  }
+  for (let dz = 0; dz < SHRINE_SIZE; dz++) {
+    for (let dx = 0; dx < SHRINE_SIZE; dx++) {
+      data[blockIndex(x0 + dx, base + 1, z0 + dz)] = Block.cobblestone;
+    }
+  }
+  const px = x0 + 1;
+  const pz = z0 + 1;
+  data[blockIndex(px, base + 2, pz)] = Block.cobblestone;
+  data[blockIndex(px, base + 3, pz)] = Block.cobblestone;
+  data[blockIndex(px, base + 4, pz)] = Block.crystal;
+  if (data[blockIndex(x0, base + 2, z0)] === Block.air) data[blockIndex(x0, base + 2, z0)] = Block.leaves;
+  const fx = x0 + SHRINE_SIZE - 1;
+  const fz = z0 + SHRINE_SIZE - 1;
+  if (data[blockIndex(fx, base + 2, fz)] === Block.air) data[blockIndex(fx, base + 2, fz)] = Block.leaves;
 }
 
 /**
