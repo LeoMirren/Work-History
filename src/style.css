@@ -567,3 +567,35 @@ body {
 .armor-slot {
   border-color: #6a7bb0;
 }
+
+/* Creative block picker */
+.picker-panel {
+  max-width: 560px;
+}
+
+.picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.picker-cell {
+  padding: 4px;
+  background: #1d2a4f;
+  border: 1px solid #3a4a7a;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.picker-cell:hover {
+  background: #2a3a68;
+  border-color: #6a8ad0;
+}
+
+.picker-cell canvas {
+  display: block;
+  image-rendering: pixelated;
+}

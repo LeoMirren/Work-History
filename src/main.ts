@@ -25,6 +25,7 @@ import { Hud } from './ui/hud';
 import { InfoPanel } from './ui/infoPanel';
 import { InventoryScreen } from './ui/inventoryScreen';
 import { ChestScreen } from './ui/chestScreen';
+import { BlockPicker } from './ui/blockPicker';
 import { Guide } from './ui/guide';
 import { ContainerStore } from './world/containers';
 import { Block } from './world/blocks';
@@ -100,6 +101,8 @@ async function boot(): Promise<void> {
   const armorSlot = new Inventory(1); // single worn-vest slot
   const inventoryScreen = new InventoryScreen(app);
   const chestScreen = new ChestScreen(app);
+  const blockPicker = new BlockPicker(app);
+  let pickerOpen = false;
   const containers = new ContainerStore();
   let chestOpen = false;
   const guide = new Guide(app);
@@ -194,6 +197,24 @@ async function boot(): Promise<void> {
   let session: Session | null = null;
   let settings: Settings = { ...DEFAULT_SETTINGS };
   const hotbarState: HotbarState = { creativeBlock: 0, inventory: null, slot: 0 };
+  blockPicker.onPick = (id) => {
+    if (hud) hud.setCreativeSlot(hud.selectedSlot, id);
+    blockPicker.close();
+    pickerOpen = false;
+    input.requestLock();
+  };
+
+  /** Everything that flips with the game mode, shared by session start and the live toggle. */
+  function applyMode(mode: GameMode, world: World, atlasCanvas: HTMLCanvasElement): void {
+    player.setMode(mode);
+    interaction.mode = mode;
+    hostiles.setWorld(mode === 'survival' ? { isSolid: world.isSolid, getBlock: world.blockAt } : null);
+    if (hud) {
+      hud.setSurvivalVisible(mode === 'survival');
+      hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
+    }
+    menus.setPauseMode(mode);
+  }
 
   function applySettings(next: Settings): void {
     settings = { ...next };
@@ -330,16 +351,12 @@ async function boot(): Promise<void> {
       armorSlot.load(undefined);
       dayNight.time = NOON_TIME;
     }
-    player.setMode(mode);
-    interaction.mode = mode;
     const entityWorld = { isSolid: world.isSolid, getBlock: world.blockAt };
     animals.setWorld(entityWorld);
     animals.setBiomeFn(dimension === 'overworld' ? createGenerator(seed, dimension).biomeAt : null);
-    hostiles.setWorld(mode === 'survival' ? entityWorld : null);
     projectiles.clear();
     infoPanel.show();
-    hud.setSurvivalVisible(mode === 'survival');
-    hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
+    applyMode(mode, world, atlasCanvas);
     if (inventoryOpen) {
       inventoryScreen.close();
       inventoryOpen = false;
@@ -356,6 +373,10 @@ async function boot(): Promise<void> {
     if (chestOpen) {
       chestScreen.close();
       chestOpen = false;
+    }
+    if (pickerOpen) {
+      blockPicker.close();
+      pickerOpen = false;
     }
     containers.load(resume?.containers);
 
@@ -381,16 +402,19 @@ async function boot(): Promise<void> {
   const menus = new Menus(app, {
     onPlay: (seed, survival) => {
       void (async () => {
+        // The checkbox always wins — resuming a saved world honors a mode
+        // change instead of silently keeping the saved mode.
+        const mode: GameMode = survival ? 'survival' : 'creative';
         if (savedMeta && savedMeta.seed === seed) {
           applySettings(savedMeta.settings);
           menus.applySettings(savedMeta.settings);
           const dim: Dimension = savedMeta.dimension === 'underworld' ? 'underworld' : 'overworld';
           const prefix = dim === 'underworld' ? 'u:' : 'o:';
           const keys = new Set((await storage.listChunkKeys()).filter((k) => k.startsWith(prefix)));
-          startSession(seed, savedMode, savedMeta, keys, dim);
+          startSession(seed, mode, savedMeta, keys, dim);
         } else {
           await storage.clearAll();
-          startSession(seed, survival ? 'survival' : 'creative', null, new Set());
+          startSession(seed, mode, null, new Set());
         }
         menus.hideTitle();
         input.requestLock();
@@ -411,6 +435,13 @@ async function boot(): Promise<void> {
       applySettings(next);
       void saveWorld();
     },
+    onModeToggle: () => {
+      if (!session) return;
+      const next: GameMode = session.mode === 'survival' ? 'creative' : 'survival';
+      session.mode = next;
+      applyMode(next, session.world, session.atlasCanvas);
+      void saveWorld();
+    },
   });
   if (savedMeta) {
     menus.setTitleSeed(savedMeta.seed);
@@ -424,7 +455,7 @@ async function boot(): Promise<void> {
   input.onLockChange = (locked) => {
     if (locked) {
       menus.hidePause();
-    } else if (session && !inventoryOpen && !guideOpen && !chestOpen) {
+    } else if (session && !inventoryOpen && !guideOpen && !chestOpen && !pickerOpen) {
       menus.showPause();
     }
   };
@@ -549,6 +580,20 @@ async function boot(): Promise<void> {
         } else if (input.locked && input.takePressed('KeyE')) {
           inventoryOpen = true;
           inventoryScreen.open(inventory, armorSlot, session.atlasCanvas, furnaceNearby(session.world));
+          document.exitPointerLock();
+        }
+      }
+      // Creative block picker (E) — every placeable block for the hotbar.
+      if (session && hud && session.mode === 'creative' && !chestOpen) {
+        if (pickerOpen) {
+          if (input.takePressed('KeyE') || input.takePressed('Escape')) {
+            blockPicker.close();
+            pickerOpen = false;
+            input.requestLock();
+          }
+        } else if (input.locked && !guideOpen && input.takePressed('KeyE')) {
+          pickerOpen = true;
+          blockPicker.open(session.atlasCanvas);
           document.exitPointerLock();
         }
       }

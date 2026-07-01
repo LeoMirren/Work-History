@@ -265,3 +265,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Worldgen chests (outpost huts, desert ruins) seed 2-4 loot stacks on first open — a weighted pool of supplies (coal, sticks, planks, seeds, meat, ingots, throwing stones, torches) with rare gold/gem finds
 - [x] Deterministic per (world seed, chest position) via a salted PRNG stream, so reloads and regenerated chunks yield the same haul; player-placed chests register at placement and are never seeded
 - [x] Pure rollLoot + first-open seeding contract tested
+
+## Post-spec: Mode integration fixes + creative block picker
+
+- [x] Fixed: the title screen's Survival checkbox was ignored when resuming a saved world (same seed always kept the saved mode — survival features looked "broken" because the mode never actually switched)
+- [x] Pause menu gains a live "Switch to survival/creative mode" toggle (persists with the save)
+- [x] Creative E opens a block picker: every placeable block (all defs minus air/crop stages) in an atlas-drawn grid; click loads it into the selected hotbar slot — torches, chests, furnaces, beds, riftframes etc. are now reachable in creative
+- [x] Hud creative palette is editable per-slot; controls/guide updated; palette pinned by test

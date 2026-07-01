@@ -19,6 +19,8 @@ export interface MenuCallbacks {
   onSave(): void;
   onNewWorld(seed: string): void;
   onSettingsChange(settings: Settings): void;
+  /** Pause-menu button: flip the running world between creative/survival. */
+  onModeToggle(): void;
 }
 
 function randomSeed(): string {
@@ -32,6 +34,7 @@ export class Menus {
   private readonly survivalCheckbox: HTMLInputElement;
   private readonly pauseSeedInput: HTMLInputElement;
   private readonly saveButton: HTMLButtonElement;
+  private readonly modeButton: HTMLButtonElement;
   private readonly sliders: { rd: HTMLInputElement; sens: HTMLInputElement; fov: HTMLInputElement };
   private readonly sliderLabels: { rd: HTMLElement; sens: HTMLElement; fov: HTMLElement };
   readonly settings: Settings = { ...DEFAULT_SETTINGS };
@@ -100,6 +103,10 @@ export class Menus {
       setTimeout(() => (this.saveButton.textContent = 'Save'), 1200);
     });
 
+    this.modeButton = document.createElement('button');
+    this.modeButton.textContent = 'Switch to survival mode';
+    this.modeButton.addEventListener('click', () => this.callbacks.onModeToggle());
+
     const mkSlider = (
       label: string,
       min: number,
@@ -149,7 +156,7 @@ export class Menus {
       this.callbacks.onNewWorld(seed);
     });
 
-    pausePanel.append(h2, resume, this.saveButton, rd.row, sens.row, fov.row, newWorldRow, newWorld);
+    pausePanel.append(h2, resume, this.saveButton, this.modeButton, rd.row, sens.row, fov.row, newWorldRow, newWorld);
     this.pause.appendChild(pausePanel);
     parent.appendChild(this.pause);
   }
@@ -187,6 +194,11 @@ export class Menus {
 
   setPauseSeed(seed: string): void {
     this.pauseSeedInput.value = seed;
+  }
+
+  /** Reflect the running world's mode on the pause-menu toggle button. */
+  setPauseMode(mode: 'creative' | 'survival'): void {
+    this.modeButton.textContent = mode === 'survival' ? 'Switch to creative mode' : 'Switch to survival mode';
   }
 
   showTitle(): void {

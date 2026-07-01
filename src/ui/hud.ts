@@ -11,6 +11,8 @@ const ICON_PX = 40;
 
 export class Hud {
   selectedSlot = 0;
+  /** Creative palette: seeded with the defaults, editable via the block picker. */
+  private readonly creativeBlocks: number[] = [...HOTBAR_BLOCKS];
   private readonly slots: HTMLDivElement[] = [];
   private readonly overlay: HTMLDivElement;
   private readonly heartsRow: HTMLDivElement;
@@ -93,7 +95,14 @@ export class Hud {
   }
 
   get selectedBlock(): number {
-    return HOTBAR_BLOCKS[this.selectedSlot] ?? 0;
+    return this.creativeBlocks[this.selectedSlot] ?? 0;
+  }
+
+  /** Creative: load a block into a hotbar slot (from the block picker). */
+  setCreativeSlot(i: number, id: number): void {
+    if (i < 0 || i >= this.creativeBlocks.length) return;
+    this.creativeBlocks[i] = id;
+    if (this.atlasCanvas) this.redrawIcons(this.atlasCanvas);
   }
 
   /**
@@ -112,7 +121,7 @@ export class Hud {
     this.atlasCanvas = atlasCanvas;
     for (let i = 0; i < this.slots.length; i++) {
       const stack = this.inventory?.slots[i] ?? null;
-      const id = this.inventory ? (stack?.id ?? 0) : (HOTBAR_BLOCKS[i] ?? 0);
+      const id = this.inventory ? (stack?.id ?? 0) : (this.creativeBlocks[i] ?? 0);
       const icon = this.slots[i]?.querySelector('canvas');
       const ctx = icon?.getContext('2d');
       const count = this.counts[i];
@@ -133,7 +142,7 @@ export class Hud {
           ? stack
             ? `${i + 1}: ${isBlockId(stack.id) ? blockName(stack.id) : itemName(stack.id)} ×${stack.count}`
             : `${i + 1}: empty`
-          : `${i + 1}: ${blockName(HOTBAR_BLOCKS[i] ?? 0)}`;
+          : `${i + 1}: ${blockName(this.creativeBlocks[i] ?? 0)}`;
       }
     }
     if (this.inventory) this.renderedInvVersion = this.inventory.version;
