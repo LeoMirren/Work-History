@@ -8,7 +8,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  renderDistance: 8,
+  renderDistance: 10, // GPU-rendered chunks are cheap; streaming is the limit
   mouseSensitivity: 1.0,
   fov: 75,
 };
@@ -125,7 +125,7 @@ export class Menus {
       return { row, input, valueEl };
     };
 
-    const rd = mkSlider('Render distance', 4, 12, 1, this.settings.renderDistance, (v) => `${v}`);
+    const rd = mkSlider('Render distance', 4, 16, 1, this.settings.renderDistance, (v) => `${v}`);
     const sens = mkSlider('Mouse sensitivity', 0.2, 3, 0.1, this.settings.mouseSensitivity, (v) => v.toFixed(1));
     const fov = mkSlider('FOV', 60, 110, 1, this.settings.fov, (v) => `${v}°`);
     this.sliders = { rd: rd.input, sens: sens.input, fov: fov.input };
