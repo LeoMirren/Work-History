@@ -66,6 +66,14 @@ export const Tiles = {
   bucket: 51,
   waterBucket: 52,
   torch: 53,
+  farmland: 54,
+  cropSprout: 55,
+  cropGrowing: 56,
+  cropRipe: 57,
+  seeds: 58,
+  grain: 59,
+  bread: 60,
+  hoe: 61,
 } as const;
 
 type Rng = () => number;
@@ -755,6 +763,118 @@ const paintCookedMeat: TilePainter = (set, rng) => {
   }
 };
 
+/** Tilled soil: dark moist furrows alternating with drier ridge rows. */
+const paintFarmland: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    const furrow = y % 4 < 2;
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 22);
+      if (furrow) set(x, y, 96 + n, 66 + n * 0.8, 44 + n * 0.6);
+      else set(x, y, 134 + n, 96 + n * 0.8, 67 + n * 0.6);
+    }
+  }
+};
+
+/** Crop foliage: stalks rise and thicken with the stage; ripe gains amber heads. */
+function paintCrop(stage: 0 | 1 | 2): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    const top = stage === 0 ? 10 : stage === 1 ? 6 : 3;
+    for (const sx of [2, 5, 8, 11, 14] as const) {
+      const wobble = rng() < 0.5 ? 0 : 1;
+      for (let y = 15; y >= top + wobble; y--) {
+        const n = jitter(rng, 16);
+        if (stage === 2 && y <= top + 3) set(sx, y, 214 + n, 178 + n * 0.8, 74 + n * 0.5);
+        else set(sx, y, 92 + n, 152 + n, 58 + n * 0.5);
+      }
+      if (stage >= 1 && rng() < 0.8) {
+        const ly = 9 + Math.floor(rng() * 4);
+        set(sx === 14 ? 13 : sx + 1, ly, 80 + jitter(rng, 12), 140, 52);
+      }
+    }
+  };
+}
+
+/** A pinch of pale seeds scattered on a transparent tile. */
+const paintSeeds: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let i = 0; i < 9; i++) {
+    const x = 3 + Math.floor(rng() * 10);
+    const y = 4 + Math.floor(rng() * 9);
+    const n = jitter(rng, 14);
+    set(x, y, 208 + n, 186 + n, 128 + n);
+    set(x + 1, y, 184 + n, 160 + n, 104 + n);
+  }
+};
+
+/** A tied sheaf of amber grain stalks. */
+const paintGrain: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (const [x0, lean] of [
+    [5, 0],
+    [7, 0],
+    [9, 0],
+    [6, 1],
+    [8, 1],
+  ] as const) {
+    for (let y = 2; y <= 13; y++) {
+      const x = x0 + (y < 6 ? lean : 0);
+      const n = jitter(rng, 18);
+      if (y < 6) set(x, y, 224 + n, 190 + n, 80 + n * 0.5);
+      else set(x, y, 196 + n, 158 + n, 80 + n * 0.5);
+    }
+  }
+  for (let x = 4; x <= 11; x++) set(x, 9, 140, 104, 56); // twine
+};
+
+/** A crusty loaf: browned top, pale crumb, scored surface. */
+const paintBread: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 5; y <= 12; y++) {
+    for (let x = 2; x <= 13; x++) {
+      if ((x === 2 || x === 13) && (y === 5 || y === 12)) continue; // round corners
+      const n = jitter(rng, 14);
+      if (y <= 6) set(x, y, 212 + n, 158 + n * 0.8, 92 + n * 0.5);
+      else if (y === 12 || x === 2 || x === 13) set(x, y, 178 + n, 122 + n * 0.8, 66 + n * 0.5);
+      else set(x, y, 238 + n, 214 + n, 168 + n);
+    }
+  }
+  for (const sx of [5, 8, 11] as const) set(sx, 6, 160, 108, 60); // scoring
+};
+
+/** Hoe: the familiar diagonal handle with a flat blade turning down at the tip. */
+const paintHoe: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let i = 2; i <= 11; i++) {
+    const n = jitter(rng, 12);
+    set(i, 15 - i, 124 + n, 92 + n * 0.7, 56 + n * 0.5);
+    set(i + 1, 15 - i, 104 + n, 78 + n * 0.7, 46 + n * 0.5);
+  }
+  for (const [hx, hy] of [
+    [8, 2],
+    [9, 2],
+    [10, 2],
+    [11, 2],
+    [12, 2],
+    [12, 3],
+    [12, 4],
+    [13, 3],
+  ] as const) {
+    const n = jitter(rng, 16);
+    set(hx, hy, 196 + n, 198 + n, 206 + n);
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -810,6 +930,14 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.bucket, 'bucket', paintBucket(0, 0, 0, false)],
   [Tiles.waterBucket, 'waterBucket', paintBucket(52, 110, 198, true)],
   [Tiles.torch, 'torch', paintTorch],
+  [Tiles.farmland, 'farmland', paintFarmland],
+  [Tiles.cropSprout, 'cropSprout', paintCrop(0)],
+  [Tiles.cropGrowing, 'cropGrowing', paintCrop(1)],
+  [Tiles.cropRipe, 'cropRipe', paintCrop(2)],
+  [Tiles.seeds, 'seeds', paintSeeds],
+  [Tiles.grain, 'grain', paintGrain],
+  [Tiles.bread, 'bread', paintBread],
+  [Tiles.hoe, 'hoe', paintHoe],
 ];
 
 /**

@@ -39,7 +39,7 @@ describe('bonusDropFor', () => {
   it('drops a sapling from leaves on a lucky roll only', () => {
     expect(bonusDropFor(Block.leaves, 0.05)).toEqual({ id: Item.sapling, count: 1 });
     expect(bonusDropFor(Block.leaves, 0.5)).toBeNull();
-    expect(bonusDropFor(Block.grass, 0.01)).toBeNull(); // not leaves
+    expect(bonusDropFor(Block.stone, 0.01)).toBeNull(); // no bonus table entry
   });
 });
 

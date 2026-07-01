@@ -31,6 +31,7 @@ import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
+import { CropGrowth } from './world/farming';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -140,6 +141,7 @@ async function boot(): Promise<void> {
   interaction.hostiles = hostiles;
   const projectiles = new ThrownProjectiles(gr.scene);
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
+  const cropGrowth = new CropGrowth();
   /** Sweep a thrown-stone segment for a mob hit (hostiles first, then wildlife). */
   const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
@@ -473,6 +475,7 @@ async function boot(): Promise<void> {
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
       projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
+      cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
       if (session.mode === 'survival') {
         // The underworld is always dark and dangerous; the sun never reaches it.
         const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);

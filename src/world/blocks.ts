@@ -33,6 +33,10 @@ export const Block = {
   crystal: 25,
   bed: 26,
   torch: 27,
+  farmland: 28,
+  cropSprout: 29,
+  cropGrowing: 30,
+  cropRipe: 31,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -90,6 +94,11 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.crystal, name: 'crystal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.4, tiles: tiles(T.crystal) },
   { id: Block.bed, name: 'bed', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.4, tiles: tiles(T.bedSide, T.bedTop, T.planks) },
   { id: Block.torch, name: 'torch', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.1, tiles: tiles(T.torch) },
+  { id: Block.farmland, name: 'farmland', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.75, tiles: tiles(T.dirt, T.farmland, T.dirt) },
+  // Crops are walk-through cutout blocks; the growth stage IS the block id.
+  { id: Block.cropSprout, name: 'cropSprout', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropSprout) },
+  { id: Block.cropGrowing, name: 'cropGrowing', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropGrowing) },
+  { id: Block.cropRipe, name: 'cropRipe', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropRipe) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */

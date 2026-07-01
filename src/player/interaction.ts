@@ -12,6 +12,7 @@ import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
 import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, Item, useBucketOn } from '../world/items';
+import { isCrop, plantResult, tillResult } from '../world/farming';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
@@ -23,7 +24,8 @@ import type { World } from '../world/world';
 
 export const REACH = 5.0;
 
-const isTargetable = (id: number): boolean => SOLID[id] === 1;
+/** Crops are walk-through but still click-targetable (harvesting). */
+const isTargetable = (id: number): boolean => SOLID[id] === 1 || isCrop(id);
 /** Buckets scoop water, so their ray stops at a water source too. */
 const isWaterOrSolid = (id: number): boolean => id === Block.water || SOLID[id] === 1;
 
@@ -109,6 +111,7 @@ export class Interaction {
           if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
           if (this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
+          if (this.tryFarm(world, hotbar)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
@@ -179,6 +182,41 @@ export class Interaction {
     }
     this.onEdit?.('break', Item.meat); // thud
     return true;
+  }
+
+  /** Hoe tills grass/dirt into farmland; seeds plant a sprout above farmland. */
+  private tryFarm(world: World, hotbar: HotbarState): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || !this.hasTarget) return false;
+    const { bx, by, bz } = this.hit;
+    const targetId = world.getBlock(bx, by, bz);
+    const aboveId = world.getBlock(bx, by + 1, bz);
+    const tilled = tillResult(stack.id, targetId);
+    if (tilled !== null && aboveId === Block.air) {
+      world.setBlock(bx, by, bz, tilled);
+      this.onEdit?.('place', tilled);
+      return true;
+    }
+    const planted = plantResult(stack.id, targetId, aboveId);
+    if (planted !== null) {
+      if (!inventory.consumeOne(hotbar.slot)) return false;
+      world.setBlock(bx, by + 1, bz, planted);
+      this.onEdit?.('place', planted);
+      return true;
+    }
+    return false;
+  }
+
+  /** Crops can't float: breaking their support pops them (seeds in survival). */
+  private popCropAbove(world: World, bx: number, by: number, bz: number, inventory: Inventory | null): void {
+    const above = world.getBlock(bx, by + 1, bz);
+    if (!isCrop(above)) return;
+    world.setBlock(bx, by + 1, bz, Block.air);
+    if (inventory) {
+      const drop = dropFor(above, 0);
+      if (drop) inventory.add(drop.id, drop.count);
+    }
   }
 
   /** Holding food: right-click eats it when hungry. Returns true if consumed. */
@@ -300,6 +338,7 @@ export class Interaction {
       if (drop) inventory.add(drop.id, drop.count); // overflow is simply lost
       const bonus = bonusDropFor(id, Math.random());
       if (bonus) inventory.add(bonus.id, bonus.count);
+      this.popCropAbove(world, bx, by, bz, inventory);
       this.onEdit?.('break', id);
       this.onBlockChanged?.('break', id, bx, by, bz);
       this.breakProgress = 0;
@@ -312,6 +351,7 @@ export class Interaction {
     const id = world.getBlock(bx, by, bz);
     if (BREAKABLE[id] !== 1) return;
     world.setBlock(bx, by, bz, Block.air);
+    this.popCropAbove(world, bx, by, bz, null);
     this.onEdit?.('break', id);
     this.onBlockChanged?.('break', id, bx, by, bz);
   }

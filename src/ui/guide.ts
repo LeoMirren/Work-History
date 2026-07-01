@@ -22,6 +22,7 @@ const HOW_TO: ReadonlyArray<readonly [string, string]> = [
   ['Build a furnace', 'Craft a furnace from 8 cobblestone, place it down, then open the inventory while standing next to it.'],
   ['Smelt metal', 'With a furnace nearby and fuel (logs, planks or charcoal), smelt ore into iron ingots — then craft an iron pickaxe.'],
   ['Survive', 'Hunt animals for meat (left-click), eat meat (right-click) to heal. Falls over 3 blocks hurt; water breaks a fall.'],
+  ['Farm', 'Breaking grass sometimes drops seeds. Till grass or dirt with a hoe (right-click), plant seeds on the farmland, and harvest once the stalks turn amber — grain bakes into bread.'],
   ['Explore', 'Caves darken with depth — bring blocks to wall off drops. Different biomes (forest, desert, snowy, savanna) ring the world.'],
 ];
 

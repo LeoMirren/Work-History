@@ -29,6 +29,10 @@ export const Item = {
   throwingStone: 119,
   bucket: 120,
   waterBucket: 121,
+  seeds: 122,
+  grain: 123,
+  bread: 124,
+  hoe: 125,
 } as const;
 
 /**
@@ -83,6 +87,7 @@ export const MEAT_FOOD = 6;
 const FOOD: Record<number, number> = {
   [Item.meat]: MEAT_FOOD,
   [Item.cookedMeat]: 10, // cooking nearly doubles the value
+  [Item.bread]: 8, // farmed staple: renewable, no hunting required
 };
 
 export function isFood(id: number): boolean {
@@ -112,7 +117,7 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
-const SINGLE = new Set<number>([Item.bucket, Item.waterBucket]);
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe]);
 
 export function stackLimit(id: number): number {
   return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
@@ -141,6 +146,10 @@ const ITEM_TILE: Record<number, number> = {
   [Item.throwingStone]: Tiles.throwingStone,
   [Item.bucket]: Tiles.bucket,
   [Item.waterBucket]: Tiles.waterBucket,
+  [Item.seeds]: Tiles.seeds,
+  [Item.grain]: Tiles.grain,
+  [Item.bread]: Tiles.bread,
+  [Item.hoe]: Tiles.hoe,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -172,6 +181,10 @@ const ITEM_NAME: Record<number, string> = {
   [Item.throwingStone]: 'throwing stone',
   [Item.bucket]: 'bucket',
   [Item.waterBucket]: 'water bucket',
+  [Item.seeds]: 'seeds',
+  [Item.grain]: 'grain',
+  [Item.bread]: 'bread',
+  [Item.hoe]: 'hoe',
 };
 
 export function itemName(id: number): string {
@@ -254,7 +267,14 @@ export function dropFor(blockId: number, heldId: number): { id: number; count: n
     case Block.stone:
       return { id: Block.cobblestone, count: 1 };
     case Block.grass:
+    case Block.farmland:
       return { id: Block.dirt, count: 1 };
+    // Immature crops refund a seed; ripe crops yield grain (+ bonus seeds).
+    case Block.cropSprout:
+    case Block.cropGrowing:
+      return { id: Item.seeds, count: 1 };
+    case Block.cropRipe:
+      return { id: Item.grain, count: 1 };
     default:
       break;
   }
@@ -264,13 +284,18 @@ export function dropFor(blockId: number, heldId: number): { id: number; count: n
 }
 
 const SAPLING_DROP_CHANCE = 0.16;
+const SEED_DROP_CHANCE = 0.18;
 
 /**
  * Chance-based bonus drop for a broken block, given a 0..1 roll. Leaves
- * occasionally yield a sapling (renewable wood). Pure: the caller supplies
- * the roll so it's deterministic in tests.
+ * occasionally yield a sapling (renewable wood); grass sometimes turns up
+ * seeds (the entry to farming); a ripe crop always returns seeds so fields
+ * are self-sustaining. Pure: the caller supplies the roll so it's
+ * deterministic in tests.
  */
 export function bonusDropFor(blockId: number, roll: number): { id: number; count: number } | null {
   if (blockId === Block.leaves && roll < SAPLING_DROP_CHANCE) return { id: Item.sapling, count: 1 };
+  if (blockId === Block.grass && roll < SEED_DROP_CHANCE) return { id: Item.seeds, count: 1 };
+  if (blockId === Block.cropRipe) return { id: Item.seeds, count: roll < 0.35 ? 2 : 1 };
   return null;
 }
