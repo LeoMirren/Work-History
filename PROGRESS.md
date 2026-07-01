@@ -259,3 +259,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Snow dome shelters: hollow squashed-hemisphere snow shell, two-tall door gap, lantern set into the ceiling
 - [x] Overgrown shrines (jungle/forest): 3x3 cobblestone plinth, two-block pillar crowned with a glowing crystal, creeping leaf corners
 - [x] One candidate per chunk (1-in-120, biome-gated at the chunk centre), kept inside the chunk interior, bailing on unfit ground — worldgen stays byte-deterministic; all three planters unit-tested
+
+## Post-spec: Chest loot
+
+- [x] Worldgen chests (outpost huts, desert ruins) seed 2-4 loot stacks on first open — a weighted pool of supplies (coal, sticks, planks, seeds, meat, ingots, throwing stones, torches) with rare gold/gem finds
+- [x] Deterministic per (world seed, chest position) via a salted PRNG stream, so reloads and regenerated chunks yield the same haul; player-placed chests register at placement and are never seeded
+- [x] Pure rollLoot + first-open seeding contract tested

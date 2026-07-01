@@ -32,6 +32,7 @@ import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { CropGrowth } from './world/farming';
+import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
 import { World, type ChunkPersistence } from './world/world';
@@ -159,7 +160,15 @@ async function boot(): Promise<void> {
   };
   interaction.onOpenContainer = (x, y, z) => {
     if (!session) return false;
-    chestScreen.open(containers.get(x, y, z), inventory, session.atlasCanvas);
+    // Worldgen chests (huts, ruins) have no entry until first opened —
+    // that first open seeds their loot; player-placed chests get an entry
+    // at placement time and are never seeded.
+    const fresh = !containers.has(x, y, z);
+    const chest = containers.get(x, y, z);
+    if (fresh) {
+      for (const stack of rollLoot(session.seed, x, y, z)) chest.add(stack.id, stack.count);
+    }
+    chestScreen.open(chest, inventory, session.atlasCanvas);
     chestOpen = true;
     document.exitPointerLock();
     return true;
