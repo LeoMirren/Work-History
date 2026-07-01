@@ -13,10 +13,12 @@ import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engin
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
+import { BreakParticles } from './engine/particles';
 import { PlayerController, type GameMode } from './player/controller';
 import { Interaction, type HotbarState } from './player/interaction';
 import { Inventory } from './player/inventory';
-import { armorReductionOf } from './world/items';
+import { ViewModel } from './player/viewmodel';
+import { armorReductionOf, iconTileFor } from './world/items';
 import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { DamageOverlay } from './ui/damageOverlay';
@@ -88,6 +90,14 @@ async function boot(): Promise<void> {
   const materialList = [materials.opaque, materials.cutout, materials.water];
   const clouds = new Clouds(gr.scene, 'voxelheim');
 
+  // Scene lights shade the Lambert-lit entities (chunks use their own shader);
+  // intensities track the day cycle in the render loop. The camera joins the
+  // scene so the first-person held item can ride it.
+  const hemiLight = new THREE.HemisphereLight(0xeaf6ff, 0x8a7a5c, 1.0);
+  const sunLight = new THREE.DirectionalLight(0xfff2d8, 0.6);
+  sunLight.position.set(0.5, 1, 0.3);
+  gr.scene.add(hemiLight, sunLight, gr.camera);
+
   const pool = new WorkerPool(
     () => new Worker(new URL('./workers/worker.ts', import.meta.url), { type: 'module' }),
     Math.max(2, (navigator.hardwareConcurrency || 4) - 1),
@@ -146,6 +156,24 @@ async function boot(): Promise<void> {
   const projectiles = new ThrownProjectiles(gr.scene);
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
   const cropGrowth = new CropGrowth();
+  const particles = new BreakParticles(gr.scene);
+  const viewModel = new ViewModel(gr.camera);
+
+  // Average tile colour per block id for break particles, sampled lazily from
+  // the session's atlas canvas (reset on session start — atlases are per-seed).
+  let atlasCtx: CanvasRenderingContext2D | null = null;
+  const tileColorCache = new Map<number, readonly [number, number, number]>();
+  function blockRGB(id: number): readonly [number, number, number] {
+    const cached = tileColorCache.get(id);
+    if (cached) return cached;
+    if (!atlasCtx && session) atlasCtx = session.atlasCanvas.getContext('2d');
+    if (!atlasCtx) return [0.6, 0.6, 0.6];
+    const tile = iconTileFor(id);
+    const px = atlasCtx.getImageData((tile % 16) * 16 + 8, Math.floor(tile / 16) * 16 + 8, 1, 1).data;
+    const rgb: readonly [number, number, number] = [(px[0] ?? 153) / 255, (px[1] ?? 153) / 255, (px[2] ?? 153) / 255];
+    tileColorCache.set(id, rgb);
+    return rgb;
+  }
   /** Sweep a thrown-stone segment for a mob hit (hostiles first, then wildlife). */
   const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
@@ -178,6 +206,10 @@ async function boot(): Promise<void> {
   };
   interaction.onBlockChanged = (kind, id, x, y, z) => {
     containers.onBlockChanged(kind, id, x, y, z, (itemId, count) => inventory.add(itemId, count));
+    if (kind === 'break') {
+      const [r, g, b] = blockRGB(id);
+      particles.burst(x + 0.5, y + 0.5, z + 0.5, r, g, b);
+    }
   };
   interaction.onActivateRift = (_x, _y, _z) => {
     const target: Dimension = session?.dimension === 'underworld' ? 'overworld' : 'underworld';
@@ -378,6 +410,8 @@ async function boot(): Promise<void> {
       blockPicker.close();
       pickerOpen = false;
     }
+    atlasCtx = null;
+    tileColorCache.clear();
     containers.load(resume?.containers);
 
     session = { seed, mode, dimension, world, texture, atlasCanvas, persistedKeys };
@@ -516,6 +550,7 @@ async function boot(): Promise<void> {
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
       projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
       cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
+      particles.update(dt);
       if (session.mode === 'survival') {
         // The underworld is always dark and dangerous; the sun never reaches it.
         const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);
@@ -539,6 +574,10 @@ async function boot(): Promise<void> {
       } else {
         dayNight.apply(gr, materials, clouds.material);
       }
+      // Entity lighting tracks the sky (dim ember glow in the underworld).
+      const envBrightness = session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time);
+      hemiLight.intensity = 0.25 + 0.95 * envBrightness;
+      sunLight.intensity = 0.65 * envBrightness;
       clouds.update(frameDt, player.body.x, player.body.z);
       // Damage feedback: flash on hp loss, steady vignette at low health.
       if (session?.mode === 'survival') {
@@ -623,6 +662,13 @@ async function boot(): Promise<void> {
         hotbarState.creativeBlock = hud.selectedBlock;
         hotbarState.inventory = session.mode === 'survival' ? inventory : null;
         hotbarState.slot = hud.selectedSlot;
+        // First-person held item: mirror the selection, bob with movement,
+        // swing while mining / on right-click.
+        const heldId = session.mode === 'survival' ? (inventory.slots[hud.selectedSlot]?.id ?? 0) : hud.selectedBlock;
+        viewModel.setItem(heldId, session.atlasCanvas);
+        if (input.isButtonDown(2)) viewModel.swing();
+        const pb = player.body;
+        viewModel.update(frameDt, pb.onGround && Math.hypot(pb.vx, pb.vz) > 0.5, input.isButtonDown(0));
         interaction.update(input, session.world, player, frameDt, hotbarState);
         if (session.mode === 'survival') {
           player.armorReduction = armorReductionOf(armorSlot.slots[0]?.id ?? 0);

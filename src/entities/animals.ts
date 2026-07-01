@@ -41,45 +41,52 @@ export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 interface SpeciesDef {
   readonly torso: readonly [number, number, number];
-  readonly torsoY: number;
   readonly head: readonly [number, number, number];
-  readonly headY: number;
+  /** Head centre offset from the torso front. */
+  readonly headZ: number;
+  readonly legLen: number;
+  readonly legW: number;
   readonly bodyColor: number;
   readonly headColor: number;
 }
 
+// Bodies stand on four hip-pivoted legs; torso/head heights derive from legLen.
 const SPECIES: Record<SpeciesId, SpeciesDef> = {
   [Species.trundler]: {
-    torso: [0.7, 0.45, 0.7],
-    torsoY: 0.32,
+    torso: [0.7, 0.4, 0.75],
     head: [0.34, 0.3, 0.3],
-    headY: 0.6,
+    headZ: -0.45,
+    legLen: 0.28,
+    legW: 0.16,
     bodyColor: 0xb08a5a,
     headColor: 0x7a5c39,
   },
   [Species.woolly]: {
-    torso: [0.62, 0.52, 0.62],
-    torsoY: 0.34,
+    torso: [0.62, 0.5, 0.66],
     head: [0.3, 0.28, 0.28],
-    headY: 0.62,
+    headZ: -0.42,
+    legLen: 0.26,
+    legW: 0.15,
     bodyColor: 0xddd6c4,
     headColor: 0xc8bfa8,
   },
   // Desert strider: tall, lean, sandy.
   [Species.strider]: {
-    torso: [0.5, 0.4, 0.5],
-    torsoY: 0.55,
+    torso: [0.48, 0.36, 0.56],
     head: [0.3, 0.26, 0.3],
-    headY: 0.95,
+    headZ: -0.36,
+    legLen: 0.55,
+    legW: 0.1,
     bodyColor: 0xd8b873,
     headColor: 0xb89a5c,
   },
   // Jungle hopper: small, squat, mossy green.
   [Species.hopper]: {
-    torso: [0.5, 0.36, 0.5],
-    torsoY: 0.24,
+    torso: [0.5, 0.34, 0.52],
     head: [0.34, 0.3, 0.32],
-    headY: 0.48,
+    headZ: -0.34,
+    legLen: 0.16,
+    legW: 0.14,
     bodyColor: 0x6f9a4c,
     headColor: 0x567b3a,
   },
@@ -100,42 +107,73 @@ export interface Animal {
   hp: number;
   moving: boolean;
   timer: number;
+  /** Walk-cycle phase driving the leg swing. */
+  phase: number;
+  /** Hurt-flash seconds remaining (materials glow red while > 0). */
+  flash: number;
+  /** Knockback impulse, decaying, added to walk velocity. */
+  kbX: number;
+  kbZ: number;
   readonly group: THREE.Group;
+  readonly legs: readonly THREE.Mesh[];
+  /** Per-animal material clones, so the hurt flash never tints the herd. */
+  readonly mats: readonly THREE.MeshLambertMaterial[];
 }
 
-// Shared per-species materials (kept static so meshes never allocate new ones).
-const speciesMaterials: Record<SpeciesId, { body: THREE.MeshBasicMaterial; head: THREE.MeshBasicMaterial }> = {
-  [Species.trundler]: {
-    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.trundler].bodyColor }),
-    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.trundler].headColor }),
-  },
-  [Species.woolly]: {
-    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].bodyColor }),
-    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.woolly].headColor }),
-  },
-  [Species.strider]: {
-    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.strider].bodyColor }),
-    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.strider].headColor }),
-  },
-  [Species.hopper]: {
-    body: new THREE.MeshBasicMaterial({ color: SPECIES[Species.hopper].bodyColor }),
-    head: new THREE.MeshBasicMaterial({ color: SPECIES[Species.hopper].headColor }),
-  },
-};
+/** Shared per-eye material — eyes never flash, so one instance serves all. */
+const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
 
-function makeAnimalMesh(species: SpeciesId): THREE.Group {
+function makeAnimalMesh(species: SpeciesId): {
+  group: THREE.Group;
+  legs: THREE.Mesh[];
+  mats: THREE.MeshLambertMaterial[];
+} {
   const def = SPECIES[species];
-  const mats = speciesMaterials[species];
+  const body = new THREE.MeshLambertMaterial({ color: def.bodyColor });
+  const head = new THREE.MeshLambertMaterial({ color: def.headColor });
+  const leg = new THREE.MeshLambertMaterial({ color: new THREE.Color(def.bodyColor).multiplyScalar(0.72) });
   const group = new THREE.Group();
   group.name = 'entity';
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(...def.torso), mats.body);
+
+  const [tw, th, td] = def.torso;
+  const torsoY = def.legLen + th / 2;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(tw, th, td), body);
   torso.name = 'entity';
-  torso.position.set(0, def.torsoY, 0);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(...def.head), mats.head);
-  head.name = 'entity';
-  head.position.set(0, def.headY, -0.42);
-  group.add(torso, head);
-  return group;
+  torso.position.set(0, torsoY, 0);
+
+  const [hw, hh, hd] = def.head;
+  const headY = torsoY + th / 2 - hh / 2 + 0.12;
+  const headMesh = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), head);
+  headMesh.name = 'entity';
+  headMesh.position.set(0, headY, def.headZ);
+  group.add(torso, headMesh);
+
+  // Two beady eyes on the head's front face.
+  for (const ex of [-0.08, 0.08]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.03), eyeMaterial);
+    eye.name = 'entity';
+    eye.position.set(ex, headY + 0.03, def.headZ - hd / 2 - 0.01);
+    group.add(eye);
+  }
+
+  // Four legs, geometry shifted so the mesh pivots at the hip.
+  const legs: THREE.Mesh[] = [];
+  const lw = def.legW;
+  const legGeo = new THREE.BoxGeometry(lw, def.legLen, lw);
+  legGeo.translate(0, -def.legLen / 2, 0);
+  for (const [sx, sz] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ] as const) {
+    const mesh = new THREE.Mesh(legGeo, leg);
+    mesh.name = 'entity';
+    mesh.position.set(sx * (tw / 2 - lw / 2 - 0.02), def.legLen, sz * (td / 2 - lw / 2 - 0.05));
+    group.add(mesh);
+    legs.push(mesh);
+  }
+  return { group, legs, mats: [body, head, leg] };
 }
 
 export class AnimalSystem {
@@ -180,6 +218,7 @@ export class AnimalSystem {
   /** Place an animal directly (also the test seam). */
   spawnAt(x: number, y: number, z: number, species?: SpeciesId): Animal {
     const sp = species ?? (this.random() < 0.5 ? Species.trundler : Species.woolly);
+    const parts = makeAnimalMesh(sp);
     const animal: Animal = {
       body: createBody(x, y, z),
       species: sp,
@@ -187,7 +226,13 @@ export class AnimalSystem {
       hp: ANIMAL_HP,
       moving: false,
       timer: 0.5 + this.random() * 2,
-      group: makeAnimalMesh(sp),
+      phase: 0,
+      flash: 0,
+      kbX: 0,
+      kbZ: 0,
+      group: parts.group,
+      legs: parts.legs,
+      mats: parts.mats,
     };
     this.scene.add(animal.group);
     this.animals.push(animal);
@@ -241,8 +286,28 @@ export class AnimalSystem {
       this.step(animal, world, dt);
       animal.group.position.set(body.x, body.y, body.z);
       animal.group.rotation.set(0, animal.yaw, 0);
+      this.animate(animal, dt);
     }
     void py;
+  }
+
+  /** Leg swing while walking and the red hurt flash. */
+  private animate(animal: Animal, dt: number): void {
+    if (animal.moving && animal.body.onGround) {
+      animal.phase += dt * 7;
+      const swing = Math.sin(animal.phase) * 0.7;
+      for (let l = 0; l < animal.legs.length; l++) {
+        // Diagonal pairs move together (0,3 vs 1,2), like a real gait.
+        animal.legs[l]?.rotation.set(l === 0 || l === 3 ? swing : -swing, 0, 0);
+      }
+    } else {
+      for (const leg of animal.legs) leg.rotation.x *= Math.max(0, 1 - dt * 10);
+    }
+    if (animal.flash > 0) {
+      animal.flash -= dt;
+      const on = animal.flash > 0;
+      for (const m of animal.mats) m.emissive.setRGB(on ? 0.55 : 0, 0, 0);
+    }
   }
 
   /** Centroid of same-species animals within FLOCK_RADIUS, or null if alone. */
@@ -279,8 +344,11 @@ export class AnimalSystem {
       animal.timer = 1 + this.random() * 3;
     }
     const speed = animal.moving ? WALK_SPEED : 0;
-    body.vx = -Math.sin(animal.yaw) * speed;
-    body.vz = -Math.cos(animal.yaw) * speed;
+    body.vx = -Math.sin(animal.yaw) * speed + animal.kbX;
+    body.vz = -Math.cos(animal.yaw) * speed + animal.kbZ;
+    const kbDecay = Math.max(0, 1 - dt * 5);
+    animal.kbX *= kbDecay;
+    animal.kbZ *= kbDecay;
     const inWater = world.getBlock(Math.floor(body.x), Math.floor(body.y + 0.1), Math.floor(body.z)) === Block.water;
     if (inWater) {
       body.vy = Math.min(2, body.vy + 12 * dt); // buoyancy
@@ -331,8 +399,11 @@ export class AnimalSystem {
     return best ? { animal: best, distance: bestT } : null;
   }
 
-  /** Punch an animal; returns its drops when it dies, else null. */
-  hurt(animal: Animal): { id: number; count: number } | null {
+  /**
+   * Punch an animal; returns its drops when it dies, else null. (kx, kz) is
+   * the attack direction for knockback (defaults keep old callers working).
+   */
+  hurt(animal: Animal, kx = 0, kz = 0): { id: number; count: number } | null {
     animal.hp--;
     if (animal.hp <= 0) {
       const index = this.animals.indexOf(animal);
@@ -341,6 +412,9 @@ export class AnimalSystem {
       return { id: Item.meat, count: 1 + (this.random() < 0.5 ? 1 : 0) };
     }
     animal.body.vy = 5; // flinch hop
+    animal.flash = 0.22;
+    animal.kbX = kx * 7;
+    animal.kbZ = kz * 7;
     return null;
   }
 }

@@ -272,3 +272,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Pause menu gains a live "Switch to survival/creative mode" toggle (persists with the save)
 - [x] Creative E opens a block picker: every placeable block (all defs minus air/crop stages) in an atlas-drawn grid; click loads it into the selected hotbar slot — torches, chests, furnaces, beds, riftframes etc. are now reachable in creative
 - [x] Hud creative palette is editable per-slot; controls/guide updated; palette pinned by test
+
+## Post-spec: Game feel — animated mobs, held item, hit feedback, particles
+
+- [x] Creatures rebuilt as lit multi-part bodies (Lambert + scene hemisphere/sun lights tracking the day cycle): four hip-pivoted legs with a diagonal-gait walk swing, beady eyes; stalkers are full humanoids with counter-swinging arms and glowing red/green eyes
+- [x] Hit feedback: red hurt-flash (per-entity material clones), directional knockback that decays, and a reddish aim outline around whichever creature is under the crosshair (block outline yields to it)
+- [x] First-person held item: camera-attached atlas-textured viewmodel that bobs while walking, swings on right-click and loops while mining; mirrors the hotbar selection in both modes
+- [x] Block-break particles: pooled points burst in the broken block's atlas colour with gravity and expiry (one draw call)
+- [x] Usage hints: a fading line above the hotbar explains what right-click does with the held item (eat/plant/till/scoop/pour/throw/place/sleep...), pure usageHintFor covered by tests
+- [x] HUD polish: selected-slot glow/lift, blurred hotbar backdrop; vendored three.d.ts extended (lights, Lambert, Points, getAttribute/translate)

@@ -54,7 +54,16 @@ export interface Stalker {
   attackCd: number;
   sunTimer: number;
   wanderTimer: number;
+  /** Walk-cycle phase driving limb swing. */
+  phase: number;
+  /** Hurt-flash seconds remaining. */
+  flash: number;
+  /** Knockback impulse, decaying, added to the drive velocity. */
+  kbX: number;
+  kbZ: number;
   readonly group: THREE.Group;
+  readonly limbs: readonly THREE.Mesh[];
+  readonly mats: readonly THREE.MeshLambertMaterial[];
 }
 
 interface Projectile {
@@ -68,30 +77,63 @@ interface Projectile {
   readonly mesh: THREE.Mesh;
 }
 
-const torsoMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2f3a });
-const headMaterial = new THREE.MeshBasicMaterial({ color: 0x3a4150 });
-const spitterTorsoMaterial = new THREE.MeshBasicMaterial({ color: 0x2f3a2b });
-const spitterHeadMaterial = new THREE.MeshBasicMaterial({ color: 0x66a04a });
 const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0x9bd24a });
 const projectileGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+// Eyes glow via unlit materials — visible in the dark, which is the point.
+const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
+const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
 
-function makeStalkerMesh(ranged: boolean): THREE.Group {
+const LEG_LEN = 0.72;
+const ARM_LEN = 0.66;
+
+/** Humanoid: torso, head, glowing eyes, two hip legs and two shoulder arms. */
+function makeStalkerMesh(ranged: boolean): {
+  group: THREE.Group;
+  limbs: THREE.Mesh[];
+  mats: THREE.MeshLambertMaterial[];
+} {
+  const torsoMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x2f3a2b : 0x2b2f3a });
+  const headMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x66a04a : 0x3a4150 });
+  const limbMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x27301f : 0x232733 });
   const group = new THREE.Group();
   group.name = 'entity';
-  const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.55, 1.2, 0.4),
-    ranged ? spitterTorsoMaterial : torsoMaterial,
-  );
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.34), torsoMat);
   torso.name = 'entity';
-  torso.position.set(0, 0.85, 0);
-  const head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.45, 0.45, 0.45),
-    ranged ? spitterHeadMaterial : headMaterial,
-  );
+  torso.position.set(0, LEG_LEN + 0.375, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), headMat);
   head.name = 'entity';
-  head.position.set(0, 1.65, 0);
+  head.position.set(0, 1.62, 0);
   group.add(torso, head);
-  return group;
+
+  for (const ex of [-0.1, 0.1]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
+    eye.name = 'entity';
+    eye.position.set(ex, 1.66, -0.22);
+    group.add(eye);
+  }
+
+  // Limbs pivot at hip/shoulder: [legL, legR, armL, armR].
+  const limbs: THREE.Mesh[] = [];
+  const legGeo = new THREE.BoxGeometry(0.22, LEG_LEN, 0.26);
+  legGeo.translate(0, -LEG_LEN / 2, 0);
+  for (const sx of [-1, 1]) {
+    const legMesh = new THREE.Mesh(legGeo, limbMat);
+    legMesh.name = 'entity';
+    legMesh.position.set(sx * 0.145, LEG_LEN, 0);
+    group.add(legMesh);
+    limbs.push(legMesh);
+  }
+  const armGeo = new THREE.BoxGeometry(0.16, ARM_LEN, 0.2);
+  armGeo.translate(0, -ARM_LEN / 2, 0);
+  for (const sx of [-1, 1]) {
+    const armMesh = new THREE.Mesh(armGeo, limbMat);
+    armMesh.name = 'entity';
+    armMesh.position.set(sx * 0.365, LEG_LEN + 0.7, 0);
+    group.add(armMesh);
+    limbs.push(armMesh);
+  }
+  return { group, limbs, mats: [torsoMat, headMat, limbMat] };
 }
 
 export class HostileSystem {
@@ -129,6 +171,7 @@ export class HostileSystem {
 
   spawnAt(x: number, y: number, z: number, ranged?: boolean): Stalker {
     const isRanged = ranged ?? this.random() < RANGED_CHANCE;
+    const parts = makeStalkerMesh(isRanged);
     const stalker: Stalker = {
       body: createBody(x, y, z),
       ranged: isRanged,
@@ -137,7 +180,13 @@ export class HostileSystem {
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
-      group: makeStalkerMesh(isRanged),
+      phase: 0,
+      flash: 0,
+      kbX: 0,
+      kbZ: 0,
+      group: parts.group,
+      limbs: parts.limbs,
+      mats: parts.mats,
     };
     this.scene.add(stalker.group);
     this.stalkers.push(stalker);
@@ -203,8 +252,30 @@ export class HostileSystem {
       this.step(s, world, dt, px, py, pz, distSq, hitPlayer);
       s.group.position.set(s.body.x, s.body.y, s.body.z);
       s.group.rotation.set(0, s.yaw, 0);
+      this.animate(s, dt);
     }
     this.updateProjectiles(dt, px, py, pz, hitPlayer);
+  }
+
+  /** Limb swing scaled by actual speed, plus the red hurt flash. */
+  private animate(s: Stalker, dt: number): void {
+    const speed = Math.hypot(s.body.vx, s.body.vz);
+    if (speed > 0.2 && s.body.onGround) {
+      s.phase += dt * (3 + speed * 2.4);
+      const swing = Math.sin(s.phase) * 0.75;
+      // Legs [0,1] alternate; arms [2,3] counter-swing their side's leg.
+      s.limbs[0]?.rotation.set(swing, 0, 0);
+      s.limbs[1]?.rotation.set(-swing, 0, 0);
+      s.limbs[2]?.rotation.set(-swing, 0, 0);
+      s.limbs[3]?.rotation.set(swing, 0, 0);
+    } else {
+      for (const limb of s.limbs) limb.rotation.x *= Math.max(0, 1 - dt * 10);
+    }
+    if (s.flash > 0) {
+      s.flash -= dt;
+      const on = s.flash > 0;
+      for (const m of s.mats) m.emissive.setRGB(on ? 0.55 : 0, 0, 0);
+    }
   }
 
   private step(
@@ -248,6 +319,12 @@ export class HostileSystem {
       body.vx = -Math.sin(s.yaw) * MOVE_SPEED * 0.5;
       body.vz = -Math.cos(s.yaw) * MOVE_SPEED * 0.5;
     }
+
+    body.vx += s.kbX;
+    body.vz += s.kbZ;
+    const kbDecay = Math.max(0, 1 - dt * 5);
+    s.kbX *= kbDecay;
+    s.kbZ *= kbDecay;
 
     body.vy -= GRAVITY * dt;
     if (body.vy < -TERMINAL_VELOCITY) body.vy = -TERMINAL_VELOCITY;
@@ -369,8 +446,11 @@ export class HostileSystem {
     return best ? { stalker: best, distance: bestT } : null;
   }
 
-  /** Strike a stalker; returns true if it died. */
-  hurt(stalker: Stalker): boolean {
+  /**
+   * Strike a stalker; returns true if it died. (kx, kz) is the attack
+   * direction for knockback (defaults keep old callers working).
+   */
+  hurt(stalker: Stalker, kx = 0, kz = 0): boolean {
     stalker.hp -= 2;
     stalker.body.vy = 4; // knock-up
     if (stalker.hp <= 0) {
@@ -379,6 +459,9 @@ export class HostileSystem {
       this.scene.remove(stalker.group);
       return true;
     }
+    stalker.flash = 0.22;
+    stalker.kbX = kx * 6;
+    stalker.kbZ = kz * 6;
     return false;
   }
 }

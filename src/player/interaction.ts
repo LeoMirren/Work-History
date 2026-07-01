@@ -16,8 +16,8 @@ import { isCrop, plantResult, tillResult } from '../world/farming';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
-import type { AnimalSystem } from '../entities/animals';
-import type { HostileSystem } from '../entities/hostiles';
+import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities/animals';
+import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -71,6 +71,8 @@ export class Interaction {
   private breakY = Number.NaN;
   private breakZ = Number.NaN;
   private readonly outline: THREE.LineSegments;
+  /** Reddish box drawn around the entity under the crosshair. */
+  private readonly entityOutline: THREE.LineSegments;
   private readonly clicks: number[] = [];
 
   constructor(scene: THREE.Scene) {
@@ -80,6 +82,12 @@ export class Interaction {
     );
     this.outline.visible = false;
     scene.add(this.outline);
+    this.entityOutline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+      new THREE.LineBasicMaterial({ color: 0x8a2020 }),
+    );
+    this.entityOutline.visible = false;
+    scene.add(this.entityOutline);
   }
 
   /** Per-frame: refresh the targeted block and apply queued clicks. */
@@ -93,7 +101,27 @@ export class Interaction {
 
     this.hasTarget = raycast(world.blockAt, isTargetable, body.x, eyeY, body.z, dirX, dirY, dirZ, REACH, this.hit);
 
-    if (this.hasTarget) {
+    // Aim feedback: if a creature is nearer along the ray than the block,
+    // outline the creature instead of the block.
+    const animalAim = this.animals?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, REACH) ?? null;
+    const hostileAim = this.hostiles?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, REACH) ?? null;
+    const aimHostile = hostileAim !== null && (animalAim === null || hostileAim.distance <= animalAim.distance);
+    const aimDist = aimHostile ? hostileAim?.distance : animalAim?.distance;
+    const entityAimed = aimDist !== undefined && (!this.hasTarget || aimDist < this.hit.distance);
+    if (entityAimed) {
+      const aimBody = aimHostile && hostileAim ? hostileAim.stalker.body : animalAim?.animal.body;
+      const hw = aimHostile ? STALKER_HALF_WIDTH : ANIMAL_HALF_WIDTH;
+      const h = aimHostile ? STALKER_HEIGHT : ANIMAL_HEIGHT;
+      if (aimBody) {
+        this.entityOutline.visible = true;
+        this.entityOutline.position.set(aimBody.x, aimBody.y + h / 2, aimBody.z);
+        this.entityOutline.scale.set(hw * 2 + 0.08, h + 0.08, hw * 2 + 0.08);
+      }
+    } else {
+      this.entityOutline.visible = false;
+    }
+
+    if (this.hasTarget && !entityAimed) {
       this.outline.visible = true;
       this.outline.position.set(this.hit.bx + 0.5, this.hit.by + 0.5, this.hit.bz + 0.5);
     } else {
@@ -175,9 +203,9 @@ export class Interaction {
     if (dist === undefined) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
     if (useHostile && hostileHit) {
-      this.hostiles?.hurt(hostileHit.stalker);
+      this.hostiles?.hurt(hostileHit.stalker, dx, dz);
     } else if (animalHit) {
-      const drops = this.animals?.hurt(animalHit.animal) ?? null;
+      const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
       if (drops && inventory) inventory.add(drops.id, drops.count);
     }
     this.onEdit?.('break', Item.meat); // thud

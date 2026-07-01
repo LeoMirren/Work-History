@@ -3,7 +3,7 @@
  * Pure DOM/CSS — no engine dependencies beyond the atlas canvas for icons.
  */
 import { HOTBAR_BLOCKS, blockName } from '../world/blocks';
-import { iconTileFor, isBlockId, itemName } from '../world/items';
+import { iconTileFor, isBlockId, itemName, usageHintFor } from '../world/items';
 import { ATLAS_TILES, TILE_PX } from '../engine/atlas';
 import type { Inventory } from '../player/inventory';
 
@@ -29,6 +29,9 @@ export class Hud {
   private atlasCanvas: HTMLCanvasElement | null = null;
   private renderedInvVersion = -1;
   private readonly counts: HTMLSpanElement[] = [];
+  private readonly hintEl: HTMLDivElement;
+  private hintShownFor = Number.NaN;
+  private hintTimer = 0;
 
   constructor(parent: HTMLElement, atlasCanvas: HTMLCanvasElement) {
     const crosshair = document.createElement('div');
@@ -85,6 +88,12 @@ export class Hud {
       this.counts.push(count);
     }
     parent.appendChild(hotbar);
+
+    // "What does right-click do" hint, fading in above the hotbar on change.
+    this.hintEl = document.createElement('div');
+    this.hintEl.id = 'hotbar-hint';
+    parent.appendChild(this.hintEl);
+
     this.redrawIcons(atlasCanvas);
 
     this.overlay = document.createElement('div');
@@ -146,6 +155,23 @@ export class Hud {
       }
     }
     if (this.inventory) this.renderedInvVersion = this.inventory.version;
+    this.refreshHint();
+  }
+
+  /** The id currently under the selector (inventory stack or creative block). */
+  private selectedId(): number {
+    return this.inventory ? (this.inventory.slots[this.selectedSlot]?.id ?? 0) : (this.creativeBlocks[this.selectedSlot] ?? 0);
+  }
+
+  /** Surface the usage hint when the held id changes; fades out after a beat. */
+  private refreshHint(): void {
+    const id = this.selectedId();
+    if (id === this.hintShownFor) return;
+    this.hintShownFor = id;
+    this.hintEl.textContent = usageHintFor(id);
+    this.hintEl.classList.add('show');
+    window.clearTimeout(this.hintTimer);
+    this.hintTimer = window.setTimeout(() => this.hintEl.classList.remove('show'), 2600);
   }
 
   /** Per-frame: repaint the hotbar only when the inventory changed. */
@@ -160,6 +186,7 @@ export class Hud {
     this.slots[this.selectedSlot]?.classList.remove('selected');
     this.selectedSlot = i;
     this.slots[i]?.classList.add('selected');
+    this.refreshHint();
   }
 
   /** Wheel scroll: positive steps move right, wrapping. */

@@ -191,6 +191,28 @@ export function itemName(id: number): string {
   return ITEM_NAME[id] ?? `item ${id}`;
 }
 
+/**
+ * One-line "what does this do" hint for the held item, surfaced above the
+ * hotbar when the selection changes. Pure so the coverage is testable.
+ */
+export function usageHintFor(id: number): string {
+  if (id <= 0) return 'left-click: punch · E: inventory & crafting';
+  if (isFood(id)) return 'right-click: eat';
+  if (id === Item.seeds) return 'right-click farmland: plant (till grass with a hoe first)';
+  if (id === Item.hoe) return 'right-click grass or dirt: till farmland';
+  if (id === Item.sapling) return 'right-click grass: plant a tree';
+  if (id === Item.bucket) return 'right-click water: scoop it up';
+  if (id === Item.waterBucket) return 'right-click: pour the water out';
+  if (isThrowable(id)) return 'right-click: throw';
+  if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
+  if (isToolId(id)) return 'hold left-click: mine — fast on stone and ore';
+  if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
+  if (id === Block.riftframe) return 'right-click: place · right-click a placed frame: travel realms';
+  if (id === Block.chest) return 'right-click: place · right-click a placed chest: store items';
+  if (isBlockId(id)) return 'right-click: place';
+  return 'right-click: use';
+}
+
 /** Pickaxe tier of a held item: 0 none, 1 wood, 2 stone, 3 copper, 4 iron, 5 gold. */
 export function pickaxeTier(heldId: number): number {
   switch (heldId) {

@@ -53,6 +53,7 @@ declare module 'three' {
     constructor(color?: string | number);
     set(color: string | number): this;
     setScalar(scalar: number): this;
+    setRGB(r: number, g: number, b: number): this;
     copy(c: Color): this;
     multiplyScalar(s: number): this;
     lerpColors(a: Color, b: Color, t: number): this;
@@ -69,6 +70,7 @@ declare module 'three' {
     name: string;
     position: Vector3;
     rotation: Euler;
+    readonly scale: Vector3;
     visible: boolean;
     renderOrder: number;
     frustumCulled: boolean;
@@ -88,13 +90,29 @@ declare module 'three' {
     constructor();
   }
 
-  export class PerspectiveCamera extends Object3D {
+  export class Camera extends Object3D {}
+
+  export class PerspectiveCamera extends Camera {
     fov: number;
     aspect: number;
     near: number;
     far: number;
     constructor(fov?: number, aspect?: number, near?: number, far?: number);
     updateProjectionMatrix(): void;
+  }
+
+  export class Light extends Object3D {
+    color: Color;
+    intensity: number;
+  }
+
+  export class HemisphereLight extends Light {
+    groundColor: Color;
+    constructor(skyColor?: Color | string | number, groundColor?: Color | string | number, intensity?: number);
+  }
+
+  export class DirectionalLight extends Light {
+    constructor(color?: Color | string | number, intensity?: number);
   }
 
   export class Fog {
@@ -105,13 +123,16 @@ declare module 'three' {
   }
 
   export class BufferAttribute {
+    needsUpdate: boolean;
     constructor(array: TypedArray, itemSize: number, normalized?: boolean);
   }
 
   export class BufferGeometry {
     boundingSphere: Sphere | null;
     setAttribute(name: string, attribute: BufferAttribute): this;
+    getAttribute(name: string): BufferAttribute;
     setIndex(index: BufferAttribute | null): this;
+    translate(x: number, y: number, z: number): this;
     computeBoundingSphere(): void;
     dispose(): void;
   }
@@ -150,6 +171,7 @@ declare module 'three' {
     transparent?: boolean;
     opacity?: number;
     depthWrite?: boolean;
+    depthTest?: boolean;
     side?: number;
     fog?: boolean;
   }
@@ -158,6 +180,7 @@ declare module 'three' {
     transparent: boolean;
     opacity: number;
     depthWrite: boolean;
+    depthTest: boolean;
     side: number;
     needsUpdate: boolean;
     dispose(): void;
@@ -175,6 +198,37 @@ declare module 'three' {
     vertexColors: boolean;
     alphaTest: number;
     constructor(parameters?: MeshBasicMaterialParameters);
+  }
+
+  export interface MeshLambertMaterialParameters extends MaterialParameters {
+    map?: Texture | null;
+    emissive?: Color | string | number;
+  }
+
+  export class MeshLambertMaterial extends Material {
+    color: Color;
+    emissive: Color;
+    map: Texture | null;
+    constructor(parameters?: MeshLambertMaterialParameters);
+  }
+
+  export interface PointsMaterialParameters extends MaterialParameters {
+    size?: number;
+    vertexColors?: boolean;
+    sizeAttenuation?: boolean;
+  }
+
+  export class PointsMaterial extends Material {
+    size: number;
+    vertexColors: boolean;
+    sizeAttenuation: boolean;
+    constructor(parameters?: PointsMaterialParameters);
+  }
+
+  export class Points extends Object3D {
+    geometry: BufferGeometry;
+    material: Material;
+    constructor(geometry?: BufferGeometry, material?: Material);
   }
 
   export interface RawShaderMaterialParameters extends MaterialParameters {
