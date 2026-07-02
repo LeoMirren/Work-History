@@ -28,6 +28,8 @@ import type { Inventory } from './inventory';
 import type { World } from '../world/world';
 
 export const REACH = 5.0;
+/** Creative builds from further out — flying keeps you off the surface. */
+export const CREATIVE_REACH = 8.0;
 
 /** Crops are walk-through but still click-targetable (harvesting). */
 const isTargetable = (id: number): boolean => SOLID[id] === 1 || isCrop(id);
@@ -56,6 +58,10 @@ const HINT_SMELT = 'open inventory (E) nearby to smelt';
 const HINT_HARVEST = 'left-click: harvest';
 const HINT_PLANT = 'right-click: plant seeds';
 const HINT_TILL = 'right-click: till farmland';
+// Click-failure feedback — the difference between "broken" and "out of range".
+const FEEDBACK_TOO_FAR = 'out of reach — get closer to a surface';
+const FEEDBACK_BLOCKED = "can't place there — aim at a face beside open space";
+const FEEDBACK_EMPTY = 'select a block in the hotbar (1-9)';
 
 /**
  * Crack stage shown for a hold-to-break progress value: quarters of the 0..1
@@ -169,6 +175,12 @@ export class Interaction {
    * read-only outside this class.
    */
   targetHint: string | null = null;
+  /**
+   * Transient click-failure feedback ('out of reach', …), shown by main for a
+   * beat via the same HUD label; wins over targetHint while set.
+   */
+  feedback: string | null = null;
+  private feedbackTimer = 0;
   private breakX = Number.NaN;
   private breakY = Number.NaN;
   private breakZ = Number.NaN;
@@ -224,12 +236,13 @@ export class Interaction {
     const dirY = Math.sin(player.pitch);
     const dirZ = -Math.cos(player.yaw) * cosPitch;
 
-    this.hasTarget = raycast(world.blockAt, isTargetable, body.x, eyeY, body.z, dirX, dirY, dirZ, REACH, this.hit);
+    const reach = this.mode === 'creative' ? CREATIVE_REACH : REACH;
+    this.hasTarget = raycast(world.blockAt, isTargetable, body.x, eyeY, body.z, dirX, dirY, dirZ, reach, this.hit);
 
     // Aim feedback: if a creature is nearer along the ray than the block,
     // outline the creature instead of the block.
-    const animalAim = this.animals?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, REACH) ?? null;
-    const hostileAim = this.hostiles?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, REACH) ?? null;
+    const animalAim = this.animals?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
+    const hostileAim = this.hostiles?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
     const aimHostile = hostileAim !== null && (animalAim === null || hostileAim.distance <= animalAim.distance);
     const aimDist = aimHostile ? hostileAim?.distance : animalAim?.distance;
     const entityAimed = aimDist !== undefined && (!this.hasTarget || aimDist < this.hit.distance);
@@ -258,6 +271,11 @@ export class Interaction {
     const targetId = this.hasTarget ? world.getBlock(this.hit.bx, this.hit.by, this.hit.bz) : Block.air;
     this.targetHint = hintForTarget(targetId, this.heldId(hotbar), entityAimed);
 
+    if (this.feedbackTimer > 0) {
+      this.feedbackTimer -= dt;
+      if (this.feedbackTimer <= 0) this.feedback = null;
+    }
+
     input.takeClicks(this.clicks);
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
@@ -272,7 +290,11 @@ export class Interaction {
           if (this.tryFarm(world, hotbar)) continue;
           if (this.tryEat(player, hotbar)) continue;
           if (this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
-          if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
+          if (!this.hasTarget) {
+            this.setFeedback(FEEDBACK_TOO_FAR);
+            continue;
+          }
+          this.trySurvivalPlace(world, body, hotbar);
         }
       }
     } else {
@@ -284,7 +306,11 @@ export class Interaction {
         if (button === 0) {
           if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
           if (this.hasTarget) this.tryBreak(world);
-        } else if (button === 2 && this.hasTarget) {
+        } else if (button === 2) {
+          if (!this.hasTarget) {
+            this.setFeedback(FEEDBACK_TOO_FAR);
+            continue;
+          }
           if (this.tryActivateRift(world)) continue;
           if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
@@ -292,6 +318,12 @@ export class Interaction {
         }
       }
     }
+  }
+
+  /** Surface a click-failure message on the HUD for a moment. */
+  private setFeedback(text: string): void {
+    this.feedback = text;
+    this.feedbackTimer = 1.6;
   }
 
   /** Right-click a chest: hand off to the container hook. */
@@ -544,8 +576,14 @@ export class Interaction {
     const bx = this.hit.bx + this.hit.nx;
     const by = this.hit.by + this.hit.ny;
     const bz = this.hit.bz + this.hit.nz;
-    if (blockId <= 0) return;
-    if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) return;
+    if (blockId <= 0) {
+      this.setFeedback(FEEDBACK_EMPTY);
+      return;
+    }
+    if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) {
+      this.setFeedback(FEEDBACK_BLOCKED);
+      return;
+    }
     world.setBlock(bx, by, bz, blockId);
     this.onEdit?.('place', blockId);
     this.onBlockChanged?.('place', blockId, bx, by, bz);
@@ -555,7 +593,10 @@ export class Interaction {
   private trySurvivalPlace(world: World, body: Body, hotbar: HotbarState): void {
     const inventory = hotbar.inventory;
     const stack = inventory?.slots[hotbar.slot];
-    if (!inventory || !stack) return;
+    if (!inventory || !stack) {
+      this.setFeedback(FEEDBACK_EMPTY);
+      return;
+    }
     // Saplings aren't blocks: plant a tree on top of grass instead.
     if (stack.id === Item.sapling) {
       this.trySurvivalPlantSapling(world, hotbar);
@@ -565,7 +606,10 @@ export class Interaction {
     const bx = this.hit.bx + this.hit.nx;
     const by = this.hit.by + this.hit.ny;
     const bz = this.hit.bz + this.hit.nz;
-    if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) return;
+    if (!canPlaceAt(world.getBlock(bx, by, bz), bx, by, bz, body)) {
+      this.setFeedback(FEEDBACK_BLOCKED);
+      return;
+    }
     const blockId = stack.id;
     if (!inventory.consumeOne(hotbar.slot)) return;
     world.setBlock(bx, by, bz, blockId);

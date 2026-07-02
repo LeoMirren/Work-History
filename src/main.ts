@@ -682,7 +682,8 @@ async function boot(): Promise<void> {
         const pb = player.body;
         viewModel.update(frameDt, pb.onGround && Math.hypot(pb.vx, pb.vz) > 0.5, input.isButtonDown(0));
         interaction.update(input, session.world, player, frameDt, hotbarState);
-        hud.setTargetHint(interaction.targetHint);
+        // Click-failure feedback ('out of reach', …) outranks the aim hint.
+        hud.setTargetHint(interaction.feedback ?? interaction.targetHint);
         if (session.mode === 'survival') {
           player.armorReduction = armorReductionOf(armorSlot.slots[0]?.id ?? 0);
           hud.setHealth(player.hp);
