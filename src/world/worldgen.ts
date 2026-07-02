@@ -51,18 +51,18 @@ const HAMLET_D = 8; // hut rows plus the well row south of them
 /** Village grid: chunk space is partitioned into square regions this many chunks per side. */
 export const VILLAGE_REGION = 6;
 const VILLAGE_CHANCE_PCT = 45; // ~45% of regions host a village
-// Village centre composite: a lamp-lit approach row, the hut, and the well
-// east of it — hut(5) + gap(1) + well(3) columns by lamp(1) + gap(1) + hut(5)
-// rows, placed with the hamlet's slim margin so it stays inside the chunk.
-const VILLAGE_CENTRE_W = 9;
-const VILLAGE_CENTRE_D = 7;
 const LONGHOUSE_W = 8; // village hall footprint: 8 columns of plank walls...
 const LONGHOUSE_D = 5; // ...by 5 rows, cobble pillars on the corners
 const FARM_W = 6; // farm plot footprint: crop rows either side of the channel
 const FARM_D = 5;
 const LAMP_HEIGHT = 3; // cobblestone pillar height under a lamp post's lantern
 const WELL_SIZE = 3; // well rim footprint
-const VILLAGE_SITE_TRIES = 10; // flat-site candidates rolled per village piece
+// Houses tolerate this much ground drift under their footprint: the floor is
+// laid just above the highest column and lower columns are underpinned with
+// a cobblestone plinth. Building only ever adds blocks above each column's
+// surface, so terrain (and every column's surface block) stays intact.
+const BUILD_DRIFT = 2;
+const FARM_DRIFT = 1; // raised farm beds tolerate a single block of drift
 
 export const Biome = {
   plains: 0,
@@ -430,48 +430,40 @@ function createOverworld(seed: string): Generator {
         inVillage = true;
         const vhash = hash2(villageSeed, cx, cz);
         if (cx === vc.cx && cz === vc.cz) {
-          // Centre plaza: a lamp post lighting the approach, the hut two
-          // rows behind it, and the well east of the hut. Prefer one flat
-          // site for the whole composite (slim hamlet margin); when the
-          // terrain refuses, each piece hunts its own smaller flat spot so
-          // the village heart still materializes on rougher ground.
-          const plaza = findFlatSite(data, heights, vhash, VILLAGE_CENTRE_W, VILLAGE_CENTRE_D, 1);
-          if (plaza !== null) {
-            tryPlantLampPost(data, heights, plaza[0] + 2, plaza[1]);
-            tryPlantHut(data, heights, plaza[0], plaza[1] + 2);
-            tryPlantWell(data, heights, plaza[0] + 6, plaza[1] + 3);
-          } else {
-            const taken: Rect[] = [];
-            const hut = findFlatSite(data, heights, hash2(vhash, 1, 0), HUT_SIZE, HUT_SIZE, 2);
-            if (hut !== null) {
-              tryPlantHut(data, heights, hut[0], hut[1]);
-              taken.push([hut[0], hut[1], HUT_SIZE, HUT_SIZE]);
-            }
-            const well = findFlatSite(data, heights, hash2(vhash, 2, 0), WELL_SIZE, WELL_SIZE, 2, taken);
-            if (well !== null) {
-              tryPlantWell(data, heights, well[0], well[1]);
-              taken.push([well[0], well[1], WELL_SIZE, WELL_SIZE]);
-            }
-            const lamp = findFlatSite(data, heights, hash2(vhash, 3, 0), 1, 1, 2, taken);
-            if (lamp !== null) tryPlantLampPost(data, heights, lamp[0], lamp[1]);
+          // The village heart: a hut, the town well and a lamp post. Each
+          // piece hunts its own fit site (with a claim ring keeping them
+          // apart) so the trio conforms to whatever ground the chunk offers.
+          const taken: Rect[] = [];
+          const hut = findSite(data, heights, hash2(vhash, 1, 0), HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
+          if (hut !== null) {
+            tryPlantHut(data, heights, hut[0], hut[1]);
+            taken.push(claim(hut[0], hut[1], HUT_SIZE, HUT_SIZE));
           }
+          const well = findSite(data, heights, hash2(vhash, 2, 0), WELL_SIZE, WELL_SIZE, 0, taken);
+          if (well !== null) {
+            tryPlantWell(data, heights, well[0], well[1]);
+            taken.push(claim(well[0], well[1], WELL_SIZE, WELL_SIZE));
+          }
+          const lamp = findSite(data, heights, hash2(vhash, 3, 0), 1, 1, 0, taken);
+          if (lamp !== null) tryPlantLampPost(data, heights, lamp[0], lamp[1]);
         } else {
           // Ring chunks roll their building from the village stream:
           // hut 3 / long house 2 / farm 2 / lamp-post pair 1 / green 1.
           const roll = vhash % 9;
           if (roll < 3) {
-            const site = findFlatSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, 2);
+            const site = findSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
             if (site !== null) tryPlantHut(data, heights, site[0], site[1]);
           } else if (roll < 5) {
-            const site = findFlatSite(data, heights, vhash, LONGHOUSE_W, LONGHOUSE_D, 2);
+            const site = findSite(data, heights, vhash, LONGHOUSE_W, LONGHOUSE_D, BUILD_DRIFT);
             if (site !== null) tryPlantLongHouse(data, heights, site[0], site[1]);
           } else if (roll < 7) {
-            const site = findFlatSite(data, heights, vhash, FARM_W, FARM_D, 2);
+            const site = findSite(data, heights, vhash, FARM_W, FARM_D, FARM_DRIFT);
             if (site !== null) tryPlantFarm(data, heights, site[0], site[1]);
           } else if (roll < 8) {
-            const a = findFlatSite(data, heights, hash2(vhash, 1, 0), 1, 1, 2);
+            // A pair of lamp posts along the lane, kept a few cells apart.
+            const a = findSite(data, heights, hash2(vhash, 1, 0), 1, 1, 0);
             if (a !== null) tryPlantLampPost(data, heights, a[0], a[1]);
-            const b = findFlatSite(data, heights, hash2(vhash, 2, 0), 1, 1, 2, a ? [[a[0], a[1], 1, 1]] : []);
+            const b = findSite(data, heights, hash2(vhash, 2, 0), 1, 1, 0, a !== null ? [claim(a[0], a[1], 1, 1, 3)] : []);
             if (b !== null) tryPlantLampPost(data, heights, b[0], b[1]);
           }
           // roll 8: the village green — this member chunk stays open.
@@ -479,13 +471,14 @@ function createOverworld(seed: string): Generator {
       }
     }
 
-    // Outpost huts: rare lone cabins on flat wilderness grassland (plains/
+    // Outpost huts: rare lone cabins on wilderness grassland (plains/
     // savanna) — village member chunks skip this roll so settlements stay
     // planned. One candidate per chunk, kept inside the interior so it never
-    // crosses a border, and only built where the 5x5 footprint is perfectly
-    // level. When the hash also passes a 1-in-3 bit test the chunk attempts
-    // a hamlet (two huts and a well) instead; if the wider span cannot fit
-    // inside the interior it falls back to the single hut.
+    // crosses a border, and only built where the 5x5 footprint is fit ground
+    // (grass within the hut's drift allowance). When the hash also passes a
+    // 1-in-3 bit test the chunk attempts a hamlet (two huts and a well)
+    // instead; if the wider span cannot fit inside the interior it falls
+    // back to the single hut.
     const hhash = hash2(hutSeed, cx, cz);
     if (!inVillage && hhash % HUT_CHANCE === 0) {
       let planted = false;
@@ -600,24 +593,19 @@ function plantGeode(data: Uint8Array, gx: number, gy: number, gz: number): void 
 }
 
 /**
- * Build a small outpost hut on a flat 5x5 grass footprint at local (x0, z0).
- * Bails (leaving terrain untouched) unless every column under the footprint is
- * grass at the same height, so the cabin never floats or buries into a slope.
- * Cobblestone walls with a plank floor/roof, a door gap, a glass window, and a
- * lantern inside for light; an empty chest waits in the corner.
+ * Build a small outpost hut over the 5x5 grass footprint at local (x0, z0).
+ * The ground may drift up to BUILD_DRIFT blocks: the plank floor is laid one
+ * above the highest column and lower columns are underpinned with a
+ * cobblestone plinth, only ever adding blocks above the surface. Bails
+ * (leaving terrain untouched) unless every column is grass within that
+ * drift, so the cabin never hangs over or buries into a real slope.
+ * Cobblestone walls with a plank floor/roof, a door gap, a glass window, and
+ * a lantern inside for light; an empty chest waits in the corner.
  */
 export function tryPlantHut(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
-  const baseY = heights[z0 * CHUNK_SIZE + x0] ?? 0;
-  if (baseY < SEA_LEVEL + 2 || baseY + 6 >= CHUNK_HEIGHT) return;
-  // Flatness + grass check across the whole footprint.
-  for (let dz = 0; dz < HUT_SIZE; dz++) {
-    for (let dx = 0; dx < HUT_SIZE; dx++) {
-      const x = x0 + dx;
-      const z = z0 + dz;
-      if ((heights[z * CHUNK_SIZE + x] ?? -1) !== baseY) return;
-      if (data[blockIndex(x, baseY, z)] !== Block.grass) return;
-    }
-  }
+  const baseY = fitFootprint(data, heights, x0, z0, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, HUT_SIZE, HUT_SIZE, baseY, Block.cobblestone);
 
   const floorY = baseY + 1;
   const wallTop = floorY + 3; // three-tall walls
@@ -822,47 +810,101 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
   return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 }
 
+/** A footprint inflated by `pad` cells, for keeping later pieces off it. */
+function claim(x0: number, z0: number, w: number, d: number, pad = 1): Rect {
+  return [x0 - pad, z0 - pad, w + 2 * pad, d + 2 * pad];
+}
+
 /**
- * Hunt a flat-grass site for a w x d footprint: up to VILLAGE_SITE_TRIES
- * candidate origins are rolled from `hash` — each with the standard
- * margin/span interior pattern, from a fresh hash stream per attempt — and
- * the first whose columns are all grass at one height above the build line
- * (and clear of every rect in `avoid`) wins. Returns null when no candidate
- * fits; the planters' own checks still guard the final placement. Pure, so
- * village pieces stay deterministic while adapting to rough terrain far
- * better than a single blind pick would.
+ * Validate the w x d footprint at (x0, z0): every column must be grass above
+ * the build line with surface heights drifting at most `maxDrift`, and the
+ * chunk roof must clear the build. Returns the highest surface y — the build
+ * platform sits one above it — or null on unfit ground. This is the shared
+ * bail check of every village planter (huts and long houses underpin the
+ * drift with a plinth; wells and lamp posts pass 0 so they stay flush).
  */
-function findFlatSite(
+function fitFootprint(
+  data: Uint8Array,
+  heights: Int32Array,
+  x0: number,
+  z0: number,
+  w: number,
+  d: number,
+  maxDrift: number,
+): number | null {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let dz = 0; dz < d; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      const h = heights[z * CHUNK_SIZE + x] ?? -1;
+      if (h < SEA_LEVEL + 2 || data[blockIndex(x, h, z)] !== Block.grass) return null;
+      minY = Math.min(minY, h);
+      maxY = Math.max(maxY, h);
+      if (maxY - minY > maxDrift) return null;
+    }
+  }
+  if (maxY + 7 >= CHUNK_HEIGHT) return null;
+  return maxY;
+}
+
+/**
+ * Fill the plinth under a build platform: every footprint column gains
+ * `block` from just above its own surface up to platform height `padY`.
+ * Columns already at the platform gain nothing; nothing at or below any
+ * surface is ever touched, so the terrain itself stays intact.
+ */
+function underpin(
+  data: Uint8Array,
+  heights: Int32Array,
+  x0: number,
+  z0: number,
+  w: number,
+  d: number,
+  padY: number,
+  block: number,
+): void {
+  for (let dz = 0; dz < d; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      const h = heights[z * CHUNK_SIZE + x] ?? padY;
+      for (let y = h + 1; y <= padY; y++) data[blockIndex(x, y, z)] = block;
+    }
+  }
+}
+
+/**
+ * Hunt a buildable site for a w x d footprint inside the chunk interior
+ * (margin 1, the hamlet's slim margin): every interior origin is probed in
+ * hash-rotated order and the first that passes fitFootprint with `maxDrift`
+ * — and clears every rect in `avoid` — wins. Exhaustive rather than sampled,
+ * so a village piece materializes whenever its chunk has any fit ground at
+ * all; the hash only rotates the scan start so different chunks favour
+ * different corners. Pure and deterministic. Returns null when nothing fits.
+ */
+function findSite(
   data: Uint8Array,
   heights: Int32Array,
   hash: number,
   w: number,
   d: number,
-  margin: number,
+  maxDrift: number,
   avoid: readonly Rect[] = [],
 ): [number, number] | null {
+  const margin = 1;
   const spanX = CHUNK_SIZE - w - 2 * margin;
   const spanZ = CHUNK_SIZE - d - 2 * margin;
   if (spanX < 1 || spanZ < 1) return null;
-  for (let t = 0; t < VILLAGE_SITE_TRIES; t++) {
-    const h = hash2(hash, t + 1, w * CHUNK_SIZE + d);
-    const x0 = margin + ((h >>> 4) % spanX);
-    const z0 = margin + ((h >>> 12) % spanZ);
+  const total = spanX * spanZ;
+  const start = hash % total;
+  for (let t = 0; t < total; t++) {
+    const idx = (start + t) % total;
+    const x0 = margin + (idx % spanX);
+    const z0 = margin + Math.floor(idx / spanX);
     if (avoid.some((r) => rectsOverlap([x0, z0, w, d], r))) continue;
-    const base = heights[z0 * CHUNK_SIZE + x0] ?? -1;
-    if (base < SEA_LEVEL + 2 || base + 7 >= CHUNK_HEIGHT) continue;
-    let fits = true;
-    for (let dz = 0; dz < d && fits; dz++) {
-      for (let dx = 0; dx < w; dx++) {
-        const x = x0 + dx;
-        const z = z0 + dz;
-        if ((heights[z * CHUNK_SIZE + x] ?? -1) !== base || data[blockIndex(x, base, z)] !== Block.grass) {
-          fits = false;
-          break;
-        }
-      }
-    }
-    if (fits) return [x0, z0];
+    if (fitFootprint(data, heights, x0, z0, w, d, maxDrift) !== null) return [x0, z0];
   }
   return null;
 }
@@ -918,24 +960,18 @@ export function tryPlantHamlet(
 }
 
 /**
- * Build a village long house on a flat 8x5 grass footprint at local (x0, z0):
+ * Build a village long house over the 8x5 grass footprint at local (x0, z0):
  * a plank-walled hall with cobblestone corner pillars, a plank floor and
  * roof, a 2-tall door gap centred on the front (-z) wall, two glass windows
  * on the back wall, a lantern hung at the hall centre and a chest by the
- * door-side corner. Bails (leaving terrain untouched) unless every column
- * under the footprint is grass at the same height, mirroring the hut rules.
+ * door-side corner. Ground rules mirror the hut: grass columns drifting at
+ * most BUILD_DRIFT blocks, the low side underpinned with a cobblestone
+ * plinth; anything less fit bails, leaving the terrain untouched.
  */
 export function tryPlantLongHouse(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
-  const baseY = heights[z0 * CHUNK_SIZE + x0] ?? 0;
-  if (baseY < SEA_LEVEL + 2 || baseY + 6 >= CHUNK_HEIGHT) return;
-  for (let dz = 0; dz < LONGHOUSE_D; dz++) {
-    for (let dx = 0; dx < LONGHOUSE_W; dx++) {
-      const x = x0 + dx;
-      const z = z0 + dz;
-      if ((heights[z * CHUNK_SIZE + x] ?? -1) !== baseY) return;
-      if (data[blockIndex(x, baseY, z)] !== Block.grass) return;
-    }
-  }
+  const baseY = fitFootprint(data, heights, x0, z0, LONGHOUSE_W, LONGHOUSE_D, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, LONGHOUSE_W, LONGHOUSE_D, baseY, Block.cobblestone);
 
   const floorY = baseY + 1;
   const wallTop = floorY + 3; // three-tall walls, like the hut
@@ -967,32 +1003,34 @@ export function tryPlantLongHouse(data: Uint8Array, heights: Int32Array, x0: num
 }
 
 /**
- * Till a village farm plot over a flat 6x5 grass footprint at local
- * (x0, z0): the middle row is dug one deep and filled as a water channel,
- * and the rows either side turn to farmland carrying alternating
- * cropGrowing/cropRipe plants. Bails (leaving terrain untouched) unless the
- * whole footprint is grass at one height, mirroring the other planters.
+ * Till a village farm plot over the 6x5 grass footprint at local (x0, z0):
+ * a raised bed one block above the highest column (dirt fills any FARM_DRIFT
+ * step underneath), with farmland rows carrying alternating cropGrowing/
+ * cropRipe plants either side of a 1-wide water channel down the middle. The
+ * channel sits recessed a block below the crops — its water level with the
+ * farmland, capped by cobblestone at both ends so it never spills. The bed
+ * rides on top of the ground rather than digging in, so every column's own
+ * surface block survives (the same "only add above the surface" rule the
+ * house plinths follow). Bails (leaving terrain untouched) unless the whole
+ * footprint is grass within the drift, mirroring the other planters.
  */
 export function tryPlantFarm(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
-  const baseY = heights[z0 * CHUNK_SIZE + x0] ?? 0;
-  if (baseY < SEA_LEVEL + 2 || baseY + 2 >= CHUNK_HEIGHT) return;
-  for (let dz = 0; dz < FARM_D; dz++) {
-    for (let dx = 0; dx < FARM_W; dx++) {
-      if ((heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? -1) !== baseY) return;
-      if (data[blockIndex(x0 + dx, baseY, z0 + dz)] !== Block.grass) return;
-    }
-  }
+  const baseY = fitFootprint(data, heights, x0, z0, FARM_W, FARM_D, FARM_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, FARM_W, FARM_D, baseY, Block.dirt);
 
+  const padY = baseY + 1; // the bed plane: farmland and the channel water
   const channel = FARM_D >> 1; // the middle row waters both sides
   for (let dz = 0; dz < FARM_D; dz++) {
     for (let dx = 0; dx < FARM_W; dx++) {
       const x = x0 + dx;
       const z = z0 + dz;
       if (dz === channel) {
-        data[blockIndex(x, baseY, z)] = Block.water; // dig one, fill water
+        const cap = dx === 0 || dx === FARM_W - 1;
+        data[blockIndex(x, padY, z)] = cap ? Block.cobblestone : Block.water;
       } else {
-        data[blockIndex(x, baseY, z)] = Block.farmland;
-        data[blockIndex(x, baseY + 1, z)] = (dx + dz) % 2 === 0 ? Block.cropGrowing : Block.cropRipe;
+        data[blockIndex(x, padY, z)] = Block.farmland;
+        data[blockIndex(x, padY + 1, z)] = (dx + dz) % 2 === 0 ? Block.cropGrowing : Block.cropRipe;
       }
     }
   }

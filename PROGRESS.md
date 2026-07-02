@@ -308,3 +308,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 
 - [x] worldShapeOf(seed): every seed rolls its own terrain personality — landmass breadth (continent scale 400-640), mountain drama (34-64), hill roll (10-18), tree richness (×0.7-1.5) and a climate lean (temperature/moisture bias) — deterministic, range-tested, and fed through heightAt/biomeAt/tree placement
 - [x] Worlds stay byte-deterministic per seed while different seeds now diverge structurally, not just positionally; 342 tests green
+
+## Post-spec: Graphics & villages round
+
+- [x] Real region-seeded villages: ~45% of 6x6-chunk regions host a 3x3-chunk village — well/hut/lamp centre, ring chunks roll huts, plank long houses (lantern + chest), farm plots (farmland rows, water channel, growing crops) and lamp-post pairs; buildings ride uneven ground on cobblestone plinths (the old flat-site requirement was why settlements never appeared); villageCenterFor exported for future NPCs
+- [x] Terrain color grading in the mesher: warm-lit tops vs cool sides, deeper crevice AO, per-column organic hue jitter (meadow patchiness, water variation, faint mineral speckle) — baked at mesh time, deterministic
+- [x] Ambient motes: flickering fireflies at night, drifting pollen by day, rising embers in the underworld (one additive draw call)
+- [x] Horizon-blended distance fog (terrain fades into the live sky colour), soft screen vignette + light canvas grade
+- [x] Per-seed spawn points: each world lands you somewhere new on dry land (deterministic per seed)
+- [x] Round verified: 376 tests, strict tsc, clean build
