@@ -1,3 +1,24 @@
+/* ============================================================
+   Voxelheim UI — dark glass panels, warm amber accent,
+   chunky pixel-game HUD. Hand-written, no external assets.
+   ============================================================ */
+
+:root {
+  --ink: #e9eefb;
+  --ink-dim: rgba(233, 238, 251, 0.62);
+  --ink-faint: rgba(233, 238, 251, 0.38);
+  --amber: #ffb84d;
+  --amber-bright: #ffd98f;
+  --amber-deep: #ff9a2e;
+  --amber-glow: rgba(255, 184, 77, 0.45);
+  --amber-line: rgba(255, 184, 77, 0.32);
+  --amber-line-soft: rgba(255, 184, 77, 0.2);
+  --steel-line: rgba(126, 152, 210, 0.4);
+  --glass-hi: rgba(17, 22, 42, 0.8);
+  --glass-lo: rgba(7, 9, 19, 0.88);
+  --well: rgba(3, 5, 11, 0.55);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,8 +30,14 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background: #05070f;
+  color: var(--ink);
   font-family: ui-monospace, 'Cascadia Mono', 'Menlo', monospace;
+}
+
+::selection {
+  background: rgba(255, 184, 77, 0.35);
+  color: #fff;
 }
 
 #game-canvas {
@@ -19,26 +46,24 @@ body {
   height: 100vh;
 }
 
-#debug-overlay {
-  position: fixed;
-  top: 8px;
-  left: 8px;
-  color: #e8f0ff;
-  background: rgba(10, 14, 31, 0.6);
-  padding: 6px 9px;
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: pre;
-  pointer-events: none;
-  z-index: 30;
+/* Keyboard focus ring — text inputs get their own treatment below. */
+button:focus-visible,
+input[type='checkbox']:focus-visible,
+input[type='range']:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
 }
+
+/* ------------------------------------------------------------
+   Crosshair — crisp 2px cross, dark rim, world-adaptive blend.
+   ------------------------------------------------------------ */
 
 #crosshair {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   mix-blend-mode: difference;
@@ -49,7 +74,10 @@ body {
 #crosshair::after {
   content: '';
   position: absolute;
-  background: #e8e8e8;
+  background: #f2f4f8;
+  box-shadow:
+    0 0 0 1px rgba(12, 13, 20, 0.9),
+    0 0 5px rgba(0, 0, 0, 0.35);
 }
 
 #crosshair::before {
@@ -68,77 +96,24 @@ body {
   transform: translateY(-50%);
 }
 
-#hotbar {
-  position: fixed;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: rgba(10, 14, 31, 0.55);
-  border: 2px solid rgba(232, 240, 255, 0.35);
-  border-radius: 4px;
-  pointer-events: none;
-  z-index: 20;
-}
-
-.hotbar-slot {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid rgba(232, 240, 255, 0.25);
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.hotbar-slot.selected {
-  border-color: #ffffff;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.hotbar-slot canvas {
-  image-rendering: pixelated;
-}
-
-#hearts {
-  position: fixed;
-  bottom: 76px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 2px;
-  pointer-events: none;
-  z-index: 20;
-  font-size: 18px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-.heart {
-  color: #e23b3b;
-}
-
-.heart.half {
-  color: #e23b3b;
-  opacity: 0.55;
-}
-
-.heart.empty {
-  color: rgba(255, 255, 255, 0.25);
-}
+/* ------------------------------------------------------------
+   Break progress — slim amber bar just under the crosshair.
+   ------------------------------------------------------------ */
 
 #break-bar {
   position: fixed;
   top: 54%;
   left: 50%;
   transform: translateX(-50%);
-  width: 64px;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 3px;
+  width: 76px;
+  height: 5px;
+  background: rgba(5, 7, 14, 0.72);
+  border: 1px solid var(--amber-line);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
   pointer-events: none;
   z-index: 20;
 }
@@ -146,19 +121,340 @@ body {
 #break-fill {
   height: 100%;
   width: 0;
-  background: #e8f0ff;
-  border-radius: 2px;
+  background: linear-gradient(90deg, var(--amber-bright), var(--amber) 60%, var(--amber-deep));
+  border-radius: 999px;
+  box-shadow: 0 0 8px var(--amber-glow);
+  transition: width 70ms linear;
 }
 
-.menu-row.checkbox-row label {
-  flex: 1;
-  cursor: pointer;
+/* ------------------------------------------------------------
+   Target + hotbar hints — small glass pills, amber text.
+   ------------------------------------------------------------ */
+
+#hotbar-hint,
+#target-hint {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  color: var(--amber-bright);
+  background: linear-gradient(180deg, var(--glass-hi), var(--glass-lo));
+  border: 1px solid var(--amber-line);
+  border-radius: 999px;
+  font-size: 12.5px;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 20;
 }
 
-.menu-row.checkbox-row input {
-  width: 18px;
-  height: 18px;
+#hotbar-hint {
+  bottom: 124px;
 }
+
+#target-hint {
+  top: 58%;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+#hotbar-hint.show,
+#target-hint.show {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------
+   Hotbar — dark glass tray, 52px slots, amber selection.
+   ------------------------------------------------------------ */
+
+#hotbar {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 6px;
+  background: linear-gradient(180deg, rgba(16, 21, 40, 0.72), rgba(7, 9, 19, 0.86));
+  border: 1px solid rgba(255, 184, 77, 0.22);
+  border-radius: 10px;
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hotbar-slot {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(233, 238, 251, 0.13);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(3, 5, 11, 0.6), rgba(12, 15, 30, 0.42));
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.045);
+  transition:
+    border-color 90ms linear,
+    box-shadow 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.hotbar-slot.selected {
+  border-color: var(--amber);
+  background: linear-gradient(180deg, rgba(66, 45, 15, 0.5), rgba(30, 20, 8, 0.55));
+  box-shadow:
+    0 0 14px var(--amber-glow),
+    0 0 3px rgba(255, 216, 143, 0.8),
+    inset 0 1px 0 rgba(255, 224, 160, 0.25),
+    inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  transform: translateY(-4px);
+}
+
+.hotbar-slot canvas {
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+}
+
+.slot-num {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-faint);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  user-select: none;
+}
+
+.hotbar-slot.selected .slot-num {
+  color: var(--amber-bright);
+}
+
+/* Stack-count badge (hotbar + inventory + chest). */
+.inv-count {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 14px;
+  padding: 1px 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  color: #fff;
+  background: rgba(5, 7, 14, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  text-shadow: 0 1px 0 #000;
+  pointer-events: none;
+}
+
+.inv-count:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------
+   Hearts & hunger — chunky pips with a pixel outline; hearts
+   sit left of centre, hunger right, just above the hotbar.
+   ------------------------------------------------------------ */
+
+#hearts,
+#hunger {
+  position: fixed;
+  bottom: 92px;
+  left: 50%;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#hearts {
+  transform: translateX(calc(-100% - 12px));
+}
+
+#hunger {
+  transform: translateX(12px);
+}
+
+.heart,
+.drumstick {
+  position: relative;
+  display: inline-block;
+  font-weight: 700;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.heart {
+  font-size: 21px;
+  color: #ff4a55;
+  text-shadow:
+    1px 0 0 #3a060d,
+    -1px 0 0 #3a060d,
+    0 1px 0 #3a060d,
+    0 -1px 0 #3a060d,
+    1px 1px 0 #3a060d,
+    -1px -1px 0 #3a060d,
+    1px -1px 0 #3a060d,
+    -1px 1px 0 #3a060d,
+    0 3px 4px rgba(0, 0, 0, 0.55);
+}
+
+/* Half pip: the right half of the glyph is repainted as a socket. */
+.heart.half::after {
+  content: '♥';
+  position: absolute;
+  inset: 0;
+  color: rgba(46, 16, 24, 0.94);
+  clip-path: inset(0 0 0 50%);
+  text-shadow: none;
+}
+
+.heart.empty {
+  color: rgba(38, 22, 30, 0.92);
+  text-shadow:
+    1px 0 0 rgba(0, 0, 0, 0.55),
+    -1px 0 0 rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 2px 3px rgba(0, 0, 0, 0.4);
+}
+
+.drumstick {
+  font-size: 19px;
+  color: #f09c3e;
+  text-shadow:
+    1px 0 0 #3a2306,
+    -1px 0 0 #3a2306,
+    0 1px 0 #3a2306,
+    0 -1px 0 #3a2306,
+    1px 1px 0 #3a2306,
+    -1px -1px 0 #3a2306,
+    1px -1px 0 #3a2306,
+    -1px 1px 0 #3a2306,
+    0 3px 4px rgba(0, 0, 0, 0.55);
+}
+
+.drumstick.half::after {
+  content: '◆';
+  position: absolute;
+  inset: 0;
+  color: rgba(43, 30, 14, 0.94);
+  clip-path: inset(0 0 0 50%);
+  text-shadow: none;
+}
+
+.drumstick.empty {
+  color: rgba(36, 28, 20, 0.92);
+  text-shadow:
+    1px 0 0 rgba(0, 0, 0, 0.55),
+    -1px 0 0 rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 2px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ------------------------------------------------------------
+   Debug overlay + info panel — the same glass language.
+   ------------------------------------------------------------ */
+
+#debug-overlay {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(13, 17, 33, 0.78), rgba(7, 9, 19, 0.84));
+  border: 1px solid rgba(126, 152, 210, 0.22);
+  border-left: 2px solid var(--amber-line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  z-index: 30;
+}
+
+#info-panel {
+  position: fixed;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 248px;
+  background: linear-gradient(180deg, rgba(13, 17, 33, 0.78), rgba(7, 9, 19, 0.84));
+  border: 1px solid var(--amber-line-soft);
+  border-radius: 10px;
+  color: var(--ink);
+  padding: 12px 14px;
+  font-size: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  pointer-events: none;
+  z-index: 25;
+}
+
+#info-panel h2 {
+  font-size: 11px;
+  letter-spacing: 2px;
+  margin: 0 0 5px;
+  color: var(--amber);
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+#info-panel .panel-section + .panel-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(233, 238, 251, 0.09);
+}
+
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  line-height: 1.7;
+}
+
+.panel-label {
+  color: var(--ink-dim);
+}
+
+.panel-label.key {
+  font-weight: 700;
+  color: var(--amber-bright);
+}
+
+.panel-value {
+  text-align: right;
+}
+
+/* ------------------------------------------------------------
+   Menu screens — slow-drifting multi-stop gradient backdrop.
+   ------------------------------------------------------------ */
 
 .menu-screen {
   position: fixed;
@@ -166,80 +462,184 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 9, 20, 0.82);
+  background:
+    radial-gradient(90% 70% at 50% 115%, rgba(255, 154, 46, 0.09), transparent 60%),
+    linear-gradient(
+      215deg,
+      rgba(9, 12, 26, 0.93) 0%,
+      rgba(24, 19, 44, 0.88) 26%,
+      rgba(11, 22, 45, 0.9) 52%,
+      rgba(30, 17, 36, 0.88) 76%,
+      rgba(7, 10, 22, 0.94) 100%
+    );
+  background-size:
+    100% 100%,
+    260% 260%;
+  animation: menu-drift 28s ease-in-out infinite alternate;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   z-index: 40;
+}
+
+@keyframes menu-drift {
+  0% {
+    background-position:
+      0 0,
+      0% 0%;
+  }
+  100% {
+    background-position:
+      0 0,
+      100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-screen {
+    animation: none;
+  }
 }
 
 .menu-screen.hidden {
   display: none;
 }
 
+/* ------------------------------------------------------------
+   Panels — deep navy glass, amber-tinted 1px border.
+   ------------------------------------------------------------ */
+
 .menu-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 360px;
-  max-width: 440px;
-  padding: 28px 32px;
-  background: #11182f;
-  border: 2px solid #3a4a7a;
-  border-radius: 8px;
-  color: #e8f0ff;
+  max-width: 460px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 30px 34px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(18, 24, 47, 0.92), rgba(9, 12, 24, 0.95));
+  border: 1px solid var(--amber-line);
+  border-radius: 14px;
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .menu-panel h1 {
-  font-size: 30px;
+  font-size: 34px;
   text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  text-indent: 6px;
+  color: #f7ecd4;
+  text-shadow:
+    0 1px 0 #1a1206,
+    0 2px 0 rgba(0, 0, 0, 0.55),
+    0 3px 0 rgba(0, 0, 0, 0.35),
+    0 6px 18px rgba(255, 184, 77, 0.28);
+}
+
+.menu-panel h2 {
+  font-size: 12px;
   letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 4px 0 2px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
 }
 
 .menu-panel .tagline {
   text-align: center;
-  opacity: 0.7;
+  color: var(--ink-dim);
   font-size: 13px;
-  margin-top: -8px;
+  letter-spacing: 1px;
+  margin-top: -6px;
 }
 
 .menu-panel .controls-hint {
   font-size: 11px;
-  opacity: 0.55;
+  color: var(--ink-faint);
   text-align: center;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
+/* Buttons — glassy navy, amber CTA, lift on hover. */
 .menu-panel button {
-  padding: 10px;
+  padding: 11px 12px;
   font: inherit;
-  font-size: 15px;
-  color: #e8f0ff;
-  background: #1d2a4f;
-  border: 1px solid #3a4a7a;
-  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--ink);
+  background: linear-gradient(180deg, #253157, #171f3c);
+  border: 1px solid var(--steel-line);
+  border-radius: 7px;
   cursor: pointer;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition:
+    background 100ms linear,
+    border-color 100ms linear,
+    transform 100ms ease-out,
+    box-shadow 100ms ease-out;
 }
 
-.menu-panel button:hover {
-  background: #2a3a68;
+.menu-panel button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2f3d6b, #1d2749);
+  border-color: rgba(255, 184, 77, 0.55);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(255, 184, 77, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.menu-panel button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.menu-panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .menu-panel button.primary {
-  background: #2c5e2e;
-  border-color: #4a8a4c;
+  color: #241503;
+  background: linear-gradient(180deg, #ffcf7a, #f0a43a);
+  border-color: #ffdf9e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.menu-panel button.primary:hover {
-  background: #3a7a3c;
+.menu-panel button.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffdd9a, #f8b04a);
+  border-color: #fff0c8;
+  box-shadow:
+    0 4px 14px rgba(255, 170, 60, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .menu-panel button.danger {
-  background: #5e2c2c;
-  border-color: #8a4a4a;
+  color: #ffd9d9;
+  background: linear-gradient(180deg, #5c2733, #3c1822);
+  border-color: rgba(226, 107, 107, 0.5);
 }
 
-.menu-panel button.danger:hover {
-  background: #7a3a3a;
+.menu-panel button.danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6e2f3e, #4a1e2a);
+  border-color: #e26b6b;
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(226, 107, 107, 0.15);
 }
 
+/* Rows: labels, text inputs, sliders, checkboxes. */
 .menu-row {
   display: flex;
   align-items: center;
@@ -249,45 +649,71 @@ body {
 .menu-row label {
   flex: 0 0 130px;
   font-size: 13px;
+  color: var(--ink-dim);
 }
 
 .menu-row input[type='text'] {
   flex: 1;
-  padding: 8px;
+  padding: 9px 10px;
   font: inherit;
-  color: #e8f0ff;
-  background: #0a0e1f;
-  border: 1px solid #3a4a7a;
-  border-radius: 4px;
+  font-size: 14px;
+  color: var(--ink);
+  background: rgba(4, 6, 14, 0.72);
+  border: 1px solid rgba(126, 152, 210, 0.35);
+  border-radius: 7px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color 100ms linear,
+    box-shadow 100ms linear;
+}
+
+.menu-row input[type='text']:hover {
+  border-color: rgba(126, 152, 210, 0.55);
+}
+
+.menu-row input[type='text']:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(255, 184, 77, 0.18);
 }
 
 .menu-row input[type='range'] {
   flex: 1;
+  height: 18px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.menu-row.checkbox-row label {
+  flex: 1;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.menu-row.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--amber);
+  cursor: pointer;
 }
 
 .slider-value {
   flex: 0 0 44px;
   text-align: right;
   font-size: 13px;
+  font-weight: 600;
+  color: var(--amber-bright);
 }
 
-.inv-count {
-  position: absolute;
-  right: 3px;
-  bottom: 1px;
-  font-size: 12px;
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
-  pointer-events: none;
-}
-
-.hotbar-slot {
-  position: relative;
-}
+/* ------------------------------------------------------------
+   Inventory / chest — slot wells matching the hotbar.
+   ------------------------------------------------------------ */
 
 .inventory-panel {
   min-width: 660px;
-  max-width: 760px;
+  max-width: 780px;
 }
 
 .inventory-columns {
@@ -302,6 +728,13 @@ body {
   gap: 4px;
 }
 
+.chest-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 44px);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
 .inv-slot {
   position: relative;
   width: 44px;
@@ -309,32 +742,74 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid rgba(232, 240, 255, 0.25);
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(233, 238, 251, 0.14);
+  border-radius: 6px;
+  background: var(--well);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
+  transition:
+    border-color 90ms linear,
+    box-shadow 120ms ease-out;
+}
+
+.inv-slot:hover {
+  border-color: rgba(255, 184, 77, 0.55);
+  box-shadow:
+    0 0 8px rgba(255, 184, 77, 0.18),
+    inset 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
 .inv-slot.hotbar-region {
-  border-color: rgba(232, 240, 255, 0.5);
+  border-color: rgba(126, 152, 210, 0.5);
   margin-top: 8px;
 }
 
 .inv-slot.selected {
-  border-color: #ffd75e;
-  background: rgba(255, 215, 94, 0.18);
+  border-color: var(--amber);
+  background: rgba(66, 45, 15, 0.45);
+  box-shadow:
+    0 0 10px rgba(255, 184, 77, 0.35),
+    inset 0 2px 5px rgba(0, 0, 0, 0.35);
 }
 
 .inv-slot canvas {
   image-rendering: pixelated;
 }
 
+.armor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.armor-row span {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.armor-slot {
+  border-color: rgba(126, 152, 210, 0.6);
+}
+
+.held-label {
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--amber-bright);
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Crafting list. */
 #recipe-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-height: 260px;
   overflow-y: auto;
+  padding-right: 4px;
   flex: 1;
 }
 
@@ -342,12 +817,17 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: rgba(233, 238, 251, 0.04);
+  border: 1px solid rgba(233, 238, 251, 0.06);
 }
 
 .recipe-row canvas {
   image-rendering: pixelated;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 2px;
+  background: var(--well);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .recipe-label {
@@ -355,124 +835,93 @@ body {
   font-size: 13px;
 }
 
-.recipe-row button {
-  padding: 6px 10px;
-  font-size: 13px;
-}
-
-.recipe-row button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-#info-panel {
-  position: fixed;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  width: 240px;
-  background: rgba(10, 14, 31, 0.72);
-  border: 2px solid rgba(58, 74, 122, 0.8);
-  border-radius: 6px;
-  color: #e8f0ff;
-  padding: 10px 12px;
-  z-index: 25;
-  pointer-events: none;
-  font-size: 12px;
-}
-
-#info-panel h2 {
-  font-size: 13px;
-  letter-spacing: 1px;
-  margin: 6px 0 4px;
-  color: #9db4e8;
-  text-transform: uppercase;
-}
-
-.panel-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  line-height: 1.7;
-}
-
-.panel-label {
-  opacity: 0.65;
-}
-
-.panel-label.key {
-  font-weight: bold;
-  opacity: 0.9;
-}
-
-.panel-value {
-  text-align: right;
+.menu-panel .recipe-row button {
+  padding: 6px 12px;
+  font-size: 12.5px;
 }
 
 .smelt-hint {
   font-size: 11px;
-  color: #ffd75e;
-  opacity: 0.85;
-  margin-bottom: 4px;
+  color: var(--amber);
+  letter-spacing: 0.4px;
+  margin: 2px 0 4px;
 }
+
+/* ------------------------------------------------------------
+   Guide screen.
+   ------------------------------------------------------------ */
 
 .guide-panel {
   min-width: 640px;
-  max-width: 720px;
+  max-width: 740px;
 }
 
 .guide-tabs {
   display: flex;
-  gap: 4px;
+  gap: 5px;
 }
 
-.guide-tabs button {
+.menu-panel .guide-tabs button {
   flex: 1;
-  padding: 7px;
-  font-size: 13px;
+  padding: 8px;
+  font-size: 12.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .guide-tabs button.active {
-  background: #2c5e2e;
-  border-color: #4a8a4c;
+  color: #241503;
+  background: linear-gradient(180deg, #ffcf7a, #f0a43a);
+  border-color: #ffdf9e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.guide-tabs button.active:hover {
+  background: linear-gradient(180deg, #ffdd9a, #f8b04a);
+  border-color: #fff0c8;
 }
 
 .guide-body {
-  max-height: 50vh;
+  max-height: 52vh;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
 }
 
 .guide-page h2 {
-  font-size: 13px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #9db4e8;
-  margin: 10px 0 4px;
+  letter-spacing: 2px;
+  color: var(--amber);
+  margin: 12px 0 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 184, 77, 0.14);
 }
 
 .guide-howto {
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
   margin-bottom: 8px;
+  color: rgba(233, 238, 251, 0.82);
 }
 
 .guide-howto strong {
-  color: #ffd75e;
+  color: var(--amber-bright);
+  font-weight: 700;
 }
 
 .guide-recipe {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 4px 0;
+  margin: 5px 0;
   font-size: 13px;
 }
 
 .guide-recipe canvas {
   image-rendering: pixelated;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 2px;
+  background: var(--well);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .guide-arrow {
@@ -483,53 +932,59 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0.85;
+  color: var(--ink-dim);
 }
 
 .guide-smelt-note {
-  color: #ffb14e;
+  color: #ffab52;
   font-size: 11px;
+  letter-spacing: 0.3px;
 }
 
-#hunger {
-  position: fixed;
-  bottom: 98px;
-  left: 50%;
-  transform: translateX(-50%);
+/* ------------------------------------------------------------
+   Creative block picker.
+   ------------------------------------------------------------ */
+
+.picker-panel {
+  max-width: 580px;
+}
+
+.picker-grid {
   display: flex;
-  gap: 2px;
-  pointer-events: none;
-  z-index: 20;
-  font-size: 14px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 2px;
 }
 
-.drumstick {
-  color: #d98a3c;
+.menu-panel button.picker-cell {
+  flex: none;
+  padding: 5px;
+  background: var(--well);
+  border: 1px solid rgba(233, 238, 251, 0.14);
+  border-radius: 7px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
 }
 
-.drumstick.half {
-  color: #d98a3c;
-  opacity: 0.55;
+.menu-panel button.picker-cell:hover {
+  background: rgba(66, 45, 15, 0.4);
+  border-color: var(--amber);
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 10px rgba(255, 184, 77, 0.25),
+    inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
-.drumstick.empty {
-  color: rgba(255, 255, 255, 0.22);
+.picker-cell canvas {
+  display: block;
+  image-rendering: pixelated;
 }
 
-.chest-grid {
-  display: grid;
-  grid-template-columns: repeat(9, 42px);
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.held-label {
-  min-height: 18px;
-  font-size: 13px;
-  color: #ffd75e;
-  text-align: center;
-}
+/* ------------------------------------------------------------
+   Damage flash + death screen.
+   ------------------------------------------------------------ */
 
 #damage-overlay {
   position: fixed;
@@ -547,95 +1002,60 @@ body {
 }
 
 .death-panel {
-  border-color: #7a3a3a;
+  border-color: rgba(226, 107, 107, 0.55);
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.65),
+    0 0 40px rgba(180, 40, 50, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .death-panel h1 {
-  color: #e26b6b;
+  color: #ff8585;
+  text-shadow:
+    0 1px 0 #2a0708,
+    0 2px 0 rgba(0, 0, 0, 0.5),
+    0 6px 20px rgba(226, 60, 60, 0.35);
 }
 
-.armor-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.armor-row span {
-  font-size: 13px;
-  opacity: 0.8;
-}
-.armor-slot {
-  border-color: #6a7bb0;
-}
+/* ------------------------------------------------------------
+   Scrollbars — thin, dark track, amber thumb.
+   ------------------------------------------------------------ */
 
-/* Creative block picker */
-.picker-panel {
-  max-width: 560px;
-}
-
+.menu-panel,
+.guide-body,
+#recipe-list,
 .picker-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-  max-height: 50vh;
-  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 184, 77, 0.35) rgba(5, 7, 14, 0.6);
 }
 
-.picker-cell {
-  padding: 4px;
-  background: #1d2a4f;
-  border: 1px solid #3a4a7a;
-  border-radius: 4px;
-  cursor: pointer;
+.menu-panel::-webkit-scrollbar,
+.guide-body::-webkit-scrollbar,
+#recipe-list::-webkit-scrollbar,
+.picker-grid::-webkit-scrollbar {
+  width: 9px;
 }
 
-.picker-cell:hover {
-  background: #2a3a68;
-  border-color: #6a8ad0;
-}
-
-.picker-cell canvas {
-  display: block;
-  image-rendering: pixelated;
-}
-
-/* HUD polish */
-#hotbar {
-  backdrop-filter: blur(3px);
+.menu-panel::-webkit-scrollbar-track,
+.guide-body::-webkit-scrollbar-track,
+#recipe-list::-webkit-scrollbar-track,
+.picker-grid::-webkit-scrollbar-track {
+  background: rgba(5, 7, 14, 0.6);
   border-radius: 8px;
 }
 
-.hotbar-slot {
-  border-radius: 4px;
-  transition: border-color 80ms linear, background 80ms linear, transform 80ms ease-out;
+.menu-panel::-webkit-scrollbar-thumb,
+.guide-body::-webkit-scrollbar-thumb,
+#recipe-list::-webkit-scrollbar-thumb,
+.picker-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 184, 77, 0.3);
+  border-radius: 8px;
+  border: 2px solid rgba(5, 7, 14, 0.6);
 }
 
-.hotbar-slot.selected {
-  border-color: #ffe9a8;
-  background: rgba(255, 233, 168, 0.16);
-  box-shadow: 0 0 10px rgba(255, 233, 168, 0.35);
-  transform: translateY(-3px);
-}
-
-#hotbar-hint {
-  position: fixed;
-  bottom: 118px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 5px 12px;
-  color: #ffe9a8;
-  background: rgba(10, 14, 31, 0.75);
-  border: 1px solid rgba(255, 233, 168, 0.35);
-  border-radius: 6px;
-  font-size: 13px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 300ms ease;
-  z-index: 20;
-}
-
-#hotbar-hint.show {
-  opacity: 1;
+.menu-panel::-webkit-scrollbar-thumb:hover,
+.guide-body::-webkit-scrollbar-thumb:hover,
+#recipe-list::-webkit-scrollbar-thumb:hover,
+.picker-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 184, 77, 0.5);
 }

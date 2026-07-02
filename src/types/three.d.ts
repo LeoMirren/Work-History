@@ -291,3 +291,29 @@ declare module 'three' {
     render(scene: Object3D, camera: PerspectiveCamera): void;
   }
 }
+
+/**
+ * Appended for src/engine/sky.ts. This block merges into the module declared
+ * above (ambient module declarations merge); signatures mirror three r180.
+ */
+declare module 'three' {
+  export const BackSide: number;
+  export const AdditiveBlending: number;
+
+  export class SphereGeometry extends BufferGeometry {
+    constructor(
+      radius?: number,
+      widthSegments?: number,
+      heightSegments?: number,
+      phiStart?: number,
+      phiLength?: number,
+      thetaStart?: number,
+      thetaLength?: number,
+    );
+  }
+
+  // Merges into MaterialParameters above; flows into every material ctor.
+  export interface MaterialParameters {
+    blending?: number;
+  }
+}

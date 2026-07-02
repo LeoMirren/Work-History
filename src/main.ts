@@ -9,6 +9,7 @@ import { GameRenderer } from './engine/renderer';
 import { createChunkMaterials } from './engine/materials';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
+import { Sky } from './engine/sky';
 import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
@@ -89,6 +90,7 @@ async function boot(): Promise<void> {
   const materials = createChunkMaterials();
   const materialList = [materials.opaque, materials.cutout, materials.water];
   const clouds = new Clouds(gr.scene, 'voxelheim');
+  const sky = new Sky(gr.scene, 'voxelheim');
 
   // Scene lights shade the Lambert-lit entities (chunks use their own shader);
   // intensities track the day cycle in the render loop. The camera joins the
@@ -251,6 +253,8 @@ async function boot(): Promise<void> {
   function applySettings(next: Settings): void {
     settings = { ...next };
     gr.setViewDistance(settings.renderDistance);
+    // The sky shell must sit inside the camera far plane (far = range * 1.2).
+    sky.setRadius(settings.renderDistance * 16 * 1.1);
     const range = settings.renderDistance * 16;
     for (const m of materialList) {
       m.uniforms.fogNear.value = range * 0.55;
@@ -582,6 +586,10 @@ async function boot(): Promise<void> {
       const envBrightness = session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time);
       hemiLight.intensity = 0.25 + 0.95 * envBrightness;
       sunLight.intensity = 0.65 * envBrightness;
+      // Sky dome / sun / moon / stars follow the player and the clock. (In the
+      // underworld the bedrock shell hides it; the dim update keeps it inert.)
+      const dayFraction = (((dayNight.time % 480) + 480) % 480) / 480;
+      sky.update(dayFraction, envBrightness, player.body.x, player.body.z);
       clouds.update(frameDt, player.body.x, player.body.z);
       // Damage feedback: flash on hp loss, steady vignette at low health.
       if (session?.mode === 'survival') {
@@ -674,6 +682,7 @@ async function boot(): Promise<void> {
         const pb = player.body;
         viewModel.update(frameDt, pb.onGround && Math.hypot(pb.vx, pb.vz) > 0.5, input.isButtonDown(0));
         interaction.update(input, session.world, player, frameDt, hotbarState);
+        hud.setTargetHint(interaction.targetHint);
         if (session.mode === 'survival') {
           player.armorReduction = armorReductionOf(armorSlot.slots[0]?.id ?? 0);
           hud.setHealth(player.hp);

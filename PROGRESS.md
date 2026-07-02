@@ -281,3 +281,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Block-break particles: pooled points burst in the broken block's atlas colour with gravity and expiry (one draw call)
 - [x] Usage hints: a fading line above the hotbar explains what right-click does with the held item (eat/plant/till/scoop/pour/throw/place/sleep...), pure usageHintFor covered by tests
 - [x] HUD polish: selected-slot glow/lift, blurred hotbar backdrop; vendored three.d.ts extended (lights, Lambert, Points, getAttribute/translate)
+
+## Post-spec: Visual overhaul (parallel workstreams)
+
+- [x] Real sky: gradient dome (fjord-azure day / void-indigo night, ember-amber dawn/dusk horizon), additive sun + silver moon orbiting with the clock, 350 seeded stars fading in at night; follows the player, sized to the far plane
+- [x] Atlas v2: baked vertical light gradient + edge bevel on every opaque tile; 4-stage crack tiles
+- [x] Mining feedback: crack overlay drawn on the block as it breaks (UV-swapped stages by progress)
+- [x] Contextual target hints under the crosshair (attack / open chest / sleep / travel / harvest / plant / till) + per-item right-click hints above the hotbar
+- [x] Denser wildlife: cap 26, herd spawns of 2-4 same-species, per-individual size variety
+- [x] Water shimmer (animated shader bands), camera walk-bob with subtle roll
+- [x] HUD/menu restyle: chunky outlined heart/hunger pips with true halves, glass hotbar with slot numbers + amber selection glow, crisp crosshair, pill break-bar, unified navy-glass/amber menus with animated title backdrop
+- [x] All slices verified: 296 tests, strict tsc, clean build

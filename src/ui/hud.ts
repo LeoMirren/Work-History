@@ -32,6 +32,8 @@ export class Hud {
   private readonly hintEl: HTMLDivElement;
   private hintShownFor = Number.NaN;
   private hintTimer = 0;
+  private readonly targetHintEl: HTMLDivElement;
+  private lastTargetHint: string | null = null;
 
   constructor(parent: HTMLElement, atlasCanvas: HTMLCanvasElement) {
     const crosshair = document.createElement('div');
@@ -82,7 +84,10 @@ export class Hud {
       icon.height = ICON_PX;
       const count = document.createElement('span');
       count.className = 'inv-count';
-      slot.append(icon, count);
+      const num = document.createElement('span');
+      num.className = 'slot-num';
+      num.textContent = String(i + 1);
+      slot.append(icon, count, num);
       hotbar.appendChild(slot);
       this.slots.push(slot);
       this.counts.push(count);
@@ -93,6 +98,11 @@ export class Hud {
     this.hintEl = document.createElement('div');
     this.hintEl.id = 'hotbar-hint';
     parent.appendChild(this.hintEl);
+
+    // Contextual label for whatever the crosshair rests on, below centre.
+    this.targetHintEl = document.createElement('div');
+    this.targetHintEl.id = 'target-hint';
+    parent.appendChild(this.targetHintEl);
 
     this.redrawIcons(atlasCanvas);
 
@@ -225,6 +235,22 @@ export class Hud {
       if (!pip) continue;
       pip.className =
         hunger >= (i + 1) * 2 ? 'drumstick' : hunger === i * 2 + 1 ? 'drumstick half' : 'drumstick empty';
+    }
+  }
+
+  /**
+   * Name whatever the crosshair rests on, just below the screen centre.
+   * Pass null to hide. Safe to call every frame — the last text is cached
+   * and the DOM is only touched when it changes.
+   */
+  setTargetHint(text: string | null): void {
+    if (text === this.lastTargetHint) return;
+    this.lastTargetHint = text;
+    if (text === null || text.length === 0) {
+      this.targetHintEl.classList.remove('show');
+    } else {
+      this.targetHintEl.textContent = text;
+      this.targetHintEl.classList.add('show');
     }
   }
 
