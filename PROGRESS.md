@@ -292,3 +292,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Water shimmer (animated shader bands), camera walk-bob with subtle roll
 - [x] HUD/menu restyle: chunky outlined heart/hunger pips with true halves, glass hotbar with slot numbers + amber selection glow, crisp crosshair, pill break-bar, unified navy-glass/amber menus with animated title backdrop
 - [x] All slices verified: 296 tests, strict tsc, clean build
+
+## Post-spec: Content batch 2 (parallel workstreams)
+
+- [x] Physical item drops: mined/harvested/kill loot pops out as spinning atlas-textured pickups with gravity, magnet pull and walk-over collection (90s lifetime, cap 80); loot routes through an onDrop hook with inventory fallback
+- [x] Quick-place build keys: I/J/K/L place the held block ahead/left/behind/right (yaw snapped to cardinals), U/O ahead-below/ahead-above — fast schematic laying; survival consumes, containers register, place sound + swing
+- [x] Fish: three original kinds (dartfin, shadowscale, sunnygill) school in 2-deep water with tail-wag, wall avoidance and depth steering; catchable by punch or thrown stone for meat; flop and die if drained
+- [x] Buried dungeons (~1 in 90 chunks): two brick/cobble rooms + corridor carved at y14-34 with emberrock light, a crystal, and a loot chest (auto-seeds on first open)
+- [x] Hamlets: the hut roll can upgrade to twin cabins with a cobble-ringed well of water between them
+- [x] Ocean reefs: seagrass tufts and rose/teal coral pillars on deep sand floors; teal coral glows faintly at night
+- [x] Mob character pass: tails/ears/horns/fleece/necks per species, idle head-bob + walk roll, stalker shoulder spikes and arm claws, spitter hood + venom throat sac, melee lunge tell, shrinking death pop
+- [x] Whole batch verified together: 338 tests, strict tsc, clean build

@@ -37,6 +37,9 @@ export const Block = {
   cropSprout: 29,
   cropGrowing: 30,
   cropRipe: 31,
+  coralRose: 32,
+  coralTeal: 33,
+  seagrass: 34,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -99,6 +102,10 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.cropSprout, name: 'cropSprout', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropSprout) },
   { id: Block.cropGrowing, name: 'cropGrowing', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropGrowing) },
   { id: Block.cropRipe, name: 'cropRipe', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cropRipe) },
+  // Ocean-life flora: solid coral heads and walk-through seagrass tufts.
+  { id: Block.coralRose, name: 'coralRose', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.6, tiles: tiles(T.coralRose) },
+  { id: Block.coralTeal, name: 'coralTeal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.6, tiles: tiles(T.coralTeal) },
+  { id: Block.seagrass, name: 'seagrass', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.seagrass) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -123,6 +130,7 @@ LIGHT_EMIT[Block.lantern] = 14;
 LIGHT_EMIT[Block.torch] = 12; // cheaper, dimmer early-game light
 LIGHT_EMIT[Block.emberrock] = 10;
 LIGHT_EMIT[Block.crystal] = 7;
+LIGHT_EMIT[Block.coralTeal] = 4; // faint glow so shallow reefs shimmer at night
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

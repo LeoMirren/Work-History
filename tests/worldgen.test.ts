@@ -80,7 +80,13 @@ describe('worldgen content rules', () => {
               waterColumns++;
               expect(surface).toBe(Block.sand);
               for (let y = h + 1; y <= SEA_LEVEL; y++) {
-                expect(data[blockIndex(x, y, z)]).toBe(Block.water);
+                const id = data[blockIndex(x, y, z)] ?? 0;
+                // Reef décor may sprout 1-2 cells off the floor; water above.
+                if (y <= h + 2) {
+                  expect([Block.water, Block.seagrass, Block.coralRose, Block.coralTeal]).toContain(id);
+                } else {
+                  expect(id).toBe(Block.water);
+                }
               }
               expect(data[blockIndex(x, SEA_LEVEL + 1, z)]).toBe(Block.air);
             } else if (h <= SEA_LEVEL + 1) {

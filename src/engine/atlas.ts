@@ -79,6 +79,10 @@ export const Tiles = {
   crack1: 63,
   crack2: 64,
   crack3: 65,
+  // Row 4 continues: ocean-life flora.
+  coralRose: 66,
+  coralTeal: 67,
+  seagrass: 68,
 } as const;
 
 type Rng = () => number;
@@ -926,6 +930,57 @@ function paintCrack(stage: 0 | 1 | 2 | 3): TilePainter {
   };
 }
 
+/**
+ * Branching coral in the given vivid tone over a darker reef-rock base. Three
+ * polyp branches walk upward from the tile bottom with lateral wobble and
+ * occasional side nubs; every pixel stays fully opaque so the directional
+ * shading post-pass applies to coral blocks like any other stone.
+ */
+function paintCoral(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) {
+        const n = jitter(rng, 14);
+        set(x, y, r * 0.42 + n, g * 0.42 + n * 0.8, b * 0.42 + n * 0.8);
+      }
+    }
+    for (const bx of [3, 7, 11] as const) {
+      let x = bx + Math.floor(rng() * 2);
+      const top = 2 + Math.floor(rng() * 3);
+      for (let y = TILE_PX - 1; y >= top; y--) {
+        const n = jitter(rng, 22);
+        set(x, y, r + n, g + n * 0.8, b + n * 0.8);
+        if (rng() < 0.55) set(Math.min(15, x + 1), y, r * 0.8 + n, g * 0.8 + n * 0.8, b * 0.8 + n * 0.8);
+        if (rng() < 0.3 && y < 12) {
+          // A side nub sprouting off the branch.
+          const sx = Math.max(0, Math.min(15, x + (rng() < 0.5 ? -1 : 2)));
+          set(sx, y, r + n, g + n * 0.8, b + n * 0.8);
+        }
+        x = Math.max(1, Math.min(14, x + (rng() < 0.3 ? -1 : rng() < 0.45 ? 1 : 0)));
+      }
+      set(Math.max(0, Math.min(15, x)), Math.max(0, top - 1), 255, 244, 240); // pale polyp tip
+    }
+  };
+}
+
+/** Five wavy seagrass blades swaying up from the tile base, transparent elsewhere. */
+const paintSeagrass: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (const bx of [2, 5, 8, 11, 14] as const) {
+    const top = 2 + Math.floor(rng() * 4);
+    const phase = rng() * Math.PI * 2;
+    for (let y = TILE_PX - 1; y >= top; y--) {
+      const sway = Math.round(Math.sin(y * 0.55 + phase) * 1.4);
+      const x = Math.max(0, Math.min(15, bx + sway));
+      const n = jitter(rng, 16);
+      set(x, y, 58 + n, 138 + n, 74 + n * 0.6);
+      if (rng() < 0.3) set(Math.min(15, x + 1), y, 46 + n, 118 + n, 62 + n * 0.6);
+    }
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -993,6 +1048,9 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.crack1, 'crack1', paintCrack(1)],
   [Tiles.crack2, 'crack2', paintCrack(2)],
   [Tiles.crack3, 'crack3', paintCrack(3)],
+  [Tiles.coralRose, 'coralRose', paintCoral(236, 92, 138)],
+  [Tiles.coralTeal, 'coralTeal', paintCoral(56, 204, 194)],
+  [Tiles.seagrass, 'seagrass', paintSeagrass],
 ];
 
 /**

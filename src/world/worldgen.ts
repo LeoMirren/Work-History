@@ -37,6 +37,17 @@ const STRUCT_CHANCE = 120; // ~1 chunk in 120 rolls a biome landmark
 const RUIN_SIZE = 6; // sunken desert ruin footprint
 const DOME_R = 3; // snow dome radius (7x7 footprint)
 const SHRINE_SIZE = 3; // overgrown shrine plinth
+const REEF_CHANCE = 34; // ~1 deep ocean-floor column in 34 sprouts reef décor
+const DUNGEON_CHANCE = 90; // ~1 chunk in 90 hides a buried dungeon
+const DUNGEON_MIN_Y = 14; // hash-picked dungeon floor band
+const DUNGEON_MAX_Y = 34;
+// Dungeon footprint: room A shell (7 wide) + corridor (1 free column, its
+// ends punched through both shared walls) + room B shell (6 wide) = 14
+// columns by 7 deep. y extent is 6 cells (floor y0 .. ceiling y0+5).
+const DUNGEON_W = 14;
+const DUNGEON_D = 7;
+const HAMLET_W = 12; // two hut footprints with a 2-column gap between them
+const HAMLET_D = 8; // hut rows plus the well row south of them
 
 export const Biome = {
   plains: 0,
@@ -189,6 +200,8 @@ function createOverworld(seed: string): Generator {
   const geodeSeed = cyrb128(`${seed} geodes`)[0];
   const hutSeed = cyrb128(`${seed} huts`)[0];
   const structSeed = cyrb128(`${seed} structures`)[0];
+  const reefSeed = cyrb128(`${seed} reef`)[0];
+  const dungeonSeed = cyrb128(`${seed} dungeons`)[0];
 
   function biomeAt(wx: number, wz: number): number {
     const t = temperature(wx / 620, wz / 620);
@@ -263,6 +276,22 @@ function createOverworld(seed: string): Generator {
 
         if (h < SEA_LEVEL) {
           for (let y = h + 1; y <= SEA_LEVEL; y++) data[blockIndex(x, y, z)] = Block.water;
+          // Reef décor: deep sandy floors sprout the odd seagrass tuft or a
+          // short coral pillar. Rolled per column from its own hash stream,
+          // always seated on sand and capped well below sea level, so every
+          // piece stays inside this column (no cross-chunk risk).
+          if (h < SEA_LEVEL - 3 && data[blockIndex(x, h, z)] === Block.sand) {
+            const rhash = hash2(reefSeed, wx, wz);
+            if (rhash % REEF_CHANCE === 0) {
+              if ((rhash >>> 8) % 4 === 0) {
+                const coral = ((rhash >>> 12) & 1) === 0 ? Block.coralRose : Block.coralTeal;
+                data[blockIndex(x, h + 1, z)] = coral;
+                if (((rhash >>> 16) & 1) === 1) data[blockIndex(x, h + 2, z)] = coral;
+              } else {
+                data[blockIndex(x, h + 1, z)] = Block.seagrass;
+              }
+            }
+          }
         }
 
         // Caves: never carve near/below sea level columns (keeps oceans full).
@@ -310,15 +339,35 @@ function createOverworld(seed: string): Generator {
     // Outpost huts: rare surface cabins on flat grassland (plains/savanna).
     // One candidate per chunk, kept inside the interior so it never crosses a
     // border, and only built where the 5x5 footprint is perfectly level.
+    // When the hash also passes a 1-in-3 bit test the chunk attempts a
+    // hamlet (two huts and a well) instead; if the wider span cannot fit
+    // inside the interior it falls back to the single hut.
     const hhash = hash2(hutSeed, cx, cz);
     if (hhash % HUT_CHANCE === 0) {
-      const margin = 2;
-      const span = CHUNK_SIZE - HUT_SIZE - 2 * margin;
-      const x0 = margin + ((hhash >>> 4) % span);
-      const z0 = margin + ((hhash >>> 12) % span);
-      const biome = biomes[(z0 + 2) * CHUNK_SIZE + (x0 + 2)] ?? Biome.plains;
-      if (biome === Biome.plains || biome === Biome.savanna) {
-        tryPlantHut(data, heights, x0, z0);
+      let planted = false;
+      if ((hhash >>> 20) % 3 === 0) {
+        const m = 1; // hamlets are wide; a slimmer margin still keeps them inside
+        const spanX = CHUNK_SIZE - HAMLET_W - 2 * m;
+        const spanZ = CHUNK_SIZE - HAMLET_D - 2 * m;
+        if (spanX >= 1 && spanZ >= 1) {
+          const x0 = m + ((hhash >>> 4) % spanX);
+          const z0 = m + ((hhash >>> 12) % spanZ);
+          const biome = biomes[(z0 + 2) * CHUNK_SIZE + (x0 + 2)] ?? Biome.plains;
+          if (biome === Biome.plains || biome === Biome.savanna) {
+            tryPlantHamlet(data, heights, hhash, x0, z0);
+            planted = true;
+          }
+        }
+      }
+      if (!planted) {
+        const margin = 2;
+        const span = CHUNK_SIZE - HUT_SIZE - 2 * margin;
+        const x0 = margin + ((hhash >>> 4) % span);
+        const z0 = margin + ((hhash >>> 12) % span);
+        const biome = biomes[(z0 + 2) * CHUNK_SIZE + (x0 + 2)] ?? Biome.plains;
+        if (biome === Biome.plains || biome === Biome.savanna) {
+          tryPlantHut(data, heights, x0, z0);
+        }
       }
     }
 
@@ -345,6 +394,30 @@ function createOverworld(seed: string): Generator {
       } else if (cbiome === Biome.jungle || cbiome === Biome.forest) {
         const [x0, z0] = originFor(SHRINE_SIZE);
         tryPlantShrine(data, heights, x0, z0);
+      }
+    }
+
+    // Buried dungeons: rolled on their own seed stream, independent of the
+    // surface-structure rolls, so they coexist with landmarks above. The
+    // 14x7 footprint is kept fully inside the chunk; carving only proceeds
+    // when every column over the footprint is dry land holding at least 8
+    // blocks of cover above the complex, which keeps it buried and upholds
+    // the "no openings under oceans" invariant of the cave carver.
+    const dhash = hash2(dungeonSeed, cx, cz);
+    if (dhash % DUNGEON_CHANCE === 0) {
+      const m = 1;
+      const spanX = Math.max(1, CHUNK_SIZE - DUNGEON_W - 2 * m);
+      const spanZ = Math.max(1, CHUNK_SIZE - DUNGEON_D - 2 * m);
+      const x0 = m + ((dhash >>> 4) % spanX);
+      const z0 = m + ((dhash >>> 8) % spanZ);
+      let minH = CHUNK_HEIGHT;
+      for (let dz = 0; dz < DUNGEON_D; dz++) {
+        for (let dx = 0; dx < DUNGEON_W; dx++) {
+          minH = Math.min(minH, heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? 0);
+        }
+      }
+      if (minH >= SEA_LEVEL + 2 && dungeonY(dhash) + 6 <= minH - 8) {
+        tryCarveDungeon(data, dhash, x0, z0);
       }
     }
 
@@ -534,6 +607,114 @@ export function tryPlantShrine(data: Uint8Array, heights: Int32Array, x0: number
   const fx = x0 + SHRINE_SIZE - 1;
   const fz = z0 + SHRINE_SIZE - 1;
   if (data[blockIndex(fx, base + 2, fz)] === Block.air) data[blockIndex(fx, base + 2, fz)] = Block.leaves;
+}
+
+/** Hash-picked dungeon floor height in [DUNGEON_MIN_Y, DUNGEON_MAX_Y]. */
+function dungeonY(hash: number): number {
+  return DUNGEON_MIN_Y + ((hash >>> 16) % (DUNGEON_MAX_Y - DUNGEON_MIN_Y + 1));
+}
+
+/**
+ * Carve a buried two-room dungeon whose floor sits at a hash-picked depth:
+ * room A (5x4x5 interior) and room B (4x3x4 interior) joined by a corridor
+ * three cells long and two tall, punched through both shared walls. Floors
+ * are brick; walls and ceilings cobblestone. Shell cells only replace solid
+ * non-bedrock ground, so intersecting caves open into the rooms naturally.
+ * Two emberrock blocks glow in opposite wall corners of room A, a chest
+ * waits in room A's corner (the container system seeds loot on first open)
+ * and a crystal glints on room B's floor. Bails (leaving the chunk
+ * untouched) unless the ground one above the complex over both room centres
+ * is solid, so the rooms never open to the sky. The footprint spans
+ * DUNGEON_W x DUNGEON_D columns from (x0, z0), which must sit fully inside
+ * the chunk.
+ */
+export function tryCarveDungeon(data: Uint8Array, hash: number, x0: number, z0: number): void {
+  const y0 = dungeonY(hash);
+  // Stay buried: probe the cells directly above the complex at each room
+  // centre; open air there means the dungeon would breach the surface.
+  const overA = data[blockIndex(x0 + 3, y0 + 6, z0 + 3)] ?? Block.air;
+  const overB = data[blockIndex(x0 + 11, y0 + 6, z0 + 2)] ?? Block.air;
+  if (overA === Block.air || overB === Block.air) return;
+
+  /**
+   * Carve one shelled box: interior cells become air; boundary cells become
+   * cobblestone (brick across the bottom face), skipping air and bedrock so
+   * caves and the world floor survive intersection.
+   */
+  const box = (bx0: number, by0: number, bz0: number, bx1: number, by1: number, bz1: number): void => {
+    for (let y = by0; y <= by1; y++) {
+      for (let z = bz0; z <= bz1; z++) {
+        for (let x = bx0; x <= bx1; x++) {
+          const i = blockIndex(x, y, z);
+          const cur = data[i] ?? Block.air;
+          if (cur === Block.bedrock) continue;
+          const edge = x === bx0 || x === bx1 || y === by0 || y === by1 || z === bz0 || z === bz1;
+          if (!edge) data[i] = Block.air;
+          else if (cur !== Block.air) data[i] = y === by0 ? Block.brick : Block.cobblestone;
+        }
+      }
+    }
+  };
+
+  box(x0, y0, z0, x0 + 6, y0 + 5, z0 + 6); // room A shell around a 5x4x5 interior
+  box(x0 + 8, y0, z0, x0 + 13, y0 + 4, z0 + 5); // room B shell around a 4x3x4 interior
+  box(x0 + 6, y0, z0 + 2, x0 + 8, y0 + 3, z0 + 4); // corridor shell between them
+  // Corridor interior: a 3-long, 2-tall opening whose ends punch doorways
+  // through room A's +x wall and room B's -x wall.
+  for (let x = x0 + 6; x <= x0 + 8; x++) {
+    for (let y = y0 + 1; y <= y0 + 2; y++) data[blockIndex(x, y, z0 + 3)] = Block.air;
+  }
+  // Ember-lit wall corners, the loot chest, and room B's crystal.
+  data[blockIndex(x0 + 1, y0 + 2, z0)] = Block.emberrock;
+  data[blockIndex(x0 + 5, y0 + 2, z0 + 6)] = Block.emberrock;
+  data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.chest;
+  data[blockIndex(x0 + 11, y0 + 1, z0 + 2)] = Block.crystal;
+}
+
+/**
+ * Dig a hamlet well centred on local (wx, wz): a 3x3 cobblestone rim at
+ * surface+1 ringing an open mouth, with the centre column dug two deep and
+ * filled with water. Bails (leaving terrain untouched) unless the whole 3x3
+ * footprint is flat grass above the build line, mirroring the hut rules.
+ */
+function tryDigWell(data: Uint8Array, heights: Int32Array, wx: number, wz: number): void {
+  const base = heights[wz * CHUNK_SIZE + wx] ?? -1;
+  if (base < SEA_LEVEL + 2 || base + 2 >= CHUNK_HEIGHT) return;
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if ((heights[(wz + dz) * CHUNK_SIZE + (wx + dx)] ?? -1) !== base) return;
+      if (data[blockIndex(wx + dx, base, wz + dz)] !== Block.grass) return;
+    }
+  }
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dz === 0) continue;
+      data[blockIndex(wx + dx, base + 1, wz + dz)] = Block.cobblestone;
+    }
+  }
+  data[blockIndex(wx, base, wz)] = Block.water; // dig two down, fill water
+  data[blockIndex(wx, base - 1, wz)] = Block.water;
+}
+
+/**
+ * Plant a hamlet from local origin (x0, z0): two outpost huts side by side
+ * at (x0, z0) and (x0+7, z0), plus a well centred between them one row south
+ * (x picked from a hash bit between x0+5 and x0+6, z at z0+6). Every piece
+ * independently bails on unfit ground — the huts via tryPlantHut's own
+ * flat-grass check, the well via its own — so a bumpy chunk may end up with
+ * any subset, and untouched terrain everywhere a piece refused. The full
+ * footprint spans HAMLET_W x HAMLET_D columns and must sit inside the chunk.
+ */
+export function tryPlantHamlet(
+  data: Uint8Array,
+  heights: Int32Array,
+  hash: number,
+  x0: number,
+  z0: number,
+): void {
+  tryPlantHut(data, heights, x0, z0);
+  tryPlantHut(data, heights, x0 + 7, z0);
+  tryDigWell(data, heights, x0 + 5 + ((hash >>> 24) & 1), z0 + 6);
 }
 
 /**
