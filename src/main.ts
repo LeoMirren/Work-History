@@ -42,6 +42,7 @@ import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
 import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
+import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
 import { chunkCoord, CHUNK_VOLUME } from './world/chunk';
@@ -392,9 +393,16 @@ async function boot(): Promise<void> {
       dimension,
     });
 
-    const spawnY = spawnOverride ? spawnOverride.y : createGenerator(seed, dimension).heightAt(0, 0) + 2;
-    const spawnX = spawnOverride ? spawnOverride.x : 0.5;
-    const spawnZ = spawnOverride ? spawnOverride.z : 0.5;
+    // Fresh overworld sessions roll a per-seed landing spot; dimension
+    // travel and resumes use their explicit positions.
+    const spawn =
+      spawnOverride ??
+      (dimension === 'overworld'
+        ? findWorldSpawn(seed)
+        : { x: 0.5, y: createGenerator(seed, dimension).heightAt(0, 0) + 2, z: 0.5 });
+    const spawnX = spawn.x;
+    const spawnY = spawn.y;
+    const spawnZ = spawn.z;
     player.setSpawn(spawnX, spawnY, spawnZ);
     if (keepPlayer) {
       // Dimension switch: preserve inventory/hp/hunger, just relocate.
@@ -412,7 +420,7 @@ async function boot(): Promise<void> {
       armorSlot.load(resume.player.armor);
       dayNight.time = resume.timeOfDay;
     } else {
-      player.teleport(0.5, spawnY, 0.5);
+      player.teleport(spawnX, spawnY, spawnZ);
       player.yaw = 0;
       player.pitch = 0;
       player.flying = false;
