@@ -1059,3 +1059,16 @@ input[type='range']:focus-visible {
 .picker-grid::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 184, 77, 0.5);
 }
+
+/* Screen grade: a touch of saturation/contrast, plus a soft frame vignette. */
+#game-canvas {
+  filter: saturate(1.07) contrast(1.03);
+}
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(6, 10, 24, 0.26) 100%);
+}

@@ -9,7 +9,7 @@ import { GameRenderer } from './engine/renderer';
 import { createChunkMaterials } from './engine/materials';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
-import { Sky } from './engine/sky';
+import { Sky, skyColors } from './engine/sky';
 import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
@@ -91,6 +91,9 @@ async function boot(): Promise<void> {
   const savedMeta = await storage.getMeta();
 
   const gr = new GameRenderer(app);
+  const vignette = document.createElement('div');
+  vignette.id = 'vignette';
+  app.appendChild(vignette);
   const dayNight = new DayNight();
   const input = new Input(gr.canvas);
   gr.canvas.addEventListener('click', () => {
@@ -618,6 +621,14 @@ async function boot(): Promise<void> {
       const envBrightness = session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time);
       hemiLight.intensity = 0.25 + 0.95 * envBrightness;
       sunLight.intensity = 0.65 * envBrightness;
+      // Terrain fog fades into the sky-dome horizon, so the distance blends
+      // seamlessly instead of cutting against a mismatched fog wall.
+      if (session?.dimension !== 'underworld') {
+        const horizon = skyColors(envBrightness).horizon;
+        for (const m of materialList) {
+          m.uniforms.fogColor.value.setRGB(horizon[0], horizon[1], horizon[2]);
+        }
+      }
       // Sky dome / sun / moon / stars follow the player and the clock. (In the
       // underworld the bedrock shell hides it; the dim update keeps it inert.)
       const dayFraction = (((dayNight.time % 480) + 480) % 480) / 480;
