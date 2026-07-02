@@ -123,8 +123,10 @@ export interface Animal {
   hp: number;
   moving: boolean;
   timer: number;
-  /** Walk-cycle phase driving the leg swing. */
+  /** Walk-cycle phase driving the leg swing (creeps on while idle for the head bob). */
   phase: number;
+  /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
+  dying: number;
   /** Hurt-flash seconds remaining (materials glow red while > 0). */
   flash: number;
   /** Knockback impulse, decaying, added to walk velocity. */
@@ -132,22 +134,47 @@ export interface Animal {
   kbZ: number;
   readonly group: THREE.Group;
   readonly legs: readonly THREE.Mesh[];
+  /** Torso mesh — rolls gently with the gait while walking. */
+  readonly torso: THREE.Mesh;
+  /** Head mesh — tilts/bobs while idle (eyes and face details ride along). */
+  readonly head: THREE.Mesh;
   /** Per-animal material clones, so the hurt flash never tints the herd. */
   readonly mats: readonly THREE.MeshLambertMaterial[];
 }
 
 /** Shared per-eye material — eyes never flash, so one instance serves all. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
+/** Shared eye geometry — identical across every species. */
+const eyeGeometry = new THREE.BoxGeometry(0.07, 0.07, 0.03);
 
 function makeAnimalMesh(species: SpeciesId): {
   group: THREE.Group;
+  torso: THREE.Mesh;
+  head: THREE.Mesh;
   legs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
   const def = SPECIES[species];
-  const body = new THREE.MeshLambertMaterial({ color: def.bodyColor });
-  const head = new THREE.MeshLambertMaterial({ color: def.headColor });
-  const leg = new THREE.MeshLambertMaterial({ color: new THREE.Color(def.bodyColor).multiplyScalar(0.72) });
+  const mats: THREE.MeshLambertMaterial[] = [];
+  /** Per-animal Lambert clone, registered so the hurt flash tints it. */
+  const mat = (color: THREE.Color | number): THREE.MeshLambertMaterial => {
+    const m = new THREE.MeshLambertMaterial({ color });
+    mats.push(m);
+    return m;
+  };
+  /** Accessory mesh named for the entity material sweep, attached to `parent`. */
+  const detail = (geometry: THREE.BufferGeometry, material: THREE.Material, parent: THREE.Object3D): THREE.Mesh => {
+    const m = new THREE.Mesh(geometry, material);
+    m.name = 'entity';
+    parent.add(m);
+    return m;
+  };
+  const head = mat(def.headColor);
+  const leg = mat(new THREE.Color(def.bodyColor).multiplyScalar(0.72));
+  // Woollies wear their fleece as a second, slightly lighter torso material.
+  const body = mat(
+    species === Species.woolly ? new THREE.Color(def.bodyColor).multiplyScalar(1.12) : def.bodyColor,
+  );
   const group = new THREE.Group();
   group.name = 'entity';
 
@@ -158,25 +185,69 @@ function makeAnimalMesh(species: SpeciesId): {
   torso.position.set(0, torsoY, 0);
 
   const [hw, hh, hd] = def.head;
-  const headY = torsoY + th / 2 - hh / 2 + 0.12;
+  // Striders carry the head on a long neck; every other species keeps it snug.
+  const headLift = species === Species.strider ? 0.34 : 0;
+  const headY = torsoY + th / 2 - hh / 2 + 0.12 + headLift;
   const headMesh = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), head);
   headMesh.name = 'entity';
   headMesh.position.set(0, headY, def.headZ);
   group.add(torso, headMesh);
 
-  // Two beady eyes on the head's front face.
+  // Two beady eyes — children of the head, so idle tilts carry the face.
   for (const ex of [-0.08, 0.08]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.03), eyeMaterial);
-    eye.name = 'entity';
-    eye.position.set(ex, headY + 0.03, def.headZ - hd / 2 - 0.01);
-    group.add(eye);
+    detail(eyeGeometry, eyeMaterial, headMesh).position.set(ex, 0.03, -hd / 2 - 0.01);
   }
 
-  // Four legs, geometry shifted so the mesh pivots at the hip.
+  if (species === Species.trundler) {
+    // Stubby up-angled tail plus two small rounded ear nubs.
+    const tail = detail(new THREE.BoxGeometry(0.14, 0.12, 0.22), body, group);
+    tail.position.set(0, torsoY + th * 0.25, td / 2 + 0.06);
+    tail.rotation.x = -0.55; // rear tip angled upward
+    for (const ex of [-1, 1]) {
+      const ear = detail(new THREE.SphereGeometry(0.055, 6, 5), head, headMesh);
+      ear.position.set(ex * (hw / 2 - 0.05), hh / 2 + 0.02, 0.02);
+    }
+  } else if (species === Species.woolly) {
+    // Fleece cap overhanging the head top, and a tiny tail puff.
+    const cap = detail(new THREE.BoxGeometry(hw + 0.06, 0.12, hd + 0.06), body, headMesh);
+    cap.position.set(0, hh / 2 + 0.03, 0.01);
+    const puff = detail(new THREE.BoxGeometry(0.16, 0.16, 0.12), body, group);
+    puff.position.set(0, torsoY + th * 0.2, td / 2 + 0.04);
+  } else if (species === Species.strider) {
+    // Long neck up to the raised head, crowned with back-swept horn nubs.
+    const neck = detail(new THREE.BoxGeometry(0.14, headLift + 0.24, 0.16), body, group);
+    neck.position.set(0, torsoY + th / 2 + headLift / 2 - 0.02, def.headZ + 0.08);
+    const hornGeo = new THREE.BoxGeometry(0.05, 0.16, 0.05);
+    hornGeo.translate(0, 0.08, 0); // pivot at the base
+    for (const ex of [-1, 1]) {
+      const horn = detail(hornGeo, leg, headMesh);
+      horn.position.set(ex * 0.08, hh / 2 - 0.02, 0.05);
+      horn.rotation.x = 0.7; // swept back over the neck
+    }
+  } else {
+    // Hopper: lighter throat patch on the head front, ears folded back flat.
+    const patch = detail(
+      new THREE.BoxGeometry(0.18, 0.14, 0.05),
+      mat(new THREE.Color(def.headColor).multiplyScalar(1.35)),
+      headMesh,
+    );
+    patch.position.set(0, -hh / 2 + 0.05, -hd / 2 - 0.015);
+    const earGeo = new THREE.BoxGeometry(0.09, 0.16, 0.04);
+    earGeo.translate(0, 0.08, 0); // pivot at the base
+    for (const ex of [-1, 1]) {
+      const ear = detail(earGeo, head, headMesh);
+      ear.position.set(ex * (hw / 2 - 0.06), hh / 2 - 0.01, 0);
+      ear.rotation.x = 1.35; // folded flat toward the back
+    }
+  }
+
+  // Four legs, geometry shifted so the mesh pivots at the hip. Hoppers get
+  // big splayed feet: wider leg boxes nudged toward the toes.
   const legs: THREE.Mesh[] = [];
   const lw = def.legW;
-  const legGeo = new THREE.BoxGeometry(lw, def.legLen, lw);
-  legGeo.translate(0, -def.legLen / 2, 0);
+  const hops = species === Species.hopper;
+  const legGeo = new THREE.BoxGeometry(hops ? lw + 0.1 : lw, def.legLen, hops ? lw + 0.12 : lw);
+  legGeo.translate(0, -def.legLen / 2, hops ? -0.04 : 0);
   for (const [sx, sz] of [
     [-1, -1],
     [1, -1],
@@ -189,7 +260,7 @@ function makeAnimalMesh(species: SpeciesId): {
     group.add(mesh);
     legs.push(mesh);
   }
-  return { group, legs, mats: [body, head, leg] };
+  return { group, torso, head: headMesh, legs, mats };
 }
 
 export class AnimalSystem {
@@ -247,11 +318,14 @@ export class AnimalSystem {
       moving: false,
       timer: 0.5 + this.random() * 2,
       phase: 0,
+      dying: 0,
       flash: 0,
       kbX: 0,
       kbZ: 0,
       group: parts.group,
       legs: parts.legs,
+      torso: parts.torso,
+      head: parts.head,
       mats: parts.mats,
     };
     this.scene.add(animal.group);
@@ -322,6 +396,18 @@ export class AnimalSystem {
     for (let i = this.animals.length - 1; i >= 0; i--) {
       const animal = this.animals[i];
       if (!animal) continue;
+      if (animal.dying > 0) {
+        // Death pop: no AI or movement — shrink toward nothing, then despawn.
+        animal.dying -= dt;
+        if (animal.dying <= 0) {
+          this.scene.remove(animal.group);
+          this.animals.splice(i, 1);
+        } else {
+          const s = Math.max(DYING_MIN_SCALE, animal.group.scale.x * Math.max(0, 1 - dt * DYING_SHRINK));
+          animal.group.scale.set(s, s, s);
+        }
+        continue;
+      }
       const body = animal.body;
       const dx = body.x - px;
       const dz = body.z - pz;
@@ -338,8 +424,9 @@ export class AnimalSystem {
     void py;
   }
 
-  /** Leg swing while walking and the red hurt flash. */
+  /** Leg gait + torso roll while walking, idle head bob, and the hurt flash. */
   private animate(animal: Animal, dt: number): void {
+    const settle = Math.max(0, 1 - dt * 10);
     if (animal.moving && animal.body.onGround) {
       animal.phase += dt * 7;
       const swing = Math.sin(animal.phase) * 0.7;
@@ -347,8 +434,15 @@ export class AnimalSystem {
         // Diagonal pairs move together (0,3 vs 1,2), like a real gait.
         animal.legs[l]?.rotation.set(l === 0 || l === 3 ? swing : -swing, 0, 0);
       }
+      // Slight body roll synced to the gait; the head steadies while trotting.
+      animal.torso.rotation.z = Math.sin(animal.phase) * WALK_ROLL;
+      animal.head.rotation.x *= settle;
     } else {
-      for (const leg of animal.legs) leg.rotation.x *= Math.max(0, 1 - dt * 10);
+      // Idle life: the phase creeps on, gently tilting/bobbing the head.
+      for (const leg of animal.legs) leg.rotation.x *= settle;
+      animal.phase += dt * IDLE_BOB_RATE;
+      animal.head.rotation.x = Math.sin(animal.phase) * IDLE_BOB_TILT;
+      animal.torso.rotation.z *= settle;
     }
     if (animal.flash > 0) {
       animal.flash -= dt;
@@ -419,7 +513,7 @@ export class AnimalSystem {
     }
   }
 
-  /** Nearest animal hit by the ray within maxDist, or null. */
+  /** Nearest living animal hit by the ray within maxDist, or null. */
   raycastNearest(
     ox: number,
     oy: number,
@@ -432,6 +526,7 @@ export class AnimalSystem {
     let best: Animal | null = null;
     let bestT = maxDist;
     for (const animal of this.animals) {
+      if (animal.dying > 0) continue; // carcasses mid-pop can't be targeted
       const b = animal.body;
       const t = rayAABB(
         ox, oy, oz, dx, dy, dz,
@@ -449,13 +544,14 @@ export class AnimalSystem {
   /**
    * Punch an animal; returns its drops when it dies, else null. (kx, kz) is
    * the attack direction for knockback (defaults keep old callers working).
+   * Drops are yielded on the lethal hit itself; the body then plays a brief
+   * shrinking death pop before fixedUpdate removes it from scene and array.
    */
   hurt(animal: Animal, kx = 0, kz = 0): { id: number; count: number } | null {
+    if (animal.dying > 0) return null; // already slain — no double drops
     animal.hp--;
     if (animal.hp <= 0) {
-      const index = this.animals.indexOf(animal);
-      if (index >= 0) this.animals.splice(index, 1);
-      this.scene.remove(animal.group);
+      animal.dying = DYING_S;
       return { id: Item.meat, count: 1 + (this.random() < 0.5 ? 1 : 0) };
     }
     animal.body.vy = 5; // flinch hop

@@ -36,6 +36,7 @@ import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
 import { ItemDrops } from './entities/drops';
+import { FishSystem } from './entities/fish';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
@@ -166,6 +167,8 @@ async function boot(): Promise<void> {
   interaction.animals = animals;
   const hostiles = new HostileSystem(gr.scene);
   interaction.hostiles = hostiles;
+  const fish = new FishSystem(gr.scene);
+  interaction.fish = fish;
   const projectiles = new ThrownProjectiles(gr.scene);
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
   const cropGrowth = new CropGrowth();
@@ -206,6 +209,13 @@ async function boot(): Promise<void> {
       const b = a.animal.body;
       const yielded = animals.hurt(a.animal, dx, dz);
       if (yielded) itemDrops.spawn(yielded.id, yielded.count, b.x, b.y + 0.4, b.z);
+      return true;
+    }
+    const f = fish.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
+    if (f) {
+      const b = f.fish.body;
+      const yielded = fish.hurt(f.fish, dx, dz);
+      if (yielded) itemDrops.spawn(yielded.id, yielded.count, b.x, b.y + 0.2, b.z);
       return true;
     }
     return false;

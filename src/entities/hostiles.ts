@@ -2,7 +2,9 @@
  * Hostile mobs ("stalkers"): dark humanoids that appear at night near the
  * player, chase and strike on contact, and burn away in daylight. They share
  * the entity AABB physics and the ray-pick/hurt interface with animals, so
- * the player fights them with the same left-click.
+ * the player fights them with the same left-click. Melee stalkers telegraph
+ * their strikes with a forward torso lunge, and slain mobs play a brief
+ * shrinking "death pop" before leaving the scene.
  */
 import * as THREE from 'three';
 import { Block, SOLID } from '../world/blocks';
@@ -34,6 +36,13 @@ const ATTACK_RANGE = 1.6;
 const ATTACK_DAMAGE = 2;
 const ATTACK_COOLDOWN_S = 1.0;
 const SUNBURN_S = 4;
+/** Melee tell: the torso tips this far forward on a hit, decaying upright. */
+const LUNGE_TIP = 0.25;
+const LUNGE_S = 0.3; // seconds the lunge tell takes to decay
+/** Death pop: a slain stalker lingers this long, shrinking, before removal. */
+const DYING_S = 0.18;
+const DYING_SHRINK = 14; // per-second scale decay while dying
+const DYING_MIN_SCALE = 0.05; // the pop never shrinks below this
 
 // Ranged "spitter" variant.
 const RANGED_CHANCE = 0.4;
@@ -58,11 +67,17 @@ export interface Stalker {
   phase: number;
   /** Hurt-flash seconds remaining. */
   flash: number;
+  /** Melee-lunge seconds remaining — the torso tips forward, then decays. */
+  lunge: number;
+  /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
+  dying: number;
   /** Knockback impulse, decaying, added to the drive velocity. */
   kbX: number;
   kbZ: number;
   readonly group: THREE.Group;
   readonly limbs: readonly THREE.Mesh[];
+  /** Torso mesh — tips forward for the melee lunge tell. */
+  readonly torso: THREE.Mesh;
   readonly mats: readonly THREE.MeshLambertMaterial[];
 }
 
@@ -86,9 +101,14 @@ const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
 const LEG_LEN = 0.72;
 const ARM_LEN = 0.66;
 
-/** Humanoid: torso, head, glowing eyes, two hip legs and two shoulder arms. */
+/**
+ * Humanoid: torso, head, glowing eyes, two hip legs and two shoulder arms.
+ * Melee stalkers add shoulder spikes and arm-end claws; spitters add a wide
+ * hood/frill behind the head and a venom-lit throat sac.
+ */
 function makeStalkerMesh(ranged: boolean): {
   group: THREE.Group;
+  torso: THREE.Mesh;
   limbs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
@@ -113,6 +133,30 @@ function makeStalkerMesh(ranged: boolean): {
     group.add(eye);
   }
 
+  if (ranged) {
+    // Spitter: a wide hood/frill flaring up behind the head, plus a throat
+    // sac lit with the same venom green as the eyes (shared unlit material).
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.1), headMat);
+    hood.name = 'entity';
+    hood.position.set(0, 1.66, 0.24);
+    hood.rotation.x = -0.15; // crest leans forward over the crown
+    const sac = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.1), spitterEyeMaterial);
+    sac.name = 'entity';
+    sac.position.set(0, 1.38, -0.16);
+    group.add(hood, sac);
+  } else {
+    // Stalker: spike nubs jutting off the shoulders (claws ride the arms).
+    const spikeGeo = new THREE.BoxGeometry(0.09, 0.2, 0.09);
+    spikeGeo.translate(0, 0.1, 0); // pivot at the base
+    for (const sx of [-1, 1]) {
+      const spike = new THREE.Mesh(spikeGeo, limbMat);
+      spike.name = 'entity';
+      spike.position.set(sx * 0.26, LEG_LEN + 0.7, 0);
+      spike.rotation.z = sx * -0.35; // splayed outward
+      group.add(spike);
+    }
+  }
+
   // Limbs pivot at hip/shoulder: [legL, legR, armL, armR].
   const limbs: THREE.Mesh[] = [];
   const legGeo = new THREE.BoxGeometry(0.22, LEG_LEN, 0.26);
@@ -133,7 +177,20 @@ function makeStalkerMesh(ranged: boolean): {
     group.add(armMesh);
     limbs.push(armMesh);
   }
-  return { group, limbs, mats: [torsoMat, headMat, limbMat] };
+  if (!ranged) {
+    // Long claw boxes on the arm ends — children of the arms, so they swing.
+    const clawGeo = new THREE.BoxGeometry(0.045, 0.24, 0.05);
+    clawGeo.translate(0, -0.12, 0); // hangs from the arm end
+    for (const arm of [limbs[2], limbs[3]]) {
+      for (const cx of [-0.04, 0.04]) {
+        const claw = new THREE.Mesh(clawGeo, limbMat);
+        claw.name = 'entity';
+        claw.position.set(cx, -ARM_LEN, -0.03);
+        arm?.add(claw);
+      }
+    }
+  }
+  return { group, torso, limbs, mats: [torsoMat, headMat, limbMat] };
 }
 
 export class HostileSystem {
@@ -182,10 +239,13 @@ export class HostileSystem {
       wanderTimer: 0,
       phase: 0,
       flash: 0,
+      lunge: 0,
+      dying: 0,
       kbX: 0,
       kbZ: 0,
       group: parts.group,
       limbs: parts.limbs,
+      torso: parts.torso,
       mats: parts.mats,
     };
     this.scene.add(stalker.group);
@@ -235,6 +295,18 @@ export class HostileSystem {
     for (let i = this.stalkers.length - 1; i >= 0; i--) {
       const s = this.stalkers[i];
       if (!s) continue;
+      if (s.dying > 0) {
+        // Death pop: no AI, movement or burn — shrink, then despawn.
+        s.dying -= dt;
+        if (s.dying <= 0) {
+          this.scene.remove(s.group);
+          this.stalkers.splice(i, 1);
+        } else {
+          const k = Math.max(DYING_MIN_SCALE, s.group.scale.x * Math.max(0, 1 - dt * DYING_SHRINK));
+          s.group.scale.set(k, k, k);
+        }
+        continue;
+      }
       const dx = s.body.x - px;
       const dz = s.body.z - pz;
       const distSq = dx * dx + dz * dz;
@@ -257,7 +329,7 @@ export class HostileSystem {
     this.updateProjectiles(dt, px, py, pz, hitPlayer);
   }
 
-  /** Limb swing scaled by actual speed, plus the red hurt flash. */
+  /** Limb swing scaled by actual speed, the melee lunge tell, and hurt flash. */
   private animate(s: Stalker, dt: number): void {
     const speed = Math.hypot(s.body.vx, s.body.vz);
     if (speed > 0.2 && s.body.onGround) {
@@ -270,6 +342,11 @@ export class HostileSystem {
       s.limbs[3]?.rotation.set(swing, 0, 0);
     } else {
       for (const limb of s.limbs) limb.rotation.x *= Math.max(0, 1 - dt * 10);
+    }
+    if (s.lunge > 0) {
+      // Lunge tell: tipped LUNGE_TIP forward on the hit, decaying upright.
+      s.lunge -= dt;
+      s.torso.rotation.x = Math.max(0, s.lunge) * (LUNGE_TIP / LUNGE_S);
     }
     if (s.flash > 0) {
       s.flash -= dt;
@@ -348,6 +425,7 @@ export class HostileSystem {
     if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
       hitPlayer(ATTACK_DAMAGE);
       s.attackCd = ATTACK_COOLDOWN_S;
+      s.lunge = LUNGE_S; // visible tell: the torso tips forward, then decays
     }
   }
 
@@ -432,6 +510,7 @@ export class HostileSystem {
     let best: Stalker | null = null;
     let bestT = maxDist;
     for (const s of this.stalkers) {
+      if (s.dying > 0) continue; // corpses mid-pop can't be targeted
       const b = s.body;
       const t = rayAABB(
         ox, oy, oz, dx, dy, dz,
@@ -448,15 +527,16 @@ export class HostileSystem {
 
   /**
    * Strike a stalker; returns true if it died. (kx, kz) is the attack
-   * direction for knockback (defaults keep old callers working).
+   * direction for knockback (defaults keep old callers working). The lethal
+   * hit reports the kill immediately; the body then plays a brief shrinking
+   * death pop before fixedUpdate removes it from scene and array.
    */
   hurt(stalker: Stalker, kx = 0, kz = 0): boolean {
+    if (stalker.dying > 0) return false; // already slain and popping
     stalker.hp -= 2;
     stalker.body.vy = 4; // knock-up
     if (stalker.hp <= 0) {
-      const index = this.stalkers.indexOf(stalker);
-      if (index >= 0) this.stalkers.splice(index, 1);
-      this.scene.remove(stalker.group);
+      stalker.dying = DYING_S;
       return true;
     }
     stalker.flash = 0.22;

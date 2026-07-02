@@ -80,16 +80,25 @@ describe('animals', () => {
     expect(system.animals.includes(far)).toBe(false);
   });
 
-  it('is hunted in ANIMAL_HP punches and drops meat', () => {
+  it('is hunted in ANIMAL_HP punches, drops meat, and death-pops away', () => {
     const { system, scene } = makeSystem();
+    system.setSpawning(false); // the pop tick below must not spawn fresh wildlife
     const animal = system.spawnAt(0.5, 10, 0.5);
     const childrenWithAnimal = scene.children.length;
     let drops: { id: number; count: number } | null = null;
     for (let i = 0; i < ANIMAL_HP; i++) drops = system.hurt(animal);
+    // Drops are yielded immediately on the lethal hit.
     expect(drops).not.toBeNull();
     expect(drops!.id).toBe(Item.meat);
     expect(drops!.count).toBeGreaterThanOrEqual(1);
     expect(drops!.count).toBeLessThanOrEqual(2);
+    // Death pop: the carcass lingers ~0.18s, shrinking, and can't be re-hit.
+    expect(scene.children.length).toBe(childrenWithAnimal);
+    expect(system.hurt(animal)).toBeNull(); // no double drops mid-pop
+    const scaleBefore = animal.group.scale.x;
+    system.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(animal.group.scale.x).toBeLessThan(scaleBefore);
+    system.fixedUpdate(0.2, 0.5, 10, 0.5); // pop elapses -> removal
     expect(system.count).toBe(0);
     expect(scene.children.length).toBe(childrenWithAnimal - 1);
   });
@@ -266,6 +275,42 @@ describe('herd spawning & size variety', () => {
       peak = Math.max(peak, system.count);
     }
     expect(peak).toBe(MAX_ANIMALS); // herds saturate the cap without breaching it
+  });
+
+  it('idles with a gentle head bob and rolls the torso only while walking', () => {
+    const { system } = makeSystem();
+    system.setSpawning(false);
+    const idler = system.spawnAt(0.5, 10, 0.5);
+    idler.moving = false;
+    idler.timer = 99; // pin the AI decision so it stays idle
+    for (let i = 0; i < 30; i++) system.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(Math.abs(idler.head.rotation.x)).toBeGreaterThan(0.005); // head tilts...
+    expect(Math.abs(idler.head.rotation.x)).toBeLessThanOrEqual(0.06); // ...gently
+    expect(Math.abs(idler.torso.rotation.z)).toBeLessThan(0.001); // no roll at rest
+
+    const walker = system.spawnAt(0.5, 10, 0.5);
+    walker.moving = true;
+    walker.timer = 99;
+    let roll = 0;
+    for (let i = 0; i < 30; i++) {
+      system.fixedUpdate(DT, walker.body.x, 10, walker.body.z);
+      roll = Math.max(roll, Math.abs(walker.torso.rotation.z));
+    }
+    expect(roll).toBeGreaterThan(0.01); // gait-synced body roll...
+    expect(roll).toBeLessThanOrEqual(0.03 + 1e-9); // ...stays slight
+  });
+
+  it('names every body-part mesh "entity" across all species rigs', () => {
+    const { system } = makeSystem();
+    for (const species of [0, 1, 2, 3] as const) {
+      const animal = system.spawnAt(0.5, 10, 0.5, species);
+      animal.group.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) expect(obj.name).toBe('entity');
+      });
+    }
+    // Detail pass sanity: the strider's neck raises its head above a trundler's.
+    const [trundler, , strider] = system.animals;
+    expect(strider!.head.position.y).toBeGreaterThan(trundler!.head.position.y + 0.2);
   });
 
   it('rolls each animal a visual scale in [0.85, 1.15], uniform across axes', () => {

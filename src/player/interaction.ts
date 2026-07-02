@@ -23,6 +23,7 @@ import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physic
 import type { Input } from '../engine/input';
 import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities/animals';
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
+import type { FishSystem } from '../entities/fish';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -155,6 +156,8 @@ export class Interaction {
   animals: AnimalSystem | null = null;
   /** Hostile mobs (bound by main; struck by the same punch). */
   hostiles: HostileSystem | null = null;
+  /** Fish (bound by main; catchable with the same punch). */
+  fish: FishSystem | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Right-click on a container block (chest): opens it, consumes the click. */
@@ -361,7 +364,7 @@ export class Interaction {
     return this.onUseBed(bx, by, bz);
   }
 
-  /** Punch the nearest entity (animal or hostile) if closer than the block. */
+  /** Punch the nearest entity (hostile, animal or fish) if closer than the block. */
   private tryPunchAnimal(
     ox: number,
     oy: number,
@@ -373,19 +376,37 @@ export class Interaction {
   ): boolean {
     const animalHit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const hostileHit = this.hostiles?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
-    // Pick the nearest of the two entity hits.
-    const useHostile =
-      hostileHit !== null && (animalHit === null || hostileHit.distance <= animalHit.distance);
-    const dist = useHostile ? hostileHit?.distance : animalHit?.distance;
-    if (dist === undefined) return false;
+    const fishHit = this.fish?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    // Nearest wins; hostiles break distance ties (they're the danger).
+    let dist = Infinity;
+    let kind: 'hostile' | 'animal' | 'fish' | null = null;
+    if (hostileHit && hostileHit.distance < dist) {
+      dist = hostileHit.distance;
+      kind = 'hostile';
+    }
+    if (animalHit && animalHit.distance < dist) {
+      dist = animalHit.distance;
+      kind = 'animal';
+    }
+    if (fishHit && fishHit.distance < dist) {
+      dist = fishHit.distance;
+      kind = 'fish';
+    }
+    if (kind === null) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
-    if (useHostile && hostileHit) {
+    if (kind === 'hostile' && hostileHit) {
       this.hostiles?.hurt(hostileHit.stalker, dx, dz);
-    } else if (animalHit) {
+    } else if (kind === 'animal' && animalHit) {
       const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
       if (drops && inventory) {
         const b = animalHit.animal.body;
         this.award(inventory, drops.id, drops.count, b.x, b.y + 0.4, b.z);
+      }
+    } else if (kind === 'fish' && fishHit) {
+      const drops = this.fish?.hurt(fishHit.fish, dx, dz) ?? null;
+      if (drops && inventory) {
+        const b = fishHit.fish.body;
+        this.award(inventory, drops.id, drops.count, b.x, b.y + 0.2, b.z);
       }
     }
     this.onEdit?.('break', Item.meat); // thud

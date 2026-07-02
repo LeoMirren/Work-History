@@ -68,15 +68,29 @@ describe('hostile behaviour', () => {
     expect(system.count).toBe(0);
   });
 
-  it('is killed in STALKER_HP/2 punches and removed from the scene', () => {
+  it('is killed in STALKER_HP/2 punches, death-pops, then leaves the scene', () => {
     const { system, scene } = makeSystem();
     const s = system.spawnAt(3.5, 11, 0.5);
     const before = scene.children.length;
     let dead = false;
     for (let i = 0; i < STALKER_HP / 2; i++) dead = system.hurt(s);
-    expect(dead).toBe(true);
+    expect(dead).toBe(true); // the kill is reported on the lethal hit itself
+    // Death pop: the body lingers ~0.18s shrinking — untargetable, unhittable.
+    expect(scene.children.length).toBe(before);
+    expect(system.hurt(s)).toBe(false);
+    expect(system.raycastNearest(0.5, 12.6, 0.5, 1, 0, 0, 8)).toBeNull();
+    system.fixedUpdate(0.2, 0.5, 11, 0.5, DAY, noDamage); // pop elapses -> removal
     expect(system.count).toBe(0);
     expect(scene.children.length).toBe(before - 1);
+  });
+
+  it('telegraphs melee strikes with a decaying torso lunge', () => {
+    const { system } = makeSystem();
+    const s = system.spawnAt(1.4, 11, 0.5, false); // in range: first tick strikes
+    system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, noDamage);
+    expect(s.torso.rotation.x).toBeGreaterThan(0.2); // tipped ~0.25 forward
+    for (let i = 0; i < 40; i++) system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, noDamage);
+    expect(s.torso.rotation.x).toBe(0); // decayed upright before the next swing
   });
 
   it('is ray-picked from the eye', () => {
