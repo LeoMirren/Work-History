@@ -5,7 +5,9 @@
  * no world access. Runs identically in a worker or on the main thread.
  *
  * Emits up to three passes (opaque / cutout / translucent water). Per vertex:
- *  - color: directional face shade × ambient occlusion × foliage tint;
+ *  - color: directional face shade × warm/cool face grade × ambient occlusion
+ *    × foliage tint × per-column jitter (see COLOR GRADING below) — all baked
+ *    at mesh time, zero per-frame cost;
  *  - light: (sky, block) channels 0..1, smoothed over the four cells meeting
  *    at the vertex (the same cells AO samples). The shader combines them with
  *    the day/night brightness so lanterns keep glowing at night.
@@ -25,10 +27,52 @@ export function computeAO(side1: boolean, side2: boolean, corner: boolean): numb
   return 3 - ((side1 ? 1 : 0) + (side2 ? 1 : 0) + (corner ? 1 : 0));
 }
 
-export const AO_BRIGHTNESS: readonly number[] = [0.5, 0.7, 0.85, 1.0];
+/* ---------------------------------------------------------------------------
+ * COLOR GRADING — every vertex-color tuning constant lives in this block.
+ * Baked into the `color` attribute at mesh time (shader: albedo × color ×
+ * light), so all values are multipliers around 1 and cost nothing per frame.
+ *
+ * AO_BRIGHTNESS     brightness per §4.6 AO level [0..3]. Level 0 deepened
+ *                   0.50 → 0.45 for crisper corners/crevices; levels 1..3
+ *                   unchanged so open faces keep their look.
+ * FACE_SHADE        scalar directional shade per face [+x,-x,+y,-y,+z,-z]
+ *                   (§4.5). Bottoms dropped 0.55 → 0.50 so overhangs and
+ *                   cave ceilings read heavier against the warm tops.
+ * FACE_GRADE_RG/_B  warm/cool chroma per face: tops +3% warm (sun-heated),
+ *                   east/west (±x) +3% blue (cool sky fill), north/south and
+ *                   bottoms neutral. Warmth rides the yellow–blue axis: red
+ *                   and green move TOGETHER (RG) against blue (B), so r === g
+ *                   holds on untinted blocks — only foliageTint may separate
+ *                   them (the "tints grass but never stone" invariant pinned
+ *                   by graphics.test.ts).
+ * JITTER_*          deterministic per-world-column color jitter from hash2:
+ *                   two octaves (16- and 4-block strides) averaged into one
+ *                   smooth value per column — patches, never checkerboards.
+ *                   Grass/leaves ±5% green (meadow patchiness), water ±3%
+ *                   blue, stone/sand/snow ±2% on all channels (uniform, so
+ *                   the r === g invariant survives). Other blocks: none.
+ * TINT_*            existing per-patch foliage tint (±6% r / ±8% b), kept
+ *                   as-is; multiplies on top of the grade and jitter.
+ * ------------------------------------------------------------------------- */
+
+export const AO_BRIGHTNESS: readonly number[] = [0.45, 0.7, 0.85, 1.0];
 
 /** Directional shade per face, order [+x, -x, +y, -y, +z, -z] (§4.5). */
-export const FACE_SHADE: readonly number[] = [0.75, 0.75, 1.0, 0.55, 0.85, 0.85];
+export const FACE_SHADE: readonly number[] = [0.75, 0.75, 1.0, 0.5, 0.85, 0.85];
+
+/** Warm/cool grade: red+green multiplier per face (warm tops). */
+export const FACE_GRADE_RG: readonly number[] = [1.0, 1.0, 1.03, 1.0, 1.0, 1.0];
+
+/** Warm/cool grade: blue multiplier per face (cool east/west sides). */
+export const FACE_GRADE_B: readonly number[] = [1.03, 1.03, 1.0, 1.0, 1.0, 1.0];
+
+const JITTER_SALT_COARSE = 0x51ab3d; // 16-block octave: regional drift
+const JITTER_SALT_FINE = 0x9c4e17; // 4-block octave: local patchiness
+const JITTER_GREEN = 0.05; // grass + leaves green swing (spec: ±4–6%)
+const JITTER_BLUE = 0.03; // water blue swing
+const JITTER_MINERAL = 0.02; // stone/sand/snow all-channel swing
+const JITTER_GREEN_IDS = new Set<number>([Block.grass, Block.leaves]);
+const JITTER_MINERAL_IDS = new Set<number>([Block.stone, Block.sand, Block.snow]);
 
 /** Foliage gets a subtle per-column warm/cool tint so plains aren't flat. */
 const TINT_SALT = 0x7e11a9;
@@ -38,6 +82,32 @@ export function foliageTint(wx: number, wz: number): { r: number; b: number } {
   // 4-block patches; subtle ±6% red / ±8% blue swing around neutral.
   const h = hash2(TINT_SALT, wx >> 2, wz >> 2);
   return { r: 0.94 + ((h & 0xff) / 255) * 0.12, b: 0.88 + (((h >> 8) & 0xff) / 255) * 0.16 };
+}
+
+/**
+ * One smooth deterministic value in [-1, 1] per world column: two hash
+ * octaves at different strides, averaged, so patch borders of the two grids
+ * never coincide (no checkerboard). `>>` floors correctly for negatives.
+ */
+function columnNoise(wx: number, wz: number): number {
+  const coarse = hash2(JITTER_SALT_COARSE, wx >> 4, wz >> 4) / 0xffffffff;
+  const fine = hash2(JITTER_SALT_FINE, wx >> 2, wz >> 2) / 0xffffffff;
+  return coarse + fine - 1; // mean of two [0,1] values, rescaled to [-1, 1]
+}
+
+/**
+ * Per-column color jitter multipliers for a block id (neutral {1,1,1} for
+ * ids outside the three jitter classes). Exported so tests can compute
+ * expected vertex colors exactly.
+ */
+export function columnJitter(id: number, wx: number, wz: number): { r: number; g: number; b: number } {
+  if (JITTER_GREEN_IDS.has(id)) return { r: 1, g: 1 + columnNoise(wx, wz) * JITTER_GREEN, b: 1 };
+  if (id === Block.water) return { r: 1, g: 1, b: 1 + columnNoise(wx, wz) * JITTER_BLUE };
+  if (JITTER_MINERAL_IDS.has(id)) {
+    const m = 1 + columnNoise(wx, wz) * JITTER_MINERAL;
+    return { r: m, g: m, b: m };
+  }
+  return { r: 1, g: 1, b: 1 };
 }
 
 /**
@@ -142,7 +212,11 @@ class QuadSink {
   maxY = -Infinity;
   maxZ = -Infinity;
 
-  /** vertexLight holds 8 floats: (sky, block) per corner, already 0..1. */
+  /**
+   * vertexLight holds 8 floats: (sky, block) per corner, already 0..1.
+   * colR/colG/colB are the face's combined chroma multipliers
+   * (warm/cool grade × foliage tint × column jitter).
+   */
   pushQuad(
     x: number,
     y: number,
@@ -155,8 +229,9 @@ class QuadSink {
     ao2: number,
     ao3: number,
     vertexLight: ArrayLike<number>,
-    tintR: number,
-    tintB: number,
+    colR: number,
+    colG: number,
+    colB: number,
   ): void {
     const base = this.positions.length / 3;
     const tu = (tile % ATLAS_TILES) / ATLAS_TILES;
@@ -172,7 +247,7 @@ class QuadSink {
       this.uvs.push(tu + uv[0] / ATLAS_TILES, tv + uv[1] / ATLAS_TILES);
       const ao = c === 0 ? ao0 : c === 1 ? ao1 : c === 2 ? ao2 : ao3;
       const lit = shade * (AO_BRIGHTNESS[ao] ?? 1);
-      this.colors.push(lit * tintR, lit, lit * tintB);
+      this.colors.push(lit * colR, lit * colG, lit * colB);
       this.lights.push(vertexLight[c * 2] ?? 1, vertexLight[c * 2 + 1] ?? 0);
       if (vx < this.minX) this.minX = vx;
       if (vy < this.minY) this.minY = vy;
@@ -230,7 +305,8 @@ const vertexLightScratch = new Float32Array(8);
 
 /**
  * Mesh the center chunk of a 3×3 snapshot. Pure — (cx, cz) only seed the
- * deterministic foliage tint hash.
+ * deterministic foliage-tint and column-jitter hashes, so identical inputs
+ * always produce byte-identical meshes.
  */
 export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMeshData {
   const light = computeLight(snapshot);
@@ -247,6 +323,8 @@ export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMe
         const pass = PASS[id] ?? PASS_NONE;
         if (pass === PASS_NONE) continue;
         const sink = pass === PASS_OPAQUE ? opaque : pass === PASS_CUTOUT ? cutout : water;
+        const wx = cx * CHUNK_SIZE + x;
+        const wz = cz * CHUNK_SIZE + z;
         for (let f = 0; f < 6; f++) {
           const face = FACES[f];
           if (!face) continue;
@@ -306,16 +384,24 @@ export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMe
             vertexLightScratch[v * 2] = sky / count / MAX_LIGHT;
             vertexLightScratch[v * 2 + 1] = blk / count / MAX_LIGHT;
           }
-          let tintR = 1;
-          let tintB = 1;
+          // Combined chroma per face: warm/cool grade × column jitter ×
+          // foliage tint. r and g share the grade and (for minerals) the
+          // jitter, so r === g on every untinted block.
+          const jit = columnJitter(id, wx, wz);
+          // "Grass tops/sides" only: the dirt underside skips green jitter.
+          const jg = id === Block.grass && f === 3 ? 1 : jit.g;
+          const gradeRG = FACE_GRADE_RG[f] ?? 1;
+          let colR = gradeRG * jit.r;
+          const colG = gradeRG * jg;
+          let colB = (FACE_GRADE_B[f] ?? 1) * jit.b;
           if (TINTED.has(id)) {
-            const tint = foliageTint(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
-            tintR = tint.r;
-            tintB = tint.b;
+            const tint = foliageTint(wx, wz);
+            colR *= tint.r;
+            colB *= tint.b;
           }
           sink.pushQuad(
             x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,
-            ao0, ao1, ao2, ao3, vertexLightScratch, tintR, tintB,
+            ao0, ao1, ao2, ao3, vertexLightScratch, colR, colG, colB,
           );
         }
       }

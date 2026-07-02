@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, createChunkData } from '../src/world/chunk';
-import { FACES, meshChunk } from '../src/world/mesher';
+import { FACE_GRADE_RG, FACES, meshChunk, type MeshArrays } from '../src/world/mesher';
 import { SNAP_VOLUME, snapIndex } from '../src/world/lighting';
 import { createGenerator } from '../src/world/worldgen';
 
@@ -108,5 +108,91 @@ describe('mesher', () => {
     console.log(`[M1 acceptance] terrain chunk triangles (with exposed sides): ${tris}`);
     expect(tris).toBeGreaterThan(100);
     expect(tris).toBeLessThan(40000); // naive un-culled would be ~393k
+  });
+});
+
+describe('color grading & column jitter', () => {
+  /** One 16×16 slab of `id` at y=10; its top faces sit on the y=11 plane. */
+  function slab(id: number): Uint8Array {
+    const data = createChunkData();
+    for (let z = 0; z < 16; z++) {
+      for (let x = 0; x < 16; x++) data[blockIndex(x, 10, z)] = id;
+    }
+    return padWithAir(data);
+  }
+
+  /** Collect a color channel over every quad lying fully on plane y (slab tops). */
+  function planeChannel(mesh: MeshArrays, planeY: number, channel: 0 | 1 | 2): number[] {
+    const out: number[] = [];
+    const { positions, colors } = mesh;
+    for (let v = 0; v < positions.length / 3; v += 4) {
+      let onPlane = true;
+      for (let c = 0; c < 4; c++) {
+        if (positions[(v + c) * 3 + 1] !== planeY) onPlane = false;
+      }
+      if (!onPlane) continue;
+      for (let c = 0; c < 4; c++) out.push(colors[(v + c) * 3 + channel] ?? -1);
+    }
+    return out;
+  }
+
+  it('is deterministic: identical inputs produce identical mesh bytes', () => {
+    const generator = createGenerator('voxelheim-m1');
+    const snap = padWithAir(generator.generateChunk(-2, 3)); // negative wx columns too
+    const a = meshChunk(snap, -2, 3);
+    const b = meshChunk(snap, -2, 3);
+    for (const pass of ['opaque', 'cutout', 'water'] as const) {
+      const pa = a[pass];
+      const pb = b[pass];
+      expect(pa === null).toBe(pb === null);
+      if (!pa || !pb) continue;
+      expect(pa.positions).toEqual(pb.positions);
+      expect(pa.uvs).toEqual(pb.uvs);
+      expect(pa.colors).toEqual(pb.colors);
+      expect(pa.lights).toEqual(pb.lights);
+      expect(pa.indices).toEqual(pb.indices);
+    }
+  });
+
+  it('jitters stone tops per world column within ±2%, keeping r === g', () => {
+    const mesh = meshChunk(slab(Block.stone), 0, 0).opaque!;
+    const warm = FACE_GRADE_RG[2] ?? 0; // top faces carry the warm grade
+    const reds = planeChannel(mesh, 11, 0);
+    const greens = planeChannel(mesh, 11, 1);
+    expect(reds.length).toBe(16 * 16 * 4);
+    for (let i = 0; i < reds.length; i++) {
+      expect(reds[i]! / warm).toBeGreaterThanOrEqual(0.98 - 1e-6);
+      expect(reds[i]! / warm).toBeLessThanOrEqual(1.02 + 1e-6);
+      expect(greens[i]).toBe(reds[i]); // mineral jitter is channel-uniform
+    }
+    expect(new Set(reds).size).toBeGreaterThan(4); // varies across columns
+  });
+
+  it('jitters water blue per world column within ±3%, red/green untouched', () => {
+    const mesh = meshChunk(slab(Block.water), 0, 0).water!;
+    const blues = planeChannel(mesh, 11, 2);
+    for (const b of blues) {
+      expect(b).toBeGreaterThanOrEqual(0.97 - 1e-6);
+      expect(b).toBeLessThanOrEqual(1.03 + 1e-6);
+    }
+    expect(new Set(blues).size).toBeGreaterThan(4);
+    // Red carries only the warm-top grade — no jitter on water's r/g.
+    for (const r of planeChannel(mesh, 11, 0)) expect(r).toBeCloseTo(FACE_GRADE_RG[2] ?? 0, 6);
+  });
+
+  it('varies grass green per column within ±5%; planks stay perfectly uniform', () => {
+    const grass = meshChunk(slab(Block.grass), 0, 0).opaque!;
+    const warm = FACE_GRADE_RG[2] ?? 0;
+    const greens = planeChannel(grass, 11, 1);
+    for (const g of greens) {
+      expect(g / warm).toBeGreaterThanOrEqual(0.95 - 1e-6);
+      expect(g / warm).toBeLessThanOrEqual(1.05 + 1e-6);
+    }
+    expect(new Set(greens).size).toBeGreaterThan(4);
+
+    const planks = meshChunk(slab(Block.planks), 0, 0).opaque!;
+    expect(new Set(planeChannel(planks, 11, 0)).size).toBe(1); // no jitter class
+    expect(new Set(planeChannel(planks, 11, 1)).size).toBe(1);
+    expect(new Set(planeChannel(planks, 11, 2)).size).toBe(1);
   });
 });

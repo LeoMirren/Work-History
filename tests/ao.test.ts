@@ -1,9 +1,17 @@
 /**
  * §4.6 vertex AO: the calculator against hand-computed cases, plus the AO,
- * face-shade and quad-flip behavior as observed in actual mesh output.
+ * face-shade/grade and quad-flip behavior as observed in actual mesh output.
  */
 import { describe, expect, it } from 'vitest';
-import { AO_BRIGHTNESS, computeAO, FACE_SHADE, meshChunk } from '../src/world/mesher';
+import {
+  AO_BRIGHTNESS,
+  columnJitter,
+  computeAO,
+  FACE_GRADE_B,
+  FACE_GRADE_RG,
+  FACE_SHADE,
+  meshChunk,
+} from '../src/world/mesher';
 import { SNAP_VOLUME, snapIndex } from '../src/world/lighting';
 import { Block } from '../src/world/blocks';
 
@@ -20,10 +28,18 @@ describe('computeAO hand cases', () => {
     expect(computeAO(true, true, true)).toBe(0);
   });
 
-  it('uses the spec brightness LUT', () => {
-    expect(AO_BRIGHTNESS).toEqual([0.5, 0.7, 0.85, 1.0]);
+  it('uses the spec brightness LUT (darkest step deepened for contrast)', () => {
+    expect(AO_BRIGHTNESS).toEqual([0.45, 0.7, 0.85, 1.0]);
   });
 });
+
+/**
+ * All hand-case blocks sit at (8,10,8) in chunk (0,0) = world column (8,8).
+ * The helper below reads the RED channel of the +y face, which carries
+ * shade(1.0) × warm-top grade × the column's mineral jitter on top of AO —
+ * fold those two deterministic factors into one expected-value multiplier.
+ */
+const TOP_STONE = (FACE_GRADE_RG[2] ?? 0) * columnJitter(Block.stone, 8, 8).r;
 
 /** Snapshot with blocks placed in the meshed center chunk (offset 16). */
 function padded(blocks: Array<[number, number, number, number]>): Uint8Array {
@@ -68,10 +84,10 @@ function topFaceColors(
 }
 
 describe('AO in mesh output (hand-computed)', () => {
-  it('an unoccluded top face is fully lit', () => {
+  it('an unoccluded top face is fully lit (ao 1.0 → only grade × jitter)', () => {
     const colors = topFaceColors(padded([[8, 10, 8, Block.stone]]), 8, 10, 8);
     expect(colors.size).toBe(4);
-    for (const c of colors.values()) expect(c).toBeCloseTo(1.0, 6);
+    for (const c of colors.values()) expect(c).toBeCloseTo(1.0 * TOP_STONE, 6);
   });
 
   it('a side occluder darkens exactly the two adjacent corners to level 2', () => {
@@ -81,10 +97,10 @@ describe('AO in mesh output (hand-computed)', () => {
       [9, 11, 8, Block.stone],
     ]);
     const colors = topFaceColors(buf, 8, 10, 8);
-    expect(colors.get('0,0')).toBeCloseTo(1.0, 6);
-    expect(colors.get('0,1')).toBeCloseTo(1.0, 6);
-    expect(colors.get('1,0')).toBeCloseTo(0.85, 6); // ao 2
-    expect(colors.get('1,1')).toBeCloseTo(0.85, 6); // ao 2
+    expect(colors.get('0,0')).toBeCloseTo(1.0 * TOP_STONE, 6);
+    expect(colors.get('0,1')).toBeCloseTo(1.0 * TOP_STONE, 6);
+    expect(colors.get('1,0')).toBeCloseTo(0.85 * TOP_STONE, 6); // ao 2
+    expect(colors.get('1,1')).toBeCloseTo(0.85 * TOP_STONE, 6); // ao 2
   });
 
   it('two sides meeting at a corner give ao 0 there', () => {
@@ -94,10 +110,10 @@ describe('AO in mesh output (hand-computed)', () => {
       [8, 11, 7, Block.stone], // -z side
     ]);
     const colors = topFaceColors(buf, 8, 10, 8);
-    expect(colors.get('0,0')).toBeCloseTo(0.5, 6); // ao 0 corner
-    expect(colors.get('1,0')).toBeCloseTo(0.85, 6); // ao 2 (one side)
-    expect(colors.get('0,1')).toBeCloseTo(0.85, 6); // ao 2 (one side)
-    expect(colors.get('1,1')).toBeCloseTo(1.0, 6); // untouched
+    expect(colors.get('0,0')).toBeCloseTo(0.45 * TOP_STONE, 6); // ao 0 corner
+    expect(colors.get('1,0')).toBeCloseTo(0.85 * TOP_STONE, 6); // ao 2 (one side)
+    expect(colors.get('0,1')).toBeCloseTo(0.85 * TOP_STONE, 6); // ao 2 (one side)
+    expect(colors.get('1,1')).toBeCloseTo(1.0 * TOP_STONE, 6); // untouched
   });
 
   it('a diagonal-only occluder darkens one corner to level 2', () => {
@@ -106,8 +122,8 @@ describe('AO in mesh output (hand-computed)', () => {
       [7, 11, 7, Block.stone], // diagonal above the (0,0) corner
     ]);
     const colors = topFaceColors(buf, 8, 10, 8);
-    expect(colors.get('0,0')).toBeCloseTo(0.85, 6);
-    expect(colors.get('1,1')).toBeCloseTo(1.0, 6);
+    expect(colors.get('0,0')).toBeCloseTo(0.85 * TOP_STONE, 6);
+    expect(colors.get('1,1')).toBeCloseTo(1.0 * TOP_STONE, 6);
   });
 
   it('non-opaque blocks (water, leaves, glass) never occlude', () => {
@@ -118,7 +134,7 @@ describe('AO in mesh output (hand-computed)', () => {
       [8, 11, 7, Block.glass],
     ]);
     const colors = topFaceColors(buf, 8, 10, 8);
-    for (const c of colors.values()) expect(c).toBeCloseTo(1.0, 6);
+    for (const c of colors.values()) expect(c).toBeCloseTo(1.0 * TOP_STONE, 6);
   });
 
   it('flips the quad diagonal when ao0+ao2 > ao1+ao3', () => {
@@ -158,14 +174,28 @@ describe('AO in mesh output (hand-computed)', () => {
   });
 });
 
-describe('face shading (§4.5)', () => {
-  it('bakes the directional shade per face', () => {
-    expect(FACE_SHADE).toEqual([0.75, 0.75, 1.0, 0.55, 0.85, 0.85]);
+describe('face shading (§4.5) + warm/cool grade', () => {
+  it('pins the shade and grade LUTs', () => {
+    // Bottoms deepened 0.55 → 0.50; the rest of the §4.5 shade unchanged.
+    expect(FACE_SHADE).toEqual([0.75, 0.75, 1.0, 0.5, 0.85, 0.85]);
+    // Warm tops (+3% red+green), cool east/west (+3% blue), n/s + bottoms neutral.
+    expect(FACE_GRADE_RG).toEqual([1.0, 1.0, 1.03, 1.0, 1.0, 1.0]);
+    expect(FACE_GRADE_B).toEqual([1.03, 1.03, 1.0, 1.0, 1.0, 1.0]);
+  });
+
+  it('bakes shade × grade × jitter per face', () => {
     const mesh = meshChunk(padded([[8, 10, 8, Block.stone]]), 0, 0).opaque!;
+    const jit = columnJitter(Block.stone, 8, 8); // mineral: r === g === b
     // Lone block: faces emitted in table order (+x,-x,+y,-y,+z,-z), ao all 3.
     for (let f = 0; f < 6; f++) {
       for (let v = 0; v < 4; v++) {
-        expect(mesh.colors[(f * 4 + v) * 3]).toBeCloseTo(FACE_SHADE[f] ?? -1, 6);
+        const shade = FACE_SHADE[f] ?? -1;
+        const red = mesh.colors[(f * 4 + v) * 3];
+        const green = mesh.colors[(f * 4 + v) * 3 + 1];
+        const blue = mesh.colors[(f * 4 + v) * 3 + 2];
+        expect(red).toBeCloseTo(shade * (FACE_GRADE_RG[f] ?? -1) * jit.r, 6);
+        expect(green).toBe(red); // untinted: r === g exactly on every face
+        expect(blue).toBeCloseTo(shade * (FACE_GRADE_B[f] ?? -1) * jit.b, 6);
       }
     }
   });
