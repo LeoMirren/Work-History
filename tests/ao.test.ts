@@ -176,8 +176,9 @@ describe('AO in mesh output (hand-computed)', () => {
 
 describe('face shading (§4.5) + warm/cool grade', () => {
   it('pins the shade and grade LUTs', () => {
-    // Bottoms deepened 0.55 → 0.50; the rest of the §4.5 shade unchanged.
-    expect(FACE_SHADE).toEqual([0.75, 0.75, 1.0, 0.5, 0.85, 0.85]);
+    // Sides lowered (0.75→0.72, 0.85→0.82) so snowfields keep face contrast;
+    // bottoms stay at the deepened 0.50.
+    expect(FACE_SHADE).toEqual([0.72, 0.72, 1.0, 0.5, 0.82, 0.82]);
     // Warm tops (+3% red+green), cool east/west (+3% blue), n/s + bottoms neutral.
     expect(FACE_GRADE_RG).toEqual([1.0, 1.0, 1.03, 1.0, 1.0, 1.0]);
     expect(FACE_GRADE_B).toEqual([1.03, 1.03, 1.0, 1.0, 1.0, 1.0]);

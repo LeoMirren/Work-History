@@ -38,7 +38,11 @@ import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
 import { ItemDrops } from './entities/drops';
 import { FishSystem } from './entities/fish';
+import { VillagerSystem } from './entities/villagers';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
+import { applyTrade, offersFor } from './world/trades';
+import { cyrb128 } from './world/noise';
+import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
@@ -175,6 +179,20 @@ async function boot(): Promise<void> {
   interaction.hostiles = hostiles;
   const fish = new FishSystem(gr.scene);
   interaction.fish = fish;
+  // Recreated per session — village layouts (and so warden homes) are per-seed.
+  let villagers = new VillagerSystem(gr.scene, 0);
+  const tradeScreen = new TradeScreen(app);
+  let tradeOpen = false;
+  interaction.onTradeVillager = (villager) => {
+    if (!session) return;
+    const offers = offersFor(cyrb128(`${session.seed} villages`)[0] ?? 0, villager.villageKey, villager.index);
+    tradeScreen.open(offers, inventory, session.atlasCanvas, (offerIndex) => {
+      const offer = offers[offerIndex];
+      if (offer && applyTrade(inventory, offer)) audio.play('place', offer.get.id);
+    });
+    tradeOpen = true;
+    document.exitPointerLock();
+  };
   const projectiles = new ThrownProjectiles(gr.scene);
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
   const cropGrowth = new CropGrowth();
@@ -435,6 +453,12 @@ async function boot(): Promise<void> {
     const entityWorld = { isSolid: world.isSolid, getBlock: world.blockAt };
     animals.setWorld(entityWorld);
     animals.setBiomeFn(dimension === 'overworld' ? createGenerator(seed, dimension).biomeAt : null);
+    fish.setWorld(entityWorld);
+    // Wardens live in overworld villages only; rebuild the system per seed.
+    villagers.clear();
+    villagers = new VillagerSystem(gr.scene, cyrb128(`${seed} villages`)[0] ?? 0);
+    villagers.setWorld(dimension === 'overworld' ? entityWorld : null);
+    interaction.villagers = villagers;
     projectiles.clear();
     infoPanel.show();
     applyMode(mode, world, atlasCanvas);
@@ -454,6 +478,10 @@ async function boot(): Promise<void> {
     if (chestOpen) {
       chestScreen.close();
       chestOpen = false;
+    }
+    if (tradeOpen) {
+      tradeScreen.close();
+      tradeOpen = false;
     }
     if (pickerOpen) {
       blockPicker.close();
@@ -538,7 +566,7 @@ async function boot(): Promise<void> {
   input.onLockChange = (locked) => {
     if (locked) {
       menus.hidePause();
-    } else if (session && !inventoryOpen && !guideOpen && !chestOpen && !pickerOpen) {
+    } else if (session && !inventoryOpen && !guideOpen && !chestOpen && !pickerOpen && !tradeOpen) {
       menus.showPause();
     }
   };
@@ -600,6 +628,9 @@ async function boot(): Promise<void> {
       dayNight.advance(dt);
       if (physicsReady(session.world)) player.fixedUpdate(input, session.world, dt);
       animals.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
+      fish.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
+      villagers.setNight(isNightTime(dayNight.time));
+      villagers.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
       projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
       cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
       particles.update(dt);
@@ -677,8 +708,18 @@ async function boot(): Promise<void> {
           chestScreen.render();
         }
       }
+      // Barter screen (right-click a village warden) — close with E/Esc.
+      if (session && tradeOpen) {
+        if (input.takePressed('KeyE') || input.takePressed('Escape')) {
+          tradeScreen.close();
+          tradeOpen = false;
+          input.requestLock();
+        } else {
+          tradeScreen.render();
+        }
+      }
       // Inventory screen (E) swaps pointer lock for the cursor.
-      if (session && hud && session.mode === 'survival' && !chestOpen) {
+      if (session && hud && session.mode === 'survival' && !chestOpen && !tradeOpen) {
         if (inventoryOpen) {
           if (input.takePressed('KeyE') || input.takePressed('Escape')) {
             inventoryScreen.close();
@@ -694,7 +735,7 @@ async function boot(): Promise<void> {
         }
       }
       // Creative block picker (E) — every placeable block for the hotbar.
-      if (session && hud && session.mode === 'creative' && !chestOpen) {
+      if (session && hud && session.mode === 'creative' && !chestOpen && !tradeOpen) {
         if (pickerOpen) {
           if (input.takePressed('KeyE') || input.takePressed('Escape')) {
             blockPicker.close();
@@ -708,7 +749,7 @@ async function boot(): Promise<void> {
         }
       }
       // Guide book (G) — available in any mode; also swaps pointer lock.
-      if (session && !chestOpen) {
+      if (session && !chestOpen && !tradeOpen) {
         if (guideOpen) {
           if (input.takePressed('KeyG') || input.takePressed('Escape')) {
             guide.close();

@@ -1072,3 +1072,80 @@ input[type='range']:focus-visible {
   z-index: 5;
   background: radial-gradient(ellipse at center, transparent 60%, rgba(6, 10, 24, 0.26) 100%);
 }
+
+/* ------------------------------------------------------------
+   Villager barter — give → get rows in the recipe-card style.
+   ------------------------------------------------------------ */
+
+#trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 184, 77, 0.35) rgba(5, 7, 14, 0.6);
+}
+
+.trade-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: rgba(233, 238, 251, 0.04);
+  border: 1px solid rgba(233, 238, 251, 0.06);
+}
+
+.trade-row canvas {
+  image-rendering: pixelated;
+  background: var(--well);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.trade-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.trade-arrow {
+  margin: 0 2px;
+  font-size: 17px;
+  color: var(--amber);
+  text-shadow:
+    0 0 8px var(--amber-glow),
+    0 1px 1px rgba(0, 0, 0, 0.7);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.menu-panel button.trade-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 12.5px;
+}
+
+.menu-panel button.trade-btn:disabled {
+  opacity: 0.45;
+  filter: saturate(0.35);
+  border-color: rgba(126, 152, 210, 0.25);
+  cursor: default;
+}
+
+.trade-have {
+  width: 100%;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--ink-faint);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+/* Key labels never wrap mid-key; long descriptions wrap on their own line. */
+.panel-label.key {
+  white-space: nowrap;
+}

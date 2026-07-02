@@ -24,6 +24,7 @@ import type { Input } from '../engine/input';
 import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities/animals';
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { FishSystem } from '../entities/fish';
+import { VILLAGER_HALF_WIDTH, VILLAGER_HEIGHT, type Villager, type VillagerSystem } from '../entities/villagers';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -59,6 +60,7 @@ const HINT_SMELT = 'open inventory (E) nearby to smelt';
 const HINT_HARVEST = 'left-click: harvest';
 const HINT_PLANT = 'right-click: plant seeds';
 const HINT_TILL = 'right-click: till farmland';
+const HINT_BARTER = 'right-click: barter';
 // Click-failure feedback — the difference between "broken" and "out of range".
 const FEEDBACK_TOO_FAR = 'out of reach — get closer to a surface';
 const FEEDBACK_BLOCKED = "can't place there — aim at a face beside open space";
@@ -158,6 +160,10 @@ export class Interaction {
   hostiles: HostileSystem | null = null;
   /** Fish (bound by main; catchable with the same punch). */
   fish: FishSystem | null = null;
+  /** Village wardens (bound by main; right-click barters, punches startle). */
+  villagers: VillagerSystem | null = null;
+  /** Right-click on a warden: main opens the barter screen. */
+  onTradeVillager: ((villager: Villager) => void) | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Right-click on a container block (chest): opens it, consumes the click. */
@@ -254,7 +260,18 @@ export class Interaction {
     const aimHostile = hostileAim !== null && (animalAim === null || hostileAim.distance <= animalAim.distance);
     const aimDist = aimHostile ? hostileAim?.distance : animalAim?.distance;
     const entityAimed = aimDist !== undefined && (!this.hasTarget || aimDist < this.hit.distance);
-    if (entityAimed) {
+    // Village wardens win the crosshair only when strictly nearest.
+    const villagerAim = this.villagers?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
+    const villagerAimed =
+      villagerAim !== null &&
+      (aimDist === undefined || villagerAim.distance < aimDist) &&
+      (!this.hasTarget || villagerAim.distance < this.hit.distance);
+    if (villagerAimed && villagerAim) {
+      const b = villagerAim.villager.body;
+      this.entityOutline.visible = true;
+      this.entityOutline.position.set(b.x, b.y + VILLAGER_HEIGHT / 2, b.z);
+      this.entityOutline.scale.set(VILLAGER_HALF_WIDTH * 2 + 0.08, VILLAGER_HEIGHT + 0.08, VILLAGER_HALF_WIDTH * 2 + 0.08);
+    } else if (entityAimed) {
       const aimBody = aimHostile && hostileAim ? hostileAim.stalker.body : animalAim?.animal.body;
       const hw = aimHostile ? STALKER_HALF_WIDTH : ANIMAL_HALF_WIDTH;
       const h = aimHostile ? STALKER_HEIGHT : ANIMAL_HEIGHT;
@@ -267,7 +284,7 @@ export class Interaction {
       this.entityOutline.visible = false;
     }
 
-    if (this.hasTarget && !entityAimed) {
+    if (this.hasTarget && !entityAimed && !villagerAimed) {
       this.outline.visible = true;
       this.outline.position.set(this.hit.bx + 0.5, this.hit.by + 0.5, this.hit.bz + 0.5);
     } else {
@@ -277,7 +294,9 @@ export class Interaction {
     // Contextual hint (polled by main, forwarded to the HUD): entities win
     // the crosshair, so they win the hint; otherwise the target block decides.
     const targetId = this.hasTarget ? world.getBlock(this.hit.bx, this.hit.by, this.hit.bz) : Block.air;
-    this.targetHint = hintForTarget(targetId, this.heldId(hotbar), entityAimed);
+    this.targetHint = villagerAimed
+      ? HINT_BARTER
+      : hintForTarget(targetId, this.heldId(hotbar), entityAimed);
 
     if (this.feedbackTimer > 0) {
       this.feedbackTimer -= dt;
@@ -291,6 +310,7 @@ export class Interaction {
         if (button === 0) {
           this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
         } else if (button === 2) {
+          if (this.tryTradeVillager(body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
           if (this.tryActivateRift(world)) continue;
           if (this.tryUseBed(world)) continue;
           if (this.tryOpenContainer(world)) continue;
@@ -364,6 +384,23 @@ export class Interaction {
     return this.onUseBed(bx, by, bz);
   }
 
+  /** Right-click a warden within reach (and nearer than the block): barter. */
+  private tryTradeVillager(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+  ): boolean {
+    if (this.mode !== 'survival' || !this.villagers || !this.onTradeVillager) return false;
+    const hit = this.villagers.raycastNearest(ox, oy, oz, dx, dy, dz, REACH);
+    if (!hit) return false;
+    if (this.hasTarget && this.hit.distance < hit.distance) return false;
+    this.onTradeVillager(hit.villager);
+    return true;
+  }
+
   /** Punch the nearest entity (hostile, animal or fish) if closer than the block. */
   private tryPunchAnimal(
     ox: number,
@@ -377,9 +414,11 @@ export class Interaction {
     const animalHit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const hostileHit = this.hostiles?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const fishHit = this.fish?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
-    // Nearest wins; hostiles break distance ties (they're the danger).
+    const villagerHit = this.villagers?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    // Nearest wins; hostiles break distance ties (they're the danger), and
+    // wardens are last so a fight never startles one by accident.
     let dist = Infinity;
-    let kind: 'hostile' | 'animal' | 'fish' | null = null;
+    let kind: 'hostile' | 'animal' | 'fish' | 'villager' | null = null;
     if (hostileHit && hostileHit.distance < dist) {
       dist = hostileHit.distance;
       kind = 'hostile';
@@ -391,6 +430,10 @@ export class Interaction {
     if (fishHit && fishHit.distance < dist) {
       dist = fishHit.distance;
       kind = 'fish';
+    }
+    if (villagerHit && villagerHit.distance < dist) {
+      dist = villagerHit.distance;
+      kind = 'villager';
     }
     if (kind === null) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
@@ -408,6 +451,8 @@ export class Interaction {
         const b = fishHit.fish.body;
         this.award(inventory, drops.id, drops.count, b.x, b.y + 0.2, b.z);
       }
+    } else if (kind === 'villager' && villagerHit) {
+      this.villagers?.startle(villagerHit.villager, dx, dz); // no drops, ever
     }
     this.onEdit?.('break', Item.meat); // thud
     return true;

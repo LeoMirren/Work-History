@@ -57,8 +57,12 @@ export function computeAO(side1: boolean, side2: boolean, corner: boolean): numb
 
 export const AO_BRIGHTNESS: readonly number[] = [0.45, 0.7, 0.85, 1.0];
 
-/** Directional shade per face, order [+x, -x, +y, -y, +z, -z] (§4.5). */
-export const FACE_SHADE: readonly number[] = [0.75, 0.75, 1.0, 0.5, 0.85, 0.85];
+/**
+ * Directional shade per face, order [+x, -x, +y, -y, +z, -z] (§4.5).
+ * Sides sit a touch below the classic values so near-white blocks
+ * (snowfields) keep readable face separation instead of washing out.
+ */
+export const FACE_SHADE: readonly number[] = [0.72, 0.72, 1.0, 0.5, 0.82, 0.82];
 
 /** Warm/cool grade: red+green multiplier per face (warm tops). */
 export const FACE_GRADE_RG: readonly number[] = [1.0, 1.0, 1.03, 1.0, 1.0, 1.0];
