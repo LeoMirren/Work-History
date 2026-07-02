@@ -317,3 +317,17 @@ declare module 'three' {
     blending?: number;
   }
 }
+
+/**
+ * Appended for src/engine/ambience.ts. This block merges into the module
+ * declared above; the interface merges into the BufferAttribute class
+ * (class/interface declaration merging). Signatures mirror three r180:
+ * attributes expose their backing typed array, and `needsUpdate = true`
+ * (a setter-only property at runtime) bumps `version` for the uploader.
+ */
+declare module 'three' {
+  export interface BufferAttribute {
+    array: TypedArray;
+    version: number;
+  }
+}

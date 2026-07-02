@@ -10,6 +10,7 @@ import { createChunkMaterials } from './engine/materials';
 import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
 import { Sky, skyColors } from './engine/sky';
+import { Ambience } from './engine/ambience';
 import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
@@ -107,6 +108,7 @@ async function boot(): Promise<void> {
   const materialList = [materials.opaque, materials.cutout, materials.water];
   const clouds = new Clouds(gr.scene, 'voxelheim');
   const sky = new Sky(gr.scene, 'voxelheim');
+  const ambience = new Ambience(gr.scene);
 
   // Scene lights shade the Lambert-lit entities (chunks use their own shader);
   // intensities track the day cycle in the render loop. The camera joins the
@@ -641,6 +643,12 @@ async function boot(): Promise<void> {
       // underworld the bedrock shell hides it; the dim update keeps it inert.)
       const dayFraction = (((dayNight.time % 480) + 480) % 480) / 480;
       sky.update(dayFraction, envBrightness, player.body.x, player.body.z);
+      // Ambient motes: fireflies at night, pollen by day, embers below.
+      if (session) {
+        const moteMode =
+          session.dimension === 'underworld' ? 'underworld' : isNightTime(dayNight.time) ? 'night' : 'day';
+        ambience.update(frameDt, player.body.x, player.body.y, player.body.z, moteMode);
+      }
       clouds.update(frameDt, player.body.x, player.body.z);
       // Damage feedback: flash on hp loss, steady vignette at low health.
       if (session?.mode === 'survival') {
