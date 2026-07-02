@@ -66,6 +66,49 @@ describe('atlas generation', () => {
     expect(ratio).toBeLessThan(LEAF_HOLE_CHANCE + 0.08);
   });
 
+  it('bakes a top-lit gradient into opaque tiles: stone row 0 brighter than row 15', () => {
+    const px = generateAtlasPixels('s');
+    const stone = tilePixels(px, Tiles.stone);
+    const rowBrightness = (row: number): number => {
+      let sum = 0;
+      for (let x = 0; x < TILE_PX; x++) {
+        const o = (row * TILE_PX + x) * 4;
+        sum += (stone[o] ?? 0) + (stone[o + 1] ?? 0) + (stone[o + 2] ?? 0);
+      }
+      return sum / TILE_PX;
+    };
+    expect(rowBrightness(0)).toBeGreaterThan(rowBrightness(15));
+  });
+
+  it('draws mostly transparent crack tiles with strictly increasing density', () => {
+    const px = generateAtlasPixels('s');
+    const opaqueCount = (tile: number): number => {
+      const t = tilePixels(px, tile);
+      let opaque = 0;
+      for (let i = 3; i < t.length; i += 4) {
+        if (t[i] === 255) opaque++;
+      }
+      return opaque;
+    };
+    const c0 = opaqueCount(Tiles.crack0);
+    const c1 = opaqueCount(Tiles.crack1);
+    const c2 = opaqueCount(Tiles.crack2);
+    const c3 = opaqueCount(Tiles.crack3);
+    for (const c of [c0, c1, c2, c3]) {
+      expect(c).toBeGreaterThan(0);
+      expect(c).toBeLessThan((TILE_PX * TILE_PX) / 2); // mostly transparent
+    }
+    expect(c1).toBeGreaterThan(c0);
+    expect(c2).toBeGreaterThan(c1);
+    expect(c3).toBeGreaterThan(c2);
+  });
+
+  it('stays deterministic after the shading post-pass', () => {
+    const a = generateAtlasPixels('post-pass-seed');
+    const b = generateAtlasPixels('post-pass-seed');
+    expect(a).toEqual(b);
+  });
+
   it('computes flipped-Y UV rects', () => {
     const r = tileUVRect(0);
     expect(r.u0).toBe(0);

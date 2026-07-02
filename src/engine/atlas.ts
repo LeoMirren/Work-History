@@ -74,6 +74,11 @@ export const Tiles = {
   grain: 59,
   bread: 60,
   hoe: 61,
+  // Mining-progress crack overlays, rendered on top of the block being dug.
+  crack0: 62,
+  crack1: 63,
+  crack2: 64,
+  crack3: 65,
 } as const;
 
 type Rng = () => number;
@@ -875,6 +880,52 @@ const paintHoe: TilePainter = (set, rng) => {
   }
 };
 
+/**
+ * Mining-progress crack overlay: jagged near-black fissures radiating from
+ * around the tile centre on a fully transparent background. Higher stages draw
+ * more rays, walk them further (stage 3 reaches the tile edges), and sprout
+ * side branches, so the overlay reads as damage densifying into a web. All
+ * jitter comes from the provided rng, keeping the tile deterministic per seed.
+ */
+function paintCrack(stage: 0 | 1 | 2 | 3): TilePainter {
+  const rays = 3 + stage * 2; // 3 / 5 / 7 / 9 primary fissures
+  const steps = 3 + stage * 2; // 3 / 5 / 7 / 9 pixels walked per fissure
+  const branchLen = stage === 3 ? 4 : 3; // only used when stage >= 2
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    const ink = (x: number, y: number): void => {
+      const n = jitter(rng, 12);
+      if (x < 0 || y < 0 || x >= TILE_PX || y >= TILE_PX) return;
+      set(x, y, 20 + n, 18 + n, 22 + n, 255);
+    };
+    /** Walk a fissure: advance ~1px per step with angular wobble, clamped in-tile. */
+    const walk = (x: number, y: number, ang: number, len: number): void => {
+      for (let i = 0; i < len; i++) {
+        ang += jitter(rng, 1.1);
+        x = Math.max(0, Math.min(TILE_PX - 1, x + Math.cos(ang)));
+        y = Math.max(0, Math.min(TILE_PX - 1, y + Math.sin(ang)));
+        ink(Math.round(x), Math.round(y));
+      }
+    };
+    for (let r = 0; r < rays; r++) {
+      const ang = (r / rays) * Math.PI * 2 + jitter(rng, 0.9);
+      const sx = 7.5 + jitter(rng, 3);
+      const sy = 7.5 + jitter(rng, 3);
+      ink(Math.round(sx), Math.round(sy));
+      walk(sx, sy, ang, steps);
+      if (stage >= 2) {
+        // One side branch per ray, forking partway along the primary direction.
+        const t = 1 + rng() * (steps - 2);
+        const bx = sx + Math.cos(ang) * t;
+        const by = sy + Math.sin(ang) * t;
+        walk(bx, by, ang + (rng() < 0.5 ? 1 : -1) * (0.7 + rng() * 0.8), branchLen);
+      }
+    }
+  };
+}
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -938,12 +989,49 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.grain, 'grain', paintGrain],
   [Tiles.bread, 'bread', paintBread],
   [Tiles.hoe, 'hoe', paintHoe],
+  [Tiles.crack0, 'crack0', paintCrack(0)],
+  [Tiles.crack1, 'crack1', paintCrack(1)],
+  [Tiles.crack2, 'crack2', paintCrack(2)],
+  [Tiles.crack3, 'crack3', paintCrack(3)],
 ];
+
+/**
+ * Bakes simple directional lighting into one 16x16 tile of the atlas, in
+ * place, and only if the tile is fully opaque (all 256 pixels at alpha 255 —
+ * this automatically skips water, glass, leaves, cracks and item sprites):
+ * - a vertical light gradient, multiplying RGB by 1.08 at row 0 fading
+ *   linearly to 0.92 at row 15, as if lit from above;
+ * - a bevel, brightening the top rows 0-1 and left column 0 by a further
+ *   +10% and darkening the bottom rows 14-15 and right column 15 by -12%,
+ *   so each block face pops out of the wall.
+ * Channels are clamped to [0, 255]; alpha is untouched. Pure and RNG-free,
+ * so the post-pass preserves atlas determinism.
+ */
+function shadeOpaqueTile(px: Uint8ClampedArray, ox: number, oy: number): void {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      if (px[((oy + y) * ATLAS_PX + (ox + x)) * 4 + 3] !== 255) return;
+    }
+  }
+  for (let y = 0; y < TILE_PX; y++) {
+    const gradient = 1.08 - 0.16 * (y / (TILE_PX - 1));
+    for (let x = 0; x < TILE_PX; x++) {
+      let f = gradient;
+      if (y <= 1 || x === 0) f *= 1.1;
+      if (y >= TILE_PX - 2 || x === TILE_PX - 1) f *= 0.88;
+      const o = ((oy + y) * ATLAS_PX + (ox + x)) * 4;
+      for (let c = 0; c < 3; c++) {
+        px[o + c] = Math.max(0, Math.min(255, Math.round((px[o + c] ?? 0) * f)));
+      }
+    }
+  }
+}
 
 /**
  * Pure atlas generation: RGBA pixels for the full 256x256 atlas. Each tile
  * draws from its own (seed, tileName) PRNG stream, so output is deterministic
- * and independent of paint order.
+ * and independent of paint order. A final RNG-free post-pass bakes a vertical
+ * light gradient and edge bevel into every fully opaque tile.
  */
 export function generateAtlasPixels(seed: string): Uint8ClampedArray {
   const px = new Uint8ClampedArray(ATLAS_PX * ATLAS_PX * 4);
@@ -958,6 +1046,9 @@ export function generateAtlasPixels(seed: string): Uint8ClampedArray {
       px[o + 3] = a;
     };
     paint(set, rngFromSeed(seed, `tile:${name}`));
+  }
+  for (let tile = 0; tile < ATLAS_TILES * ATLAS_TILES; tile++) {
+    shadeOpaqueTile(px, (tile % ATLAS_TILES) * TILE_PX, Math.floor(tile / ATLAS_TILES) * TILE_PX);
   }
   return px;
 }
