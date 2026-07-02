@@ -9,6 +9,8 @@ export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['LMB', 'break / hunt'],
   ['RMB', 'place / eat'],
   ['1-9, wheel', 'hotbar select'],
+  ['I J K L', 'quick-place ahead/left/behind/right'],
+  ['U / O', 'quick-place ahead-below / ahead-above'],
   ['E', 'inventory & crafting / block picker'],
   ['G', 'guide book'],
   ['Tab', 'status panel'],

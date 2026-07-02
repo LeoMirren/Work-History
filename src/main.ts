@@ -17,6 +17,7 @@ import { Input } from './engine/input';
 import { BreakParticles } from './engine/particles';
 import { PlayerController, type GameMode } from './player/controller';
 import { Interaction, type HotbarState } from './player/interaction';
+import { BuildKeys, buildTargetFor, type BuildKey } from './player/buildkeys';
 import { Inventory } from './player/inventory';
 import { ViewModel } from './player/viewmodel';
 import { armorReductionOf, iconTileFor } from './world/items';
@@ -34,6 +35,7 @@ import { ContainerStore } from './world/containers';
 import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
 import { HostileSystem } from './entities/hostiles';
+import { ItemDrops } from './entities/drops';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
@@ -49,6 +51,15 @@ import type { WorldStats } from './world/world';
 const BASE_SENSITIVITY = 0.002;
 const AUTOSAVE_INTERVAL_MS = 10_000;
 const UNDERWORLD_SKY = new THREE.Color(0x1a0d10);
+/** Quick-place bindings: schematic building relative to the facing. */
+const BUILD_KEY_MAP: ReadonlyArray<readonly [string, BuildKey]> = [
+  ['KeyI', 'front'],
+  ['KeyJ', 'left'],
+  ['KeyK', 'back'],
+  ['KeyL', 'right'],
+  ['KeyU', 'down'],
+  ['KeyO', 'up'],
+];
 
 interface Session {
   seed: string;
@@ -160,6 +171,13 @@ async function boot(): Promise<void> {
   const cropGrowth = new CropGrowth();
   const particles = new BreakParticles(gr.scene);
   const viewModel = new ViewModel(gr.camera);
+  const buildKeys = new BuildKeys();
+  const itemDrops = new ItemDrops(gr.scene);
+  itemDrops.onPickup = (id, count) => {
+    inventory.add(id, count); // overflow is simply lost, like direct mining
+    audio.play('place', id);
+  };
+  interaction.onDrop = (id, count, x, y, z) => itemDrops.spawn(id, count, x, y, z);
 
   // Average tile colour per block id for break particles, sampled lazily from
   // the session's atlas canvas (reset on session start — atlases are per-seed).
@@ -180,13 +198,14 @@ async function boot(): Promise<void> {
   const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (h) {
-      hostiles.hurt(h.stalker);
+      hostiles.hurt(h.stalker, dx, dz);
       return true;
     }
     const a = animals.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (a) {
-      const drops = animals.hurt(a.animal);
-      if (drops) inventory.add(drops.id, drops.count);
+      const b = a.animal.body;
+      const yielded = animals.hurt(a.animal, dx, dz);
+      if (yielded) itemDrops.spawn(yielded.id, yielded.count, b.x, b.y + 0.4, b.z);
       return true;
     }
     return false;
@@ -327,6 +346,8 @@ async function boot(): Promise<void> {
     if (!hud) hud = new Hud(app as HTMLElement, atlasCanvas);
     else hud.redrawIcons(atlasCanvas);
     interaction.setAtlas(texture); // mining crack overlay samples this atlas
+    itemDrops.setAtlas(texture);
+    itemDrops.clear();
     clouds.reseed(seed);
 
     const persistence: ChunkPersistence = {
@@ -559,6 +580,7 @@ async function boot(): Promise<void> {
       projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
       cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
       particles.update(dt);
+      itemDrops.fixedUpdate(dt, session.world.isSolid, player.body.x, player.body.y, player.body.z);
       if (session.mode === 'survival') {
         // The underworld is always dark and dangerous; the sun never reaches it.
         const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);
@@ -674,6 +696,17 @@ async function boot(): Promise<void> {
         hotbarState.creativeBlock = hud.selectedBlock;
         hotbarState.inventory = session.mode === 'survival' ? inventory : null;
         hotbarState.slot = hud.selectedSlot;
+        // Quick-place keys (I/J/K/L/U/O): drop the held block beside you.
+        for (const [code, buildKey] of BUILD_KEY_MAP) {
+          if (!input.takePressed(code)) continue;
+          const t = buildTargetFor(buildKey, player.yaw, Math.floor(player.body.x), Math.floor(player.body.y), Math.floor(player.body.z));
+          const placed = buildKeys.tryPlace(buildKey, session.world, player.body, player.yaw, hotbarState, session.mode);
+          if (placed > 0) {
+            audio.play('place', placed);
+            containers.onBlockChanged('place', placed, t.x, t.y, t.z);
+            viewModel.swing();
+          }
+        }
         // First-person held item: mirror the selection, bob with movement,
         // swing while mining / on right-click.
         const heldId = session.mode === 'survival' ? (inventory.slots[hud.selectedSlot]?.id ?? 0) : hud.selectedBlock;

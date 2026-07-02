@@ -1,10 +1,12 @@
 /**
  * Passive animals ("trundlers"): blocky critters that wander the grass near
  * the player, hop over obstacles, float in water, and can be hunted for meat.
- * Physics reuses the AABB sweep with entity dimensions; rendering is two
- * boxes per animal sharing static materials. Not persisted — they respawn
+ * Physics reuses the AABB sweep with entity dimensions; rendering is a small
+ * per-species rig of Lambert boxes (torso/head/legs plus character details
+ * like tails, ears, fleece, necks and horns). Not persisted — they respawn
  * around the player like ambient wildlife, in small same-species herds with
- * per-individual visual size variety.
+ * per-individual visual size variety. Slain animals play a brief shrinking
+ * "death pop" before leaving the scene.
  */
 import * as THREE from 'three';
 import { Block } from '../world/blocks';
@@ -41,6 +43,13 @@ const WALK_SPEED = 1.6;
 const HOP_VELOCITY = 7.4;
 const FLOCK_RADIUS = 9; // herd cohesion range (same species)
 const FLOCK_CHANCE = 0.5; // per decision, steer toward the herd centroid
+/** Death pop: a slain entity lingers this long, shrinking, before removal. */
+const DYING_S = 0.18;
+const DYING_SHRINK = 14; // per-second scale decay while dying
+const DYING_MIN_SCALE = 0.05; // the pop never shrinks below this
+const IDLE_BOB_RATE = Math.PI * 1.6; // idle phase advance (rad/s) — ~0.8 Hz head bob
+const IDLE_BOB_TILT = 0.06; // idle head tilt/bob amplitude (radians)
+const WALK_ROLL = 0.03; // torso roll amplitude while walking (radians)
 
 /** Passive species — biome-flavoured visual variety; all drop meat. */
 export const Species = { trundler: 0, woolly: 1, strider: 2, hopper: 3 } as const;
