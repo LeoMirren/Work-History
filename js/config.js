@@ -18,7 +18,7 @@ const CFG = {
   gravity: 2500,
   maxFall: 920,
 
-  jumpVel: -735,
+  jumpVel: -815, // clears a 4-tile ledge (v²/2g ≈ 133px) with a little grace
   jumpCut: 0.42,        // multiply vy by this when jump released while rising
   coyoteTime: 0.10,
   jumpBuffer: 0.13,
