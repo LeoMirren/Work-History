@@ -33,6 +33,7 @@ function fragment(kind: 'opaque' | 'cutout' | 'water'): string {
 precision highp float;
 uniform sampler2D map;
 uniform float uBrightness;
+uniform float uTime;
 uniform vec3 fogColor;
 uniform float fogNear;
 uniform float fogFar;
@@ -45,6 +46,7 @@ void main() {
 ${kind === 'cutout' ? '  if (tex.a < 0.5) discard;' : ''}
   float lit = max(vLight.y, vLight.x * uBrightness);
   lit = max(lit, 0.04);
+${kind === 'water' ? '  // Moving diagonal shimmer bands make still water read as liquid.\n  lit *= 0.93 + 0.07 * sin(uTime * 2.1 + (vUv.x + vUv.y) * 900.0);' : ''}
   vec3 col = tex.rgb * vColor * lit;
   // Cheap gamma encode (the texture sampler decodes sRGB to linear).
   col = sqrt(col);
@@ -58,6 +60,7 @@ export interface ChunkUniforms {
   [uniform: string]: { value: unknown };
   map: { value: THREE.Texture | null };
   uBrightness: { value: number };
+  uTime: { value: number };
   fogColor: { value: THREE.Color };
   fogNear: { value: number };
   fogFar: { value: number };
@@ -75,6 +78,7 @@ function makeUniforms(): ChunkUniforms {
   return {
     map: { value: null },
     uBrightness: { value: 1 },
+    uTime: { value: 0 },
     fogColor: { value: new THREE.Color('#8ecae6') },
     fogNear: { value: 70 },
     fogFar: { value: 122 },

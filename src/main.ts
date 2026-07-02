@@ -541,6 +541,9 @@ async function boot(): Promise<void> {
   const SPRINT_FOV_FACTOR = 1.08;
   let currentFov = settings.fov;
   let appliedFov = 0;
+  // View bob: vertical bounce (2× step frequency) + a whisper of roll.
+  let bobPhase = 0;
+  let elapsedSeconds = 0;
 
   startLoop({
     update(dt) {
@@ -679,6 +682,17 @@ async function boot(): Promise<void> {
         }
       }
       player.applyToCamera(gr.camera, alpha);
+      // Walk bob layered on top (applyToCamera resets roll each frame).
+      const walkBody = player.body;
+      const walkSpeed = Math.hypot(walkBody.vx, walkBody.vz);
+      if (walkBody.onGround && walkSpeed > 0.5 && !player.flying) {
+        bobPhase += frameDt * (5 + walkSpeed * 1.1);
+        gr.camera.position.y += Math.sin(bobPhase * 2) * 0.035;
+        gr.camera.rotation.z = Math.sin(bobPhase) * 0.004;
+      }
+      // Water shimmer clock (only the water shader reads it).
+      elapsedSeconds += frameDt;
+      materials.water.uniforms.uTime.value = elapsedSeconds;
       session?.world.update(player.body.x, player.body.z);
       gr.render();
       fps.tick();
