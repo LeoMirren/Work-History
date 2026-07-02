@@ -524,96 +524,163 @@ const Player = {
   // ------------------------------------------------------------------- draw
   draw(ctx) {
     if (this.dead) return;
-    // invuln flicker
-    if (this.invulnT > 0 && Math.floor(this.invulnT * 14) % 2 === 0) return;
+    const flicker = this.invulnT > 0 && Math.floor(this.invulnT * 14) % 2 === 0;
 
     const cx = this.cx, bottom = this.y + this.h;
-    ctx.save();
-    ctx.translate(cx, bottom);
+
+    // ---- soft shadow on the ground below
+    let shadowY = -1;
+    for (let ty = Math.floor(bottom / TILE); ty < Math.floor(bottom / TILE) + 6; ty++) {
+      if (World.tile(Math.floor(cx / TILE), ty) === T_SOLID || World.tile(Math.floor(cx / TILE), ty) === T_PLAT) {
+        shadowY = ty * TILE; break;
+      }
+    }
+    if (shadowY > 0) {
+      const dist = Math.max(0, shadowY - bottom);
+      const k = Math.max(0, 1 - dist / 170);
+      if (k > 0.05) {
+        ctx.save();
+        ctx.globalAlpha = 0.32 * k;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(cx, shadowY + 3, 15 * (0.6 + 0.4 * k), 4.5 * k + 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    if (flicker) return;
 
     const spd = Math.abs(this.vx) / CFG.runSpeed;
     const running = this.grounded && spd > 0.2;
-    const crouch = this.landT > 0 ? 3 : 0;
-    const bob = running ? Math.abs(Math.sin(this.runT * 9)) * 2.5 : Math.sin(this.idleT * 2.2) * 1.2;
-    const lean = this.dashing ? this.facing * 0.22 : (running ? this.facing * 0.1 : 0);
+    const crouch = (this.landT > 0 || this.focusing) ? 3.5 : 0;
+    const bob = running ? Math.abs(Math.sin(this.runT * 9)) * 2.5 : Math.sin(this.idleT * 2.2) * 1.4;
+    const wall = this.sliding ? this.wallDir : 0;
+    const t = performance.now() / 1000;
+
+    ctx.save();
+    ctx.translate(cx, bottom);
+
+    // squash & stretch
+    if (this.dashing) ctx.scale(1.16, 0.86);
+    else if (!this.grounded && this.vy < -220) ctx.scale(0.94, 1.08);
+    else if (!this.grounded && this.vy > 420) ctx.scale(0.97, 1.05);
+    if (this.landT > 0) ctx.scale(1.1, 0.9);
+
+    const lean = this.dashing ? this.facing * 0.24 : (running ? this.facing * 0.09 : 0) + (wall ? -wall * 0.1 : 0);
     ctx.rotate(lean);
 
     // ---- legs
-    ctx.strokeStyle = '#252c42';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#1d2338';
+    ctx.lineWidth = 4.2;
     ctx.lineCap = 'round';
     if (this.grounded) {
       if (running) {
-        const sw = Math.sin(this.runT * 9) * 8;
+        const sw = Math.sin(this.runT * 9) * 9;
+        const sw2 = Math.sin(this.runT * 9 + Math.PI) * 9;
         ctx.beginPath();
-        ctx.moveTo(-3, -12); ctx.lineTo(-3 + sw, 0);
-        ctx.moveTo(3, -12); ctx.lineTo(3 - sw, 0);
+        ctx.moveTo(-3, -13);
+        ctx.quadraticCurveTo(-3 + sw * 0.4, -7, -3 + sw, 0);
+        ctx.moveTo(3, -13);
+        ctx.quadraticCurveTo(3 + sw2 * 0.4, -7, 3 + sw2, 0);
         ctx.stroke();
       } else {
         ctx.beginPath();
-        ctx.moveTo(-4, -12); ctx.lineTo(-5, 0);
-        ctx.moveTo(4, -12); ctx.lineTo(5, 0);
+        ctx.moveTo(-4, -13); ctx.lineTo(-5, 0);
+        ctx.moveTo(4, -13); ctx.lineTo(5, 0);
         ctx.stroke();
       }
     } else {
-      // tucked in air
+      // tucked, trailing slightly against vertical motion
+      const tuck = Math.max(-4, Math.min(4, this.vy * 0.008));
       ctx.beginPath();
-      ctx.moveTo(-4, -12); ctx.lineTo(-6, -4);
-      ctx.moveTo(4, -12); ctx.lineTo(6, -4);
+      ctx.moveTo(-4, -13); ctx.quadraticCurveTo(-6, -8 + tuck, -7, -3 + tuck);
+      ctx.moveTo(4, -13); ctx.quadraticCurveTo(6, -8 + tuck, 7, -3 + tuck);
       ctx.stroke();
     }
 
-    // ---- cloak body
-    const bodyTop = -34 - bob + crouch;
-    ctx.fillStyle = '#2a3350';
+    // ---- cloak (outer shell with animated hem)
+    const bodyTop = -35 - bob + crouch;
+    const hemY = -5 + crouch;
+    const flow = (this.grounded ? spd : 1) * (this.dashing ? 2 : 1);
+    const w1 = Math.sin(t * 7 + 0.5) * 2 * flow;
+    const w2 = Math.sin(t * 7 + 2.2) * 2 * flow;
+    const back = -this.facing; // cloak trails behind
+    const cg = ctx.createLinearGradient(0, bodyTop, 0, hemY);
+    cg.addColorStop(0, '#323d63');
+    cg.addColorStop(1, '#1b2138');
+    ctx.fillStyle = cg;
     ctx.beginPath();
-    ctx.moveTo(-10, -6 + crouch);
-    ctx.quadraticCurveTo(-13, bodyTop + 12, -7, bodyTop + 6);
-    ctx.quadraticCurveTo(0, bodyTop, 7, bodyTop + 6);
-    ctx.quadraticCurveTo(13, bodyTop + 12, 10, -6 + crouch);
-    ctx.quadraticCurveTo(0, -2 + crouch, -10, -6 + crouch);
+    ctx.moveTo(-11 + back * 2, hemY + w1 * 0.4);
+    ctx.quadraticCurveTo(-14 + back * 4, bodyTop + 14, -8, bodyTop + 5);
+    ctx.quadraticCurveTo(0, bodyTop - 1, 8, bodyTop + 5);
+    ctx.quadraticCurveTo(14 + back * 4, bodyTop + 14, 11 + back * 2, hemY + w2 * 0.4);
+    // scalloped hem
+    ctx.quadraticCurveTo(6, hemY - 4 + w1, 3, hemY + w2);
+    ctx.quadraticCurveTo(0, hemY - 3 + w2, -3, hemY + w1);
+    ctx.quadraticCurveTo(-6, hemY - 4 + w2, -11 + back * 2, hemY + w1 * 0.4);
     ctx.fill();
-    // cloak flutter when moving fast
+
+    // wind-blown tail when airborne/dashing
     if (!this.grounded || this.dashing) {
-      ctx.fillStyle = 'rgba(42,51,80,0.8)';
-      const fl = Math.sin(performance.now() / 60) * 4;
+      ctx.fillStyle = 'rgba(43,52,84,0.85)';
+      const fl = Math.sin(t * 11) * 3;
       ctx.beginPath();
-      ctx.moveTo(-this.facing * 8, -8);
-      ctx.quadraticCurveTo(-this.facing * (16 + Math.abs(this.vx) * 0.015), -14 + fl, -this.facing * 12, -22);
-      ctx.quadraticCurveTo(-this.facing * 6, -18, -this.facing * 8, -8);
+      ctx.moveTo(back * 6, -10 + crouch);
+      ctx.quadraticCurveTo(back * (17 + Math.abs(this.vx) * 0.02), -16 + fl, back * (13 + Math.abs(this.vx) * 0.012), -26);
+      ctx.quadraticCurveTo(back * 7, -20, back * 6, -10 + crouch);
       ctx.fill();
     }
 
-    // ---- head: pale mask with horns
-    const headY = bodyTop - 2;
-    ctx.fillStyle = '#eef1f8';
+    // inner lining sliver on the facing side
+    ctx.fillStyle = '#46538a';
+    ctx.globalAlpha = 0.6;
     ctx.beginPath();
-    ctx.ellipse(this.facing * 1.5, headY, 10.5, 9.5, 0, 0, Math.PI * 2);
+    ctx.moveTo(this.facing * 9, bodyTop + 8);
+    ctx.quadraticCurveTo(this.facing * 12, bodyTop + 20, this.facing * 9, hemY - 2);
+    ctx.quadraticCurveTo(this.facing * 7, bodyTop + 20, this.facing * 9, bodyTop + 8);
     ctx.fill();
-    // horns
-    ctx.strokeStyle = '#eef1f8';
-    ctx.lineWidth = 3.5;
+    ctx.globalAlpha = 1;
+
+    // ---- head: pale mask
+    const headY = bodyTop - 3;
+    const hg = ctx.createLinearGradient(0, headY - 10, 0, headY + 10);
+    hg.addColorStop(0, '#f6f8fc');
+    hg.addColorStop(1, '#d3dae8');
+    ctx.fillStyle = hg;
     ctx.beginPath();
-    ctx.moveTo(this.facing * 1.5 - 6, headY - 6);
-    ctx.quadraticCurveTo(this.facing * 1.5 - 14, headY - 16, this.facing * 1.5 - 17, headY - 12);
-    ctx.moveTo(this.facing * 1.5 + 6, headY - 6);
-    ctx.quadraticCurveTo(this.facing * 1.5 + 14, headY - 16, this.facing * 1.5 + 17, headY - 12);
-    ctx.stroke();
-    // eyes
-    ctx.fillStyle = '#10141f';
+    ctx.ellipse(this.facing * 1.5, headY, 11, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // cheek shading
+    ctx.fillStyle = 'rgba(150,165,195,0.35)';
     ctx.beginPath();
-    ctx.ellipse(this.facing * 4 - 3, headY + 1, 2.2, 3.6, 0, 0, Math.PI * 2);
-    ctx.ellipse(this.facing * 4 + 4, headY + 1, 2.2, 3.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(this.facing * 1.5, headY + 5, 8.5, 4, 0, 0, Math.PI);
     ctx.fill();
 
-    // ---- veil shimmer (charged Imposter's Veil)
-    if (this.equipped.has('veil') && this.veilCharge) {
-      ctx.strokeStyle = `rgba(207,214,234,${0.25 + Math.sin(performance.now() / 350) * 0.12})`;
-      ctx.lineWidth = 1.5;
+    // ---- horns: filled, curved, tapered
+    ctx.fillStyle = hg;
+    for (const side of [-1, 1]) {
+      const bx = this.facing * 1.5 + side * 6;
       ctx.beginPath();
-      ctx.ellipse(0, -22, 17, 26, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.moveTo(bx, headY - 5);
+      ctx.quadraticCurveTo(bx + side * 8, headY - 14, bx + side * 15, headY - 15.5);
+      ctx.quadraticCurveTo(bx + side * 17.5, headY - 15.8, bx + side * 16, headY - 12.5);
+      ctx.quadraticCurveTo(bx + side * 10, headY - 8.5, bx + side * 3.5, headY - 2);
+      ctx.closePath();
+      ctx.fill();
     }
+
+    // ---- eyes
+    ctx.fillStyle = '#0d1120';
+    ctx.beginPath();
+    ctx.ellipse(this.facing * 4.5 - 3.2, headY + 1, 2.3, 4, this.facing * 0.12, 0, Math.PI * 2);
+    ctx.ellipse(this.facing * 4.5 + 3.8, headY + 1, 2.3, 4, -this.facing * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath();
+    ctx.arc(this.facing * 4.5 - 3.6, headY - 0.6, 0.7, 0, Math.PI * 2);
+    ctx.arc(this.facing * 4.5 + 3.4, headY - 0.6, 0.7, 0, Math.PI * 2);
+    ctx.fill();
 
     // ---- focusing glow
     if (this.focusing) {
@@ -624,35 +691,65 @@ const Player = {
       ctx.beginPath();
       ctx.arc(0, -20, 26, -Math.PI / 2, -Math.PI / 2 + pr * Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = `rgba(240,248,255,${0.10 + pr * 0.2})`;
+      ctx.fillStyle = `rgba(240,248,255,${0.1 + pr * 0.2})`;
       ctx.beginPath();
       ctx.arc(0, -20, 30, 0, Math.PI * 2);
       ctx.fill();
     }
 
+    // ---- veil shimmer
+    if (this.equipped.has('veil') && this.veilCharge) {
+      ctx.strokeStyle = `rgba(207,214,234,${0.28 + Math.sin(t * 2.8) * 0.12})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(0, -22, 17, 26, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     ctx.restore();
 
-    // ---- nail slash arc (drawn in world space)
+    // ---- the nail: an actual blade swinging through an arc
     if (this.slashT > 0) {
-      const p = 1 - this.slashT / 0.14; // 0→1
-      const box = this.nailBox();
+      const p = 1 - this.slashT / 0.14; // 0 -> 1 through the swing
+      const cy = this.cy;
+      let baseA, sweep;
+      if (this.slashDir === 'up') { baseA = -Math.PI / 2; sweep = 2.4; }
+      else if (this.slashDir === 'down') { baseA = Math.PI / 2; sweep = 2.4; }
+      else { baseA = this.facing > 0 ? 0 : Math.PI; sweep = 2.6; }
+      const dirSign = this.slashDir === 'side' ? this.facing : 1;
+      const a = baseA + (p - 0.5) * sweep * dirSign;
+      const len = CFG.nailRange + 8;
+
       ctx.save();
-      ctx.strokeStyle = `rgba(240,246,255,${0.95 - p * 0.6})`;
-      ctx.lineWidth = 5 - p * 3;
-      ctx.lineCap = 'round';
-      const midX = box.x + box.w / 2, midY = box.y + box.h / 2;
-      ctx.beginPath();
-      if (this.slashDir === 'side') {
-        const r = CFG.nailRange * (0.8 + p * 0.3);
-        const a0 = this.facing > 0 ? -1.1 : Math.PI + 1.1;
-        const a1 = this.facing > 0 ? 1.1 : Math.PI - 1.1;
-        ctx.arc(this.cx, this.cy, r, a0 + (this.facing > 0 ? -0.3 : 0.3) * p, a1);
-      } else if (this.slashDir === 'up') {
-        ctx.arc(this.cx, this.cy - 4, CFG.nailRange * (0.8 + p * 0.3), -Math.PI + 0.5, -0.5);
-      } else {
-        ctx.arc(this.cx, this.cy + 4, CFG.nailRange * (0.8 + p * 0.3), 0.5, Math.PI - 0.5);
+      ctx.translate(cx, cy);
+      // trail arcs
+      for (let i = 1; i <= 3; i++) {
+        const ta = baseA + (Math.max(0, p - i * 0.13) - 0.5) * sweep * dirSign;
+        ctx.strokeStyle = `rgba(220,232,252,${0.3 - i * 0.08})`;
+        ctx.lineWidth = 7 - i * 1.6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, 0, len * 0.8, Math.min(ta, a), Math.max(ta, a));
+        ctx.stroke();
       }
-      ctx.stroke();
+      // blade
+      ctx.rotate(a);
+      const bg = ctx.createLinearGradient(10, 0, len, 0);
+      bg.addColorStop(0, '#c8d2e6');
+      bg.addColorStop(0.65, '#f2f6fd');
+      bg.addColorStop(1, '#ffffff');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.moveTo(8, -1);
+      ctx.quadraticCurveTo(len * 0.55, -5.5, len, 0);
+      ctx.quadraticCurveTo(len * 0.55, 5.5, 8, 1);
+      ctx.closePath();
+      ctx.fill();
+      // hilt nub
+      ctx.fillStyle = '#4a5578';
+      ctx.beginPath();
+      ctx.arc(8, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
   },

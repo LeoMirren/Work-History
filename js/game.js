@@ -746,9 +746,9 @@ const Game = {
     Particles.draw(ctx);
     ctx.restore();
 
-    // lighting
-    const dark = { foyer: 0.3, archives: 0.34, foundry: 0.34, stacks: 0.52, overclock: 0.44, dawn: 0.12 }[World.areaId] || 0.3;
-    UI.vignette(ctx, dark);
+    // lighting: darkness with punched lights, then a soft vignette
+    this.drawLighting(ctx);
+    UI.vignette(ctx, 0.28);
 
     // HUD & overlays
     UI.drawHUD(ctx);
@@ -801,6 +801,47 @@ const Game = {
     if (this.state === 'shop') UI.drawShop(ctx, this.shopSel);
     if (this.state === 'dead') UI.drawDeath(ctx, this.deathT, this.deathQuote);
     if (this.state === 'ending') UI.drawEnding(ctx, this.endT, { playT: this.playT, deaths: this.deaths, geo: Player.geo });
+  },
+
+  // ----------------------------------------------------------------- light
+  _lightCanvas: null,
+  drawLighting(ctx) {
+    const strength = { foyer: 0.3, archives: 0.36, foundry: 0.34, stacks: 0.58, overclock: 0.46, dawn: 0.08 }[World.areaId] || 0.32;
+    if (strength <= 0.05) return;
+    if (!this._lightCanvas) {
+      this._lightCanvas = document.createElement('canvas');
+      this._lightCanvas.width = VIEW_W;
+      this._lightCanvas.height = VIEW_H;
+    }
+    const lc = this._lightCanvas.getContext('2d');
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, VIEW_W, VIEW_H);
+    lc.fillStyle = `rgba(3,5,12,${strength})`;
+    lc.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    const lights = [];
+    if (!Player.dead) lights.push({ x: Player.cx, y: Player.cy, r: 280, a: 1 });
+    for (const s of World.lightSources()) lights.push({ ...s, a: 0.95 });
+    for (const p of this.pickups) if (!p.hidden) lights.push({ x: p.x, y: p.y, r: 110, a: 0.9 });
+    for (const p of this.portals) lights.push({ x: p.x, y: p.y - 10, r: 250, a: 1 });
+    for (const o of this.orbs) lights.push({ x: o.x, y: o.y, r: 120, a: 0.9 });
+    for (const s of this.shots) if (s.kind !== 'lob') lights.push({ x: s.x, y: s.y, r: 70, a: 0.8 });
+    for (const b of this.benches) lights.push({ x: b.x, y: b.y - 6, r: 110, a: 0.7 });
+    for (const t of this.tablets) lights.push({ x: t.x, y: t.y, r: 70, a: 0.55 });
+    if (this.shadeEnt) lights.push({ x: this.shadeEnt.x, y: this.shadeEnt.y, r: 90, a: 0.7 });
+    if (this.boss && !this.boss.dead) lights.push({ x: this.boss.x, y: this.boss.y - 20, r: this.boss.kind === 'burnout' ? 230 : 150, a: 0.95 });
+
+    lc.globalCompositeOperation = 'destination-out';
+    for (const l of lights) {
+      const sx = l.x - this.cam.x, sy = l.y - this.cam.y;
+      if (sx < -l.r || sx > VIEW_W + l.r || sy < -l.r || sy > VIEW_H + l.r) continue;
+      const g = lc.createRadialGradient(sx, sy, l.r * 0.12, sx, sy, l.r);
+      g.addColorStop(0, `rgba(0,0,0,${l.a})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = g;
+      lc.fillRect(sx - l.r, sy - l.r, l.r * 2, l.r * 2);
+    }
+    ctx.drawImage(this._lightCanvas, 0, 0);
   },
 
   // ------------------------------------------------------------------ loop

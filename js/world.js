@@ -651,7 +651,10 @@ const World = {
     return this.grid[ty][tx];
   },
   setTile(tx, ty, v) {
-    if (ty >= 0 && ty < this.h && tx >= 0 && tx < this.w) this.grid[ty][tx] = v;
+    if (ty >= 0 && ty < this.h && tx >= 0 && tx < this.w) {
+      this.grid[ty][tx] = v;
+      this._tileDirty = true; // cached tile layer must re-render
+    }
   },
   isSolid(tx, ty) { return this.tile(tx, ty) === T_SOLID; },
 
@@ -674,141 +677,421 @@ const World = {
   },
 
   // ---------------------------------------------------------------- drawing
+  //
+  // The tile layer is expensive (rounded rock, texture, moss, roots), so it
+  // renders once into an offscreen canvas per room and re-renders only when
+  // tiles change (boss/arena doors). Everything else is cheap per-frame.
+
+  _tileCanvas: null,
+  _tileDirty: true,
+  _hash(x, y) {
+    let h = (x * 374761393 + y * 668265263) ^ (hashStr(this.roomId || '') | 0);
+    h = (h ^ (h >> 13)) * 1274126177;
+    return ((h ^ (h >> 16)) >>> 0) / 4294967296;
+  },
+
+  markDirty() { this._tileDirty = true; },
+
+  renderTileLayer() {
+    const p = this.palette;
+    if (!this._tileCanvas) this._tileCanvas = document.createElement('canvas');
+    const c = this._tileCanvas;
+    c.width = this.pxW; c.height = this.pxH;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    const T = TILE;
+    const solid = (x, y) => this.tile(x, y) === T_SOLID;
+
+    // -- pillars first (behind rock) ------------------------------------
+    for (const d of this.decor) {
+      if (d.type !== 'pillar') continue;
+      let bottom = d.y;
+      while (bottom < this.h && !solid(d.x, bottom)) bottom++;
+      const px = d.x * T, topY = d.y * T - T;
+      const hgt = (bottom - d.y + 1) * T;
+      const g = ctx.createLinearGradient(px, 0, px + T, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(0.5, p.mid);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = g;
+      ctx.fillRect(px + 4, topY, T - 8, hgt);
+      // capital & base
+      ctx.fillStyle = p.mid;
+      ctx.fillRect(px + 1, topY, T - 2, 7);
+      ctx.fillRect(px + 3, topY + 9, T - 6, 3);
+      // flutes
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      for (let i = 1; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(px + 6 + i * 7, topY + 14);
+        ctx.lineTo(px + 6 + i * 7, topY + hgt - 6);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // -- base rock fill ---------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        ctx.fillStyle = p.fg;
+        ctx.fillRect(x * T - 0.5, y * T - 0.5, T + 1, T + 1);
+      }
+    }
+
+    // -- round the exposed corners with punch-outs ------------------------
+    ctx.globalCompositeOperation = 'destination-out';
+    const R = 9;
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
+        const px = x * T, py = y * T;
+        const corner = (cx, cy, sx, sy) => {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + sx * R, cy);
+          ctx.arcTo(cx, cy, cx, cy + sy * R, R);
+          ctx.lineTo(cx, cy + sy * R);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + sx * R, cy);
+          ctx.arc(cx + sx * R, cy + sy * R, R, sy > 0 ? -Math.PI / 2 : Math.PI / 2, sx > 0 ? Math.PI : 0, (sx > 0) === (sy > 0));
+          ctx.closePath();
+        };
+        // simpler reliable punch: square minus quarter-disc
+        const punch = (cx, cy, qx, qy) => {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(cx - (qx < 0 ? R : 0), cy - (qy < 0 ? R : 0), R, R);
+          ctx.clip();
+          ctx.beginPath();
+          ctx.rect(cx - (qx < 0 ? R : 0), cy - (qy < 0 ? R : 0), R, R);
+          ctx.arc(cx + qx * R * (qx < 0 ? 0 : 0) + (qx < 0 ? -0 : 0) + (qx > 0 ? R : -R) * 0 + (qx > 0 ? 0 : 0) + (qx > 0 ? 0 : 0), cy, 1, 0, 0); // placeholder
+          ctx.restore();
+        };
+        // Use arc-based punch: remove the corner square, we then re-add a disc below.
+        if (!up && !lf) { ctx.beginPath(); ctx.rect(px, py, R, R); ctx.fill(); }
+        if (!up && !rt) { ctx.beginPath(); ctx.rect(px + T - R, py, R, R); ctx.fill(); }
+        if (!dn && !lf) { ctx.beginPath(); ctx.rect(px, py + T - R, R, R); ctx.fill(); }
+        if (!dn && !rt) { ctx.beginPath(); ctx.rect(px + T - R, py + T - R, R, R); ctx.fill(); }
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // re-add quarter discs to make the rounding
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
+        const px = x * T, py = y * T;
+        ctx.fillStyle = p.fg;
+        if (!up && !lf) { ctx.beginPath(); ctx.moveTo(px + R, py); ctx.arc(px + R, py + R, R, -Math.PI / 2, Math.PI, true); ctx.lineTo(px + R, py + R); ctx.closePath(); ctx.fill(); }
+        if (!up && !rt) { ctx.beginPath(); ctx.moveTo(px + T - R, py); ctx.arc(px + T - R, py + R, R, -Math.PI / 2, 0); ctx.lineTo(px + T - R, py + R); ctx.closePath(); ctx.fill(); }
+        if (!dn && !lf) { ctx.beginPath(); ctx.moveTo(px, py + T - R); ctx.arc(px + R, py + T - R, R, Math.PI, Math.PI / 2, true); ctx.lineTo(px + R, py + T - R); ctx.closePath(); ctx.fill(); }
+        if (!dn && !rt) { ctx.beginPath(); ctx.moveTo(px + T, py + T - R); ctx.arc(px + T - R, py + T - R, R, 0, Math.PI / 2); ctx.lineTo(px + T - R, py + T - R); ctx.closePath(); ctx.fill(); }
+      }
+    }
+
+    // -- interior texture: seeded speckle + cracks -------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const px = x * T, py = y * T;
+        const h1 = this._hash(x, y);
+        if (h1 < 0.45) {
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          const sx = px + 4 + h1 * 40 % (T - 10), sy = py + 5 + (h1 * 91) % (T - 10);
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, 2.5 + h1 * 3, 1.5 + h1 * 2, h1 * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (h1 > 0.8 && solid(x, y - 1)) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(px + 6 + h1 * 10, py + 2);
+          ctx.lineTo(px + 12 + h1 * 8, py + 12 + h1 * 8);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // -- edge lighting ------------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
+        const px = x * T, py = y * T;
+        if (!up) {
+          const g = ctx.createLinearGradient(0, py, 0, py + 10);
+          g.addColorStop(0, p.edge);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(px + (lf ? 0 : 3), py, T - (lf ? 0 : 3) - (rt ? 0 : 3), 10);
+          ctx.fillStyle = 'rgba(255,255,255,0.16)';
+          ctx.fillRect(px + (lf ? 0 : 4), py, T - (lf ? 0 : 4) - (rt ? 0 : 4), 2);
+        }
+        if (!lf) {
+          const g = ctx.createLinearGradient(px, 0, px + 6, 0);
+          g.addColorStop(0, p.edge);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = g;
+          ctx.fillRect(px, py + (up ? 0 : 4), 6, T - (up ? 0 : 4));
+          ctx.globalAlpha = 1;
+        }
+        if (!rt) {
+          const g = ctx.createLinearGradient(px + T, 0, px + T - 6, 0);
+          g.addColorStop(0, p.edge);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = g;
+          ctx.fillRect(px + T - 6, py + (up ? 0 : 4), 6, T - (up ? 0 : 4));
+          ctx.globalAlpha = 1;
+        }
+        if (!dn) {
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(px, py + T - 5, T, 5);
+        }
+      }
+    }
+
+    // -- moss tufts on top edges, roots under bottoms ------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const px = x * T, py = y * T;
+        if (!solid(x, y - 1)) {
+          const n = 2 + Math.floor(this._hash(x, y + 71) * 3);
+          for (let i = 0; i < n; i++) {
+            const hx = this._hash(x * 7 + i, y);
+            const bx = px + 3 + hx * (T - 6);
+            const bh = 3 + hx * 6;
+            ctx.strokeStyle = p.accent;
+            ctx.globalAlpha = 0.32;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(bx, py + 1);
+            ctx.quadraticCurveTo(bx + (hx - 0.5) * 5, py - bh * 0.7, bx + (hx - 0.5) * 8, py - bh);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+        if (!solid(x, y + 1) && this._hash(x, y + 13) > 0.55) {
+          const hx = this._hash(x + 3, y * 3);
+          const bx = px + 6 + hx * (T - 12);
+          const bl = 8 + hx * 16;
+          ctx.strokeStyle = p.mid;
+          ctx.globalAlpha = 0.8;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(bx, py + T - 2);
+          ctx.quadraticCurveTo(bx + (hx - 0.5) * 8, py + T + bl * 0.6, bx + (hx - 0.5) * 12, py + T + bl);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    // -- carved bright blocks ('%') ------------------------------------------
+    for (const d of this.decor) {
+      if (d.type !== 'bright') continue;
+      const px = d.x * T, py = d.y * T;
+      ctx.strokeStyle = p.edge;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px + 4.5, py + 4.5, T - 9, T - 9);
+      ctx.globalAlpha = 0.25;
+      ctx.strokeRect(px + 9.5, py + 9.5, T - 19, T - 19);
+      ctx.globalAlpha = 1;
+    }
+
+    // -- spikes -----------------------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (this.tile(x, y) !== T_SPIKE) continue;
+        const px = x * T, py = y * T;
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(px, py + T - 4, T, 4);
+        const n = 3;
+        for (let i = 0; i < n; i++) {
+          const bx = px + (i * T) / n, bw = T / n;
+          const g = ctx.createLinearGradient(bx, py + T, bx + bw / 2, py + 4);
+          g.addColorStop(0, p.mid);
+          g.addColorStop(0.7, p.edge);
+          g.addColorStop(1, '#e8ecf4');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(bx + 1, py + T);
+          ctx.lineTo(bx + bw / 2, py + 4 + this._hash(x * 3 + i, y) * 5);
+          ctx.lineTo(bx + bw - 1, py + T);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
+    // -- one-way platforms ---------------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (this.tile(x, y) !== T_PLAT) continue;
+        const px = x * T, py = y * T;
+        const lf = this.tile(x - 1, y) === T_PLAT, rt = this.tile(x + 1, y) === T_PLAT;
+        // slab
+        const g = ctx.createLinearGradient(0, py + 2, 0, py + 12);
+        g.addColorStop(0, p.edge);
+        g.addColorStop(1, p.fg);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.roundRect(px - (lf ? 1 : -2), py + 3, T + (lf ? 1 : -2) + (rt ? 1 : -2), 9, lf && rt ? 0 : 4);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.fillRect(px + (lf ? 0 : 4), py + 3, T - (lf ? 0 : 4) - (rt ? 0 : 4), 1.6);
+        // support bracket at ends
+        if (!lf) {
+          ctx.strokeStyle = p.mid;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(px + 4, py + 12);
+          ctx.quadraticCurveTo(px + 5, py + 22, px + 14, py + 24);
+          ctx.stroke();
+        }
+        if (!rt) {
+          ctx.strokeStyle = p.mid;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(px + T - 4, py + 12);
+          ctx.quadraticCurveTo(px + T - 5, py + 22, px + T - 14, py + 24);
+          ctx.stroke();
+        }
+      }
+    }
+
+    this._tileDirty = false;
+  },
+
+  // ------------------------------------------------------------- background
   drawBackground(ctx, cam) {
     const p = this.palette;
+    const t = performance.now() / 1000;
     const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
     g.addColorStop(0, p.sky1);
-    g.addColorStop(1, p.sky2);
+    g.addColorStop(0.72, p.sky2);
+    g.addColorStop(1, p.sky1);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    // Two parallax layers of distant architecture.
-    for (let layer = 0; layer < 2; layer++) {
-      const speed = layer === 0 ? 0.25 : 0.5;
-      const alpha = layer === 0 ? 0.45 : 0.7;
-      ctx.save();
+    // far arch colonnade
+    const rand = mulberry32(hashStr(this.roomId + 'bg'));
+    ctx.save();
+    for (let layer = 0; layer < 3; layer++) {
+      const speed = 0.15 + layer * 0.18;
+      const alpha = 0.25 + layer * 0.2;
+      const off = cam.x * speed;
+      const offY = cam.y * speed * 0.4;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.mid;
-      const off = cam.x * speed;
-      for (const s of this._silhouettes[layer]) {
+      for (const s of this._silhouettes[Math.min(layer, 1)]) {
         let sx = ((s.x - off) % (this.pxW + VIEW_W));
         if (sx < -s.w) sx += this.pxW + VIEW_W;
-        sx -= 100;
-        const base = VIEW_H - cam.y * speed * 0.3;
-        const top = base - s.hgt;
+        sx -= 120;
+        const base = VIEW_H + 60 - offY;
+        const top = base - s.hgt - layer * 60;
         if (s.spire) {
+          // gothic spire with a shoulder
           ctx.beginPath();
           ctx.moveTo(sx, base);
+          ctx.lineTo(sx + s.w * 0.18, top + s.hgt * 0.35);
           ctx.lineTo(sx + s.w * 0.5, top);
+          ctx.lineTo(sx + s.w * 0.82, top + s.hgt * 0.35);
           ctx.lineTo(sx + s.w, base);
           ctx.closePath();
           ctx.fill();
         } else {
-          ctx.fillRect(sx, top, s.w, s.hgt + 40);
+          // arch block with a punched arch window
           ctx.beginPath();
-          ctx.arc(sx + s.w / 2, top, s.w / 2, Math.PI, 0);
+          ctx.rect(sx, top, s.w, s.hgt + 80);
+          ctx.moveTo(sx + s.w / 2, top);
+          ctx.arc(sx + s.w / 2, top + 4, s.w * 0.42, Math.PI, 0);
           ctx.fill();
+          ctx.save();
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.globalAlpha = 0.55;
+          const ww = s.w * 0.2;
+          ctx.beginPath();
+          ctx.rect(sx + s.w / 2 - ww / 2, top + s.hgt * 0.32, ww, s.hgt * 0.5);
+          ctx.arc(sx + s.w / 2, top + s.hgt * 0.32, ww / 2, Math.PI, 0);
+          ctx.fill();
+          ctx.restore();
         }
       }
-      ctx.restore();
+    }
+    ctx.restore();
+
+    // drifting fog bands
+    for (let i = 0; i < 2; i++) {
+      const fy = VIEW_H * (0.45 + i * 0.3) + Math.sin(t * 0.13 + i * 2.4) * 26 - cam.y * 0.12;
+      const fg2 = ctx.createLinearGradient(0, fy - 60, 0, fy + 60);
+      fg2.addColorStop(0, 'rgba(0,0,0,0)');
+      const mist = p.accent;
+      fg2.addColorStop(0.5, this._fogColor || 'rgba(160,180,210,0.05)');
+      fg2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = fg2;
+      ctx.fillRect(0, fy - 60, VIEW_W, 120);
     }
   },
 
+  // ------------------------------------------------------- dynamic tile pass
   drawTiles(ctx, cam) {
+    if (this._tileDirty || !this._tileCanvas) this.renderTileLayer();
+    ctx.drawImage(this._tileCanvas, 0, 0);
+
+    // lamps: chain + bulb pulse (light punch happens in the lighting pass)
     const p = this.palette;
-    const x0 = Math.max(0, Math.floor(cam.x / TILE) - 1);
-    const x1 = Math.min(this.w - 1, Math.ceil((cam.x + VIEW_W) / TILE) + 1);
-    const y0 = Math.max(0, Math.floor(cam.y / TILE) - 1);
-    const y1 = Math.min(this.h - 1, Math.ceil((cam.y + VIEW_H) / TILE) + 1);
-
-    // Pillars first (behind tiles): each extends down to the first solid tile.
+    const t = performance.now() / 1000;
     for (const d of this.decor) {
-      if (d.type !== 'pillar') continue;
-      if (d.x < x0 - 1 || d.x > x1 + 1) continue;
-      let bottom = d.y;
-      while (bottom < this.h && this.tile(d.x, bottom) !== T_SOLID) bottom++;
-      ctx.fillStyle = p.mid;
-      ctx.globalAlpha = 0.8;
-      const px = d.x * TILE + 6;
-      ctx.fillRect(px, d.y * TILE - TILE, TILE - 12, (bottom - d.y + 1) * TILE);
-      // capital
-      ctx.fillRect(px - 5, d.y * TILE - TILE, TILE - 2, 8);
+      if (d.type !== 'lamp') continue;
+      const px = d.x * TILE + TILE / 2, py = d.y * TILE + TILE / 2;
+      ctx.strokeStyle = p.mid;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px, py - TILE * 2);
+      ctx.lineTo(px, py - 10);
+      ctx.stroke();
+      // cage
+      ctx.strokeStyle = p.edge;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px - 5, py - 10);
+      ctx.quadraticCurveTo(px - 7, py + 2, px, py + 7);
+      ctx.quadraticCurveTo(px + 7, py + 2, px + 5, py - 10);
+      ctx.closePath();
+      ctx.stroke();
+      const pulse = 0.8 + Math.sin(t * 2.1 + d.x * 1.7) * 0.2;
+      const gl = ctx.createRadialGradient(px, py - 2, 1, px, py - 2, 30);
+      gl.addColorStop(0, p.glow);
+      gl.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = 0.5 * pulse;
+      ctx.fillStyle = gl;
+      ctx.fillRect(px - 30, py - 32, 60, 60);
       ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff6e0';
+      ctx.beginPath();
+      ctx.arc(px, py - 2, 3.4 * pulse, 0, Math.PI * 2);
+      ctx.fill();
     }
+  },
 
-    for (let ty = y0; ty <= y1; ty++) {
-      for (let tx = x0; tx <= x1; tx++) {
-        const t = this.grid[ty][tx];
-        const px = tx * TILE, py = ty * TILE;
-        if (t === T_SOLID) {
-          ctx.fillStyle = p.fg;
-          ctx.fillRect(px, py, TILE, TILE);
-          // top edge highlight where exposed
-          if (this.tile(tx, ty - 1) !== T_SOLID) {
-            ctx.fillStyle = p.edge;
-            ctx.fillRect(px, py, TILE, 4);
-          }
-          if (this.tile(tx - 1, ty) !== T_SOLID) {
-            ctx.fillStyle = p.edge;
-            ctx.globalAlpha = 0.35;
-            ctx.fillRect(px, py, 3, TILE);
-            ctx.globalAlpha = 1;
-          }
-          if (this.tile(tx + 1, ty) !== T_SOLID) {
-            ctx.fillStyle = p.edge;
-            ctx.globalAlpha = 0.35;
-            ctx.fillRect(px + TILE - 3, py, 3, TILE);
-            ctx.globalAlpha = 1;
-          }
-        } else if (t === T_PLAT) {
-          ctx.fillStyle = p.edge;
-          ctx.fillRect(px, py + 2, TILE, 7);
-          ctx.fillStyle = p.fg;
-          ctx.fillRect(px + 2, py + 9, TILE - 4, 4);
-        } else if (t === T_SPIKE) {
-          ctx.fillStyle = p.edge;
-          const n = 3;
-          for (let i = 0; i < n; i++) {
-            const bx = px + (i * TILE) / n;
-            ctx.beginPath();
-            ctx.moveTo(bx, py + TILE);
-            ctx.lineTo(bx + TILE / n / 2, py + 6);
-            ctx.lineTo(bx + TILE / n, py + TILE);
-            ctx.closePath();
-            ctx.fill();
-          }
-        }
-      }
-    }
-
-    // Bright-variant overlay & lamps (in front of tiles).
+  // list of light sources for the lighting overlay (world coords)
+  lightSources() {
+    const out = [];
     for (const d of this.decor) {
-      const px = d.x * TILE, py = d.y * TILE;
-      if (d.type === 'bright') {
-        ctx.fillStyle = p.edge;
-        ctx.globalAlpha = 0.3;
-        ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
-        ctx.globalAlpha = 1;
-      } else if (d.type === 'lamp') {
-        // hanging chain from ceiling
-        ctx.strokeStyle = p.mid;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(px + TILE / 2, py - TILE);
-        ctx.lineTo(px + TILE / 2, py + TILE / 2 - 8);
-        ctx.stroke();
-        const gl = ctx.createRadialGradient(px + TILE / 2, py + TILE / 2, 2, px + TILE / 2, py + TILE / 2, 70);
-        gl.addColorStop(0, p.glow);
-        gl.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = gl;
-        ctx.fillRect(px - 70, py - 70, 172, 172);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = p.accent;
-        ctx.beginPath();
-        ctx.arc(px + TILE / 2, py + TILE / 2 - 2, 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      if (d.type === 'lamp') out.push({ x: d.x * TILE + TILE / 2, y: d.y * TILE + TILE / 2, r: 210 });
     }
+    return out;
   },
 };
