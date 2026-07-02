@@ -3,7 +3,8 @@
  * the player, hop over obstacles, float in water, and can be hunted for meat.
  * Physics reuses the AABB sweep with entity dimensions; rendering is two
  * boxes per animal sharing static materials. Not persisted — they respawn
- * around the player like ambient wildlife.
+ * around the player like ambient wildlife, in small same-species herds with
+ * per-individual visual size variety.
  */
 import * as THREE from 'three';
 import { Block } from '../world/blocks';
@@ -25,11 +26,17 @@ export type BiomeFn = (wx: number, wz: number) => number;
 export const ANIMAL_HALF_WIDTH = 0.35;
 export const ANIMAL_HEIGHT = 0.7;
 export const ANIMAL_HP = 3;
-const MAX_ANIMALS = 12;
-const SPAWN_INTERVAL_S = 2.5;
+/** Population cap for the ambient wildlife around the player. */
+export const MAX_ANIMALS = 26;
+const SPAWN_INTERVAL_S = 1.4;
 const SPAWN_MIN_DIST = 16;
 const SPAWN_MAX_DIST = 38;
-const DESPAWN_DIST = 72;
+const DESPAWN_DIST = 84;
+const HERD_MIN = 2; // animals per successful spawn attempt (same species)
+const HERD_MAX = 4;
+const HERD_SCATTER = 3; // herd-mates land within ±1..3 blocks of the lead
+const SIZE_MIN = 0.85; // per-individual visual scale range (collision unchanged)
+const SIZE_MAX = 1.15;
 const WALK_SPEED = 1.6;
 const HOP_VELOCITY = 7.4;
 const FLOCK_RADIUS = 9; // herd cohesion range (same species)
@@ -219,6 +226,10 @@ export class AnimalSystem {
   spawnAt(x: number, y: number, z: number, species?: SpeciesId): Animal {
     const sp = species ?? (this.random() < 0.5 ? Species.trundler : Species.woolly);
     const parts = makeAnimalMesh(sp);
+    // Per-individual size variety — purely visual: the collision AABB stays
+    // ANIMAL_HALF_WIDTH × ANIMAL_HEIGHT for every animal.
+    const size = SIZE_MIN + this.random() * (SIZE_MAX - SIZE_MIN);
+    parts.group.scale.set(size, size, size);
     const animal: Animal = {
       body: createBody(x, y, z),
       species: sp,
@@ -240,9 +251,32 @@ export class AnimalSystem {
   }
 
   /**
-   * Try to spawn one animal on grass or snow near the player. Species follows
-   * the biome: woollies in the snowy cold, trundlers in temperate green;
-   * deserts stay barren.
+   * Top-down scan of column (x, z): the y an animal would stand at (one above
+   * the surface block), or null when the column is empty or its surface is
+   * not spawnable grass/snow (sand/stone/water).
+   */
+  private surfaceY(world: WorldView, x: number, z: number): number | null {
+    for (let y = 120; y >= 1; y--) {
+      const id = world.getBlock(x, y, z);
+      if (id === Block.air) continue;
+      return id === Block.grass || id === Block.snow ? y + 1 : null;
+    }
+    return null;
+  }
+
+  /** Herd scatter offset: ±1..HERD_SCATTER blocks (never 0, so mates don't stack). */
+  private scatter(): number {
+    const mag = 1 + Math.floor(this.random() * HERD_SCATTER);
+    return this.random() < 0.5 ? -mag : mag;
+  }
+
+  /**
+   * Try to spawn a small herd (2-4, all one species) on grass or snow near
+   * the player. Species follows the biome: woollies in the snowy cold,
+   * trundlers in temperate green, striders in deserts, hoppers in jungles.
+   * Herd-mates scatter ±1..3 blocks around the lead animal, each dropped onto
+   * its own column's surface; unspawnable columns are skipped, and the herd
+   * is truncated at MAX_ANIMALS.
    */
   private trySpawn(px: number, pz: number): void {
     const world = this.world;
@@ -251,14 +285,18 @@ export class AnimalSystem {
     const dist = SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
     const x = Math.floor(px + Math.cos(angle) * dist);
     const z = Math.floor(pz + Math.sin(angle) * dist);
-    for (let y = 120; y >= 1; y--) {
-      const id = world.getBlock(x, y, z);
-      if (id === Block.air) continue;
-      if (id !== Block.grass && id !== Block.snow) return; // sand/stone/water: no spawn
-      const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
-      const species = speciesForBiome(biome, this.random);
-      this.spawnAt(x + 0.5, y + 1, z + 0.5, species);
-      return;
+    const y = this.surfaceY(world, x, z);
+    if (y === null) return;
+    const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
+    const species = speciesForBiome(biome, this.random);
+    const herd = HERD_MIN + Math.floor(this.random() * (HERD_MAX - HERD_MIN + 1));
+    this.spawnAt(x + 0.5, y, z + 0.5, species);
+    for (let i = 1; i < herd && this.animals.length < MAX_ANIMALS; i++) {
+      const hx = x + this.scatter();
+      const hz = z + this.scatter();
+      const hy = this.surfaceY(world, hx, hz);
+      if (hy === null) continue; // e.g. a water or sand pocket beside the lead
+      this.spawnAt(hx + 0.5, hy, hz + 0.5, species);
     }
   }
 

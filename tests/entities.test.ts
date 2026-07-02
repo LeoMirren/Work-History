@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { rayAABB } from '../src/world/raycast';
-import { AnimalSystem, ANIMAL_HP } from '../src/entities/animals';
+import { AnimalSystem, ANIMAL_HP, MAX_ANIMALS } from '../src/entities/animals';
 import { mulberry32 } from '../src/world/noise';
 import { Item } from '../src/world/items';
 import { Block } from '../src/world/blocks';
@@ -69,7 +69,7 @@ describe('animals', () => {
     const { system } = makeSystem(7);
     for (let i = 0; i < 60 * 30; i++) system.fixedUpdate(DT, 0.5, 10, 0.5); // 30s
     expect(system.count).toBeGreaterThan(0);
-    expect(system.count).toBeLessThanOrEqual(12);
+    expect(system.count).toBeLessThanOrEqual(MAX_ANIMALS);
   });
 
   it('despawns animals that end up far from the player', () => {
@@ -211,5 +211,74 @@ describe('biome-aware spawning', () => {
     sys.setBiomeFn(() => 0); // Biome.plains
     for (let i = 0; i < 60 * 60; i++) sys.fixedUpdate(DT, 0.5, 10, 0.5);
     expect(sys.count).toBeGreaterThan(0);
+  });
+});
+
+describe('herd spawning & size variety', () => {
+  /** Deterministic rng: plays `tape` in order, then repeats its last value. */
+  function tapeRng(tape: readonly number[]): () => number {
+    let i = 0;
+    return () => tape[Math.min(i++, tape.length - 1)] ?? 0;
+  }
+
+  // angle 0 (east), dist 16 → lead column (16, 0); every later roll is 0.5:
+  // temperate species → trundler, herd size 2 + ⌊0.5·3⌋ = 3, scatter +2/+2.
+  const herdTape = [0, 0, 0.5] as const;
+
+  it('one spawn tick drops a same-species herd of >= 2 close together', () => {
+    const scene = new THREE.Scene();
+    const system = new AnimalSystem(scene, tapeRng(herdTape));
+    system.setWorld(flatWorld);
+    system.fixedUpdate(DT, 0.5, 10, 0.5); // spawn timer starts elapsed → one trySpawn
+    expect(system.count).toBeGreaterThanOrEqual(2);
+    const lead = system.animals[0]!;
+    for (const mate of system.animals) {
+      expect(mate.species).toBe(lead.species);
+      const gap = Math.hypot(mate.body.x - lead.body.x, mate.body.z - lead.body.z);
+      expect(gap).toBeLessThanOrEqual(Math.hypot(3, 3)); // scatter is ±1..3 per axis
+    }
+  });
+
+  it('skips herd-mates whose scatter column has no grass/snow surface', () => {
+    // Grass only at the lead column (16, 0): every ±1..3 scatter offset lands
+    // on stone, so the rolled herd of 3 truncates to the lead alone.
+    const lonePatch: WorldView = {
+      isSolid: (_x, y, _z) => y <= 9,
+      getBlock: (x, y, z) =>
+        y === 9 ? (x === 16 && z === 0 ? Block.grass : Block.stone) : y < 9 ? Block.stone : Block.air,
+    };
+    const scene = new THREE.Scene();
+    const system = new AnimalSystem(scene, tapeRng(herdTape));
+    system.setWorld(lonePatch);
+    system.fixedUpdate(DT, 0.5, 10, 0.5);
+    expect(system.count).toBe(1);
+    const lead = system.animals[0]!;
+    expect(lead.body.x).toBe(16.5); // dropped onto the scanned column's surface
+    expect(lead.body.z).toBe(0.5);
+    expect(lead.body.y).toBe(10);
+  });
+
+  it('herd spawning never exceeds MAX_ANIMALS', () => {
+    const { system } = makeSystem(21);
+    let peak = 0;
+    for (let i = 0; i < 60 * 60; i++) {
+      system.fixedUpdate(DT, 0.5, 10, 0.5);
+      peak = Math.max(peak, system.count);
+    }
+    expect(peak).toBe(MAX_ANIMALS); // herds saturate the cap without breaching it
+  });
+
+  it('rolls each animal a visual scale in [0.85, 1.15], uniform across axes', () => {
+    const { system } = makeSystem(5);
+    const sizes = new Set<number>();
+    for (let i = 0; i < 12; i++) {
+      const animal = system.spawnAt(i + 0.5, 10, 0.5);
+      expect(animal.group.scale.x).toBeGreaterThanOrEqual(0.85);
+      expect(animal.group.scale.x).toBeLessThanOrEqual(1.15);
+      expect(animal.group.scale.y).toBe(animal.group.scale.x);
+      expect(animal.group.scale.z).toBe(animal.group.scale.x);
+      sizes.add(animal.group.scale.x);
+    }
+    expect(sizes.size).toBeGreaterThan(1); // per-individual, not one fixed size
   });
 });
