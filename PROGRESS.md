@@ -303,3 +303,8 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Ocean reefs: seagrass tufts and rose/teal coral pillars on deep sand floors; teal coral glows faintly at night
 - [x] Mob character pass: tails/ears/horns/fleece/necks per species, idle head-bob + walk roll, stalker shoulder spikes and arm claws, spitter hood + venom throat sac, melee lunge tell, shrinking death pop
 - [x] Whole batch verified together: 338 tests, strict tsc, clean build
+
+## Post-spec: Per-seed world identity
+
+- [x] worldShapeOf(seed): every seed rolls its own terrain personality — landmass breadth (continent scale 400-640), mountain drama (34-64), hill roll (10-18), tree richness (×0.7-1.5) and a climate lean (temperature/moisture bias) — deterministic, range-tested, and fed through heightAt/biomeAt/tree placement
+- [x] Worlds stay byte-deterministic per seed while different seeds now diverge structurally, not just positionally; 342 tests green

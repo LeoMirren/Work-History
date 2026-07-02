@@ -8,7 +8,7 @@
  * height bias; a separate mountain noise raises dramatic ranges anywhere.
  */
 import { type NoiseFunction2D, type NoiseFunction3D } from 'simplex-noise';
-import { cyrb128, hash2, seededNoise2D, seededNoise3D } from './noise';
+import { cyrb128, hash2, rngFromSeed, seededNoise2D, seededNoise3D } from './noise';
 import { Block } from './blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, createChunkData } from './chunk';
 
@@ -181,7 +181,42 @@ function createUnderworld(seed: string): Generator {
   };
 }
 
+/**
+ * Per-seed world shape: every seed rolls its own terrain personality —
+ * landmass breadth, mountain drama, hill roll, tree richness and a climate
+ * lean — so no two worlds feel structurally alike. Rolled once from the
+ * seed's own PRNG stream; pure and deterministic. Ranges stay moderate so
+ * every world keeps oceans, beaches, all biomes and buildable flats.
+ */
+export interface WorldShape {
+  /** Continental noise wavelength: 400..640 (smaller = choppier landmass). */
+  readonly continentScale: number;
+  /** Mountain amplitude: 34..64 (48 was the old fixed value). */
+  readonly mountainAmp: number;
+  /** Hill amplitude: 10..18. */
+  readonly hillAmp: number;
+  /** Global tree-density multiplier: 0.7..1.5. */
+  readonly treeMul: number;
+  /** Climate lean added to temperature noise: -0.12..0.12. */
+  readonly tempBias: number;
+  /** Wetness lean added to moisture noise: -0.1..0.1. */
+  readonly moistBias: number;
+}
+
+export function worldShapeOf(seed: string): WorldShape {
+  const rng = rngFromSeed(seed, 'worldshape');
+  return {
+    continentScale: 400 + Math.floor(rng() * 241),
+    mountainAmp: 34 + Math.floor(rng() * 31),
+    hillAmp: 10 + Math.floor(rng() * 9),
+    treeMul: 0.7 + rng() * 0.8,
+    tempBias: (rng() - 0.5) * 0.24,
+    moistBias: (rng() - 0.5) * 0.2,
+  };
+}
+
 function createOverworld(seed: string): Generator {
+  const shape = worldShapeOf(seed);
   const continental: NoiseFunction2D = seededNoise2D(seed, 'continental');
   const hillMask: NoiseFunction2D = seededNoise2D(seed, 'hillMask');
   const hills: NoiseFunction2D = seededNoise2D(seed, 'hills');
@@ -204,8 +239,8 @@ function createOverworld(seed: string): Generator {
   const dungeonSeed = cyrb128(`${seed} dungeons`)[0];
 
   function biomeAt(wx: number, wz: number): number {
-    const t = temperature(wx / 620, wz / 620);
-    const m = moisture(wx / 520, wz / 520);
+    const t = temperature(wx / 620, wz / 620) + shape.tempBias;
+    const m = moisture(wx / 520, wz / 520) + shape.moistBias;
     if (t > 0.45 && m < -0.05) return Biome.desert;
     if (t > 0.2 && m > 0.5) return Biome.jungle; // hot & very wet
     if (t > 0.28 && m < 0.18) return Biome.savanna;
@@ -215,14 +250,14 @@ function createOverworld(seed: string): Generator {
   }
 
   function heightAt(wx: number, wz: number): number {
-    const c = continental(wx / 512, wz / 512);
+    const c = continental(wx / shape.continentScale, wz / shape.continentScale);
     const base = 50 + 22 * c;
     const mask = Math.max(0, hillMask(wx / 300, wz / 300));
-    const hill = hills(wx / 96, wz / 96) * 14 * mask;
+    const hill = hills(wx / 96, wz / 96) * shape.hillAmp * mask;
     const det = detail(wx / 24, wz / 24) * 3;
     // Mountain ranges: squared positive noise gives sharp, localized peaks.
     const m = Math.max(0, mountain(wx / 240, wz / 240));
-    const mtn = m * m * 48;
+    const mtn = m * m * shape.mountainAmp;
     const bias = BIOME_DEFS[biomeAt(wx, wz)]?.heightBias ?? 0;
     const h = Math.round(base + hill + det + mtn + bias);
     return Math.min(120, Math.max(8, h));
@@ -318,8 +353,10 @@ function createOverworld(seed: string): Generator {
         if (data[blockIndex(x, h, z)] !== Block.grass) continue;
         const div = BIOME_DEFS[biomes[z * CHUNK_SIZE + x] ?? Biome.plains]?.treeChanceDiv ?? 0;
         if (div === 0) continue;
+        // The world shape's richness multiplier scales every biome's density.
+        const scaledDiv = Math.max(2, Math.round(div / shape.treeMul));
         const hsh = hash2(treeSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
-        if (hsh % div !== 0) continue;
+        if (hsh % scaledDiv !== 0) continue;
         const jungle = (biomes[z * CHUNK_SIZE + x] ?? Biome.plains) === Biome.jungle;
         const trunk = jungle ? 7 + ((hsh >>> 8) % 4) : 4 + ((hsh >>> 8) % 3);
         plantTree(data, x, z, h, trunk);
