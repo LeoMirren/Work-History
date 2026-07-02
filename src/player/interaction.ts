@@ -6,8 +6,13 @@
  * Creative: instant break, infinite placement from the fixed hotbar.
  * Survival: hold-to-break with tool-adjusted times, drops collected into the
  * inventory, placement consumes from the selected stack.
+ *
+ * Also owned here: the mining crack overlay (a UV-swapped cube drawn over the
+ * block being dug) and `targetHint`, the contextual "what does a click do
+ * here" string that main polls and forwards to the HUD.
  */
 import * as THREE from 'three';
+import { Tiles, tileUVRect } from '../engine/atlas';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
@@ -34,6 +39,97 @@ export function canPlaceAt(currentId: number, bx: number, by: number, bz: number
   if (by < 0 || by >= CHUNK_HEIGHT) return false;
   if (currentId !== Block.air && currentId !== Block.water) return false;
   return !blockIntersectsBody(bx, by, bz, body);
+}
+
+/** Crack-overlay cube edge: a hair over a block so it draws outside the faces. */
+export const CRACK_SCALE = 1.004;
+/** Number of crack tiles in the atlas (Tiles.crack0..crack3). */
+const CRACK_STAGES = 4;
+
+// `targetHint` is recomputed every frame; reuse interned constants so polling
+// it never allocates.
+const HINT_ATTACK = 'left-click: attack';
+const HINT_OPEN_CHEST = 'right-click: open chest';
+const HINT_SLEEP = 'right-click: sleep & set respawn';
+const HINT_TRAVEL = 'right-click: travel between realms';
+const HINT_SMELT = 'open inventory (E) nearby to smelt';
+const HINT_HARVEST = 'left-click: harvest';
+const HINT_PLANT = 'right-click: plant seeds';
+const HINT_TILL = 'right-click: till farmland';
+
+/**
+ * Crack stage shown for a hold-to-break progress value: quarters of the 0..1
+ * progress map to tiles crack0..crack3. -1 means "no overlay" (not mining).
+ */
+export function crackStageFor(progress: number): number {
+  if (progress <= 0) return -1;
+  return Math.min(CRACK_STAGES - 1, Math.floor(progress * CRACK_STAGES));
+}
+
+/**
+ * Contextual crosshair hint: what clicking the current target would do, pure
+ * for testability. `blockId` is the targeted block (Block.air when none),
+ * `heldId` the selected stack's id (0 when empty-handed or in creative) and
+ * `entityAimed` whether a creature sits nearer along the view ray than the
+ * block — entities win the crosshair, so they win the hint too. Water is
+ * never targetable so it needs no case. Null = nothing worth saying.
+ */
+export function hintForTarget(blockId: number, heldId: number, entityAimed: boolean): string | null {
+  if (entityAimed) return HINT_ATTACK;
+  switch (blockId) {
+    case Block.chest:
+      return HINT_OPEN_CHEST;
+    case Block.bed:
+      return HINT_SLEEP;
+    case Block.riftframe:
+      return HINT_TRAVEL;
+    case Block.furnace:
+      return HINT_SMELT;
+    case Block.cropRipe:
+      return HINT_HARVEST;
+    case Block.farmland:
+      return heldId === Item.seeds ? HINT_PLANT : null;
+    case Block.grass:
+    case Block.dirt:
+      return heldId === Item.hoe ? HINT_TILL : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The 48 UV floats (6 faces x 4 corners) pinning every face of a BoxGeometry
+ * to a single atlas tile. BoxGeometry emits each face's corners in
+ * UV-fraction order (0,1) (1,1) (0,0) (1,0) — top-left, top-right,
+ * bottom-left, bottom-right — so writing the tile rect in that order keeps
+ * the crack upright on all six sides. Exported for tests.
+ */
+export function crackUVsFor(tile: number): Float32Array {
+  const { u0, v0, u1, v1 } = tileUVRect(tile);
+  const uvs = new Float32Array(48);
+  for (let face = 0; face < 6; face++) {
+    const o = face * 8;
+    uvs[o] = u0;
+    uvs[o + 1] = v1;
+    uvs[o + 2] = u1;
+    uvs[o + 3] = v1;
+    uvs[o + 4] = u0;
+    uvs[o + 5] = v0;
+    uvs[o + 6] = u1;
+    uvs[o + 7] = v0;
+  }
+  return uvs;
+}
+
+/** One cube geometry per crack stage; the overlay mesh swaps between them. */
+function buildCrackGeometries(): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  for (let stage = 0; stage < CRACK_STAGES; stage++) {
+    const geometry = new THREE.BoxGeometry(CRACK_SCALE, CRACK_SCALE, CRACK_SCALE);
+    geometry.setAttribute('uv', new THREE.BufferAttribute(crackUVsFor(Tiles.crack0 + stage), 2));
+    geometries.push(geometry);
+  }
+  return geometries;
 }
 
 export interface HotbarState {
@@ -67,12 +163,24 @@ export class Interaction {
   onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
   breakProgress = 0;
+  /**
+   * Contextual "what does a click do here" hint, recomputed every update();
+   * null when there is nothing to say. Main polls it for the HUD — treat as
+   * read-only outside this class.
+   */
+  targetHint: string | null = null;
   private breakX = Number.NaN;
   private breakY = Number.NaN;
   private breakZ = Number.NaN;
   private readonly outline: THREE.LineSegments;
   /** Reddish box drawn around the entity under the crosshair. */
   private readonly entityOutline: THREE.LineSegments;
+  /** Mining crack overlay: one cube mesh whose geometry swaps per stage. */
+  private readonly crackMesh: THREE.Mesh;
+  private readonly crackMaterial: THREE.MeshBasicMaterial;
+  private readonly crackGeometries: readonly THREE.BufferGeometry[];
+  /** setAtlas() guard: the crack overlay stays hidden until a texture binds. */
+  private atlasReady = false;
   private readonly clicks: number[] = [];
 
   constructor(scene: THREE.Scene) {
@@ -88,6 +196,23 @@ export class Interaction {
     );
     this.entityOutline.visible = false;
     scene.add(this.entityOutline);
+    this.crackGeometries = buildCrackGeometries();
+    this.crackMaterial = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.4, depthWrite: false });
+    this.crackMesh = new THREE.Mesh(this.crackGeometries[0], this.crackMaterial);
+    this.crackMesh.name = 'entity'; // opt out of main's shared-chunk-material dev sweep
+    this.crackMesh.renderOrder = 2;
+    this.crackMesh.visible = false;
+    scene.add(this.crackMesh);
+  }
+
+  /**
+   * Bind the session's atlas texture to the crack-overlay material. Main
+   * calls this once per session; until then the overlay never shows.
+   */
+  setAtlas(texture: THREE.Texture): void {
+    this.crackMaterial.map = texture;
+    this.crackMaterial.needsUpdate = true;
+    this.atlasReady = true;
   }
 
   /** Per-frame: refresh the targeted block and apply queued clicks. */
@@ -128,6 +253,11 @@ export class Interaction {
       this.outline.visible = false;
     }
 
+    // Contextual hint (polled by main, forwarded to the HUD): entities win
+    // the crosshair, so they win the hint; otherwise the target block decides.
+    const targetId = this.hasTarget ? world.getBlock(this.hit.bx, this.hit.by, this.hit.bz) : Block.air;
+    this.targetHint = hintForTarget(targetId, this.heldId(hotbar), entityAimed);
+
     input.takeClicks(this.clicks);
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
@@ -146,6 +276,10 @@ export class Interaction {
         }
       }
     } else {
+      // Creative (or inventory-less) frames never hold-to-mine: drop any
+      // survival break-in-progress so the crack overlay can't linger across
+      // a mode switch.
+      this.resetBreaking();
       for (const button of this.clicks) {
         if (button === 0) {
           if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
@@ -331,6 +465,29 @@ export class Interaction {
     return hotbar.inventory?.slots[hotbar.slot]?.id ?? 0;
   }
 
+  /**
+   * The single reset path for hold-to-break: zero the progress, forget the
+   * block and hide the crack overlay (idle hand, target lost, block broken,
+   * unbreakable target, or a switch to creative).
+   */
+  private resetBreaking(): void {
+    this.breakProgress = 0;
+    this.breakX = Number.NaN;
+    this.crackMesh.visible = false;
+  }
+
+  /** Drape the crack overlay over the mined block at the current stage. */
+  private showCrackAt(bx: number, by: number, bz: number): void {
+    const geometry: THREE.BufferGeometry | undefined = this.crackGeometries[crackStageFor(this.breakProgress)];
+    if (!this.atlasReady || !geometry) {
+      this.crackMesh.visible = false;
+      return;
+    }
+    this.crackMesh.geometry = geometry;
+    this.crackMesh.position.set(bx + 0.5, by + 0.5, bz + 0.5);
+    this.crackMesh.visible = true;
+  }
+
   /** Survival: hold LMB on one block until its tool-adjusted time elapses. */
   private updateTimedBreaking(
     input: Input,
@@ -340,15 +497,13 @@ export class Interaction {
     hotbar: HotbarState,
   ): void {
     if (!this.hasTarget || !input.isButtonDown(0)) {
-      this.breakProgress = 0;
-      this.breakX = Number.NaN;
+      this.resetBreaking();
       return;
     }
     const { bx, by, bz } = this.hit;
     const id = world.getBlock(bx, by, bz);
     if (BREAKABLE[id] !== 1) {
-      this.breakProgress = 0;
-      this.breakX = Number.NaN;
+      this.resetBreaking();
       return;
     }
     if (bx !== this.breakX || by !== this.breakY || bz !== this.breakZ) {
@@ -369,9 +524,10 @@ export class Interaction {
       this.popCropAbove(world, bx, by, bz, inventory);
       this.onEdit?.('break', id);
       this.onBlockChanged?.('break', id, bx, by, bz);
-      this.breakProgress = 0;
-      this.breakX = Number.NaN;
+      this.resetBreaking();
+      return;
     }
+    this.showCrackAt(bx, by, bz);
   }
 
   private tryBreak(world: World): void {

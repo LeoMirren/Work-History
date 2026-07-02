@@ -322,6 +322,7 @@ async function boot(): Promise<void> {
     }
     if (!hud) hud = new Hud(app as HTMLElement, atlasCanvas);
     else hud.redrawIcons(atlasCanvas);
+    interaction.setAtlas(texture); // mining crack overlay samples this atlas
     clouds.reseed(seed);
 
     const persistence: ChunkPersistence = {
