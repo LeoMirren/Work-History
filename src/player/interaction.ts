@@ -167,6 +167,11 @@ export class Interaction {
   onThrow: ((ox: number, oy: number, oz: number, dx: number, dy: number, dz: number) => void) | null = null;
   /** Block placed/broken at a world cell, for container bookkeeping. */
   onBlockChanged: ((kind: 'place' | 'break', id: number, x: number, y: number, z: number) => void) | null = null;
+  /**
+   * Loot sink: when set, mining/harvest/kill yields spawn as world drops at
+   * the given spot instead of teleporting into the inventory.
+   */
+  onDrop: ((id: number, count: number, x: number, y: number, z: number) => void) | null = null;
   /** Survival hold-to-break progress, 0..1 (for the HUD bar). */
   breakProgress = 0;
   /**
@@ -326,6 +331,12 @@ export class Interaction {
     this.feedbackTimer = 1.6;
   }
 
+  /** Yield loot: as a world drop when wired, else straight to the inventory. */
+  private award(inventory: Inventory | null, id: number, count: number, x: number, y: number, z: number): void {
+    if (this.onDrop) this.onDrop(id, count, x, y, z);
+    else if (inventory) inventory.add(id, count);
+  }
+
   /** Right-click a chest: hand off to the container hook. */
   private tryOpenContainer(world: World): boolean {
     if (!this.hasTarget || !this.onOpenContainer) return false;
@@ -372,7 +383,10 @@ export class Interaction {
       this.hostiles?.hurt(hostileHit.stalker, dx, dz);
     } else if (animalHit) {
       const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
-      if (drops && inventory) inventory.add(drops.id, drops.count);
+      if (drops && inventory) {
+        const b = animalHit.animal.body;
+        this.award(inventory, drops.id, drops.count, b.x, b.y + 0.4, b.z);
+      }
     }
     this.onEdit?.('break', Item.meat); // thud
     return true;
@@ -409,7 +423,7 @@ export class Interaction {
     world.setBlock(bx, by + 1, bz, Block.air);
     if (inventory) {
       const drop = dropFor(above, 0);
-      if (drop) inventory.add(drop.id, drop.count);
+      if (drop) this.award(inventory, drop.id, drop.count, bx + 0.5, by + 1.5, bz + 0.5);
     }
   }
 
@@ -550,9 +564,9 @@ export class Interaction {
     if (this.breakProgress >= 1) {
       world.setBlock(bx, by, bz, Block.air);
       const drop = dropFor(id, held);
-      if (drop) inventory.add(drop.id, drop.count); // overflow is simply lost
+      if (drop) this.award(inventory, drop.id, drop.count, bx + 0.5, by + 0.5, bz + 0.5);
       const bonus = bonusDropFor(id, Math.random());
-      if (bonus) inventory.add(bonus.id, bonus.count);
+      if (bonus) this.award(inventory, bonus.id, bonus.count, bx + 0.5, by + 0.5, bz + 0.5);
       this.popCropAbove(world, bx, by, bz, inventory);
       this.onEdit?.('break', id);
       this.onBlockChanged?.('break', id, bx, by, bz);
