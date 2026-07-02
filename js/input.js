@@ -19,7 +19,13 @@ const Input = (() => {
   };
 
   const down = {}, pressed = {}, released = {};
+  const codesHeld = new Set(); // physical keys, so two keys bound to one action don't fight
   let anyKey = false;
+
+  function actionHeld(action) {
+    for (const code of codesHeld) if (MAP[code] === action) return true;
+    return false;
+  }
 
   function onKey(e, isDown) {
     const action = MAP[e.code];
@@ -27,12 +33,16 @@ const Input = (() => {
     // Don't let the page scroll with arrows/space.
     e.preventDefault();
     if (isDown) {
+      codesHeld.add(e.code);
       if (!down[action]) pressed[action] = true;
       down[action] = true;
       anyKey = true;
     } else {
-      down[action] = false;
-      released[action] = true;
+      codesHeld.delete(e.code);
+      if (!actionHeld(action)) {
+        down[action] = false;
+        released[action] = true;
+      }
     }
   }
 
@@ -43,7 +53,7 @@ const Input = (() => {
       addEventListener('keydown', e => onKey(e, true));
       addEventListener('keyup', e => onKey(e, false));
       // Releasing focus shouldn't leave keys stuck down.
-      addEventListener('blur', () => { for (const k in down) down[k] = false; });
+      addEventListener('blur', () => { codesHeld.clear(); for (const k in down) down[k] = false; });
     },
     endFrame() {
       for (const k in pressed) pressed[k] = false;

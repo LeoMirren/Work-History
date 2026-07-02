@@ -140,7 +140,7 @@ const ROOMS = {
       '##################################################',
     ],
     exits: [
-      { side: 'top', min: 4, max: 7, to: 'arch1', px: 5, py: 30 },
+      { side: 'top', min: 4, max: 7, to: 'arch1', px: 2, py: 31 },
       { side: 'left', min: 10, max: 13, to: 'archQ', px: 21, py: 13 },
       { side: 'right', min: 10, max: 13, to: 'arch3', px: 1.5, py: 13 },
     ],
@@ -371,7 +371,7 @@ const ROOMS = {
       '########################################',
       '########################################',
     ],
-    exits: [{ side: 'top', min: 18, max: 21, to: 'stk1', px: 25, py: 12 }],
+    exits: [{ side: 'top', min: 18, max: 21, to: 'stk1', px: 29, py: 12 }],
   },
 
   stk2: {

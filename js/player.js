@@ -67,6 +67,7 @@ const Player = {
     this.invulnT = 0;
     this.focusing = false; this.castHeldT = -1;
     this.coyoteT = 0; this.bufferT = 0;
+    this.wallCoyoteT = 0; this.wallLockT = 0; this.wallCoyoteDir = 0;
     this.airDash = true; this.airJump = true;
     this.lastSafe = { x: this.x, y: this.y };
   },
@@ -190,6 +191,7 @@ const Player = {
         this.wallLockT = CFG.wallJumpLock;
         this.wallCoyoteT = 0;
         this.bufferT = 0;
+        this.dashing = false; // a wall kick always interrupts a dash
         this.airJump = true; // wall jump refreshes the wing
         AudioSys.sfx('jump');
         Particles.dust(this.x + (wd > 0 ? this.w : 0), this.y + this.h * 0.6, -wd);
@@ -449,6 +451,7 @@ const Player = {
 
     if (pogo) {
       this.vy = CFG.pogoVel;
+      this.dashing = false; // the bounce wins over an in-flight dash
       this.airDash = true;
       this.airJump = true;
       AudioSys.sfx('pogo');

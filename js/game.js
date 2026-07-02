@@ -128,6 +128,7 @@ const Game = {
     Player.masks = Player.masksMax;
     Player.soul = 0;
     this.lastArea = null;
+    this.transition = null; // never let a stale fade replay into the new run
     const room = this.flags.benchRoom || 'foyer1';
     this.loadRoom(room, null);
     this.state = 'play';
@@ -140,6 +141,7 @@ const Game = {
     this.pickups = []; this.tablets = []; this.benches = []; this.deposits = [];
     this.portals = []; this.ghosts = []; this.npcs = [];
     this.shadeEnt = null; this.boss = null; this.arena = null; this.bossArmed = false;
+    this._sealBackup = null;
     Particles.clear();
 
     const bossPending = World.def.boss && !this.flags[this.bossFlagFor(World.def.boss)];
@@ -220,6 +222,8 @@ const Game = {
 
     this.cam.x = Math.max(0, Math.min(Player.cx - VIEW_W / 2, World.pxW - VIEW_W));
     this.cam.y = Math.max(0, Math.min(Player.cy - VIEW_H / 2, World.pxH - VIEW_H));
+    if (World.pxW <= VIEW_W) this.cam.x = (World.pxW - VIEW_W) / 2;
+    if (World.pxH <= VIEW_H) this.cam.y = (World.pxH - VIEW_H) / 2;
   },
 
   // ------------------------------------------------------------- helpers
@@ -374,21 +378,38 @@ const Game = {
   },
 
   // Seal / unseal every exit of the current room (arena & boss doors).
+  // seal() snapshots the original tiles so unseal() restores walls exactly.
+  _sealBackup: null,
   seal() {
-    for (const ex of World.def.exits) this.setExitTiles(ex, T_SOLID);
+    this._sealBackup = [];
+    for (const ex of World.def.exits) {
+      for (const [tx, ty] of this.exitTiles(ex)) {
+        this._sealBackup.push({ tx, ty, val: World.tile(tx, ty) });
+        World.setTile(tx, ty, T_SOLID);
+      }
+    }
     AudioSys.sfx('door');
   },
   unseal() {
-    for (const ex of World.def.exits) this.setExitTiles(ex, T_EMPTY);
+    if (this._sealBackup) {
+      for (const b of this._sealBackup) World.setTile(b.tx, b.ty, b.val);
+      this._sealBackup = null;
+    } else {
+      for (const ex of World.def.exits) {
+        for (const [tx, ty] of this.exitTiles(ex)) World.setTile(tx, ty, T_EMPTY);
+      }
+    }
     AudioSys.sfx('door');
   },
-  setExitTiles(ex, val) {
+  exitTiles(ex) {
+    const out = [];
     for (let i = ex.min; i <= ex.max; i++) {
-      if (ex.side === 'left') World.setTile(0, i, val);
-      else if (ex.side === 'right') World.setTile(World.w - 1, i, val);
-      else if (ex.side === 'top') World.setTile(i, 0, val);
-      else if (ex.side === 'bottom') World.setTile(i, World.h - 1, val);
+      if (ex.side === 'left') out.push([0, i]);
+      else if (ex.side === 'right') out.push([World.w - 1, i]);
+      else if (ex.side === 'top') out.push([i, 0]);
+      else if (ex.side === 'bottom') out.push([i, World.h - 1]);
     }
+    return out;
   },
 
   // ------------------------------------------------------------ encounters
@@ -507,6 +528,7 @@ const Game = {
       if (Input.pressed.pause) { this.state = 'play'; return; }
       if (Input.pressed.quit) {
         this.save();
+        AudioSys.setBoss(false);
         this.state = 'title';
         this.titleSel = 0;
         return;
@@ -582,6 +604,10 @@ const Game = {
 
     if (this.hitstopT > 0) {
       this.hitstopT -= dt;
+      // keep input edges alive through the freeze: Input.endFrame() will wipe
+      // them before Player.update ever runs, so latch them into player state
+      if (Input.pressed.jump) Player.bufferT = CFG.jumpBuffer;
+      if (Input.released.jump && Player.vy < 0 && !Player.dashing) Player.vy *= CFG.jumpCut;
       return; // world frozen for impact
     }
 
@@ -726,8 +752,9 @@ const Game = {
 
     // HUD & overlays
     UI.drawHUD(ctx);
-    if (this.boss && !this.boss.dead && this.boss.state !== 'intro') UI.drawBossBar(ctx, this.boss);
-    if (this.boss && this.boss.state === 'intro') {
+    const inPlay = this.state === 'play' || this.state === 'dialog';
+    if (inPlay && this.boss && !this.boss.dead && this.boss.state !== 'intro') UI.drawBossBar(ctx, this.boss);
+    if (inPlay && this.boss && this.boss.state === 'intro') {
       ctx.save();
       ctx.textAlign = 'center';
       const a = Math.min(1, this.boss.stateT / 0.4);
@@ -744,13 +771,14 @@ const Game = {
     }
 
     const overlayFree = this.state === 'play' || this.state === 'dialog' || this.state === 'dead';
+    const uiDt = this.lastDt || 1 / 60;
     if (this.areaCardT > 0 && overlayFree) {
-      this.areaCardT -= 1 / 60;
+      this.areaCardT -= uiDt;
       const a = this.areaCardT > 2.9 ? (3.4 - this.areaCardT) / 0.5 : Math.min(1, this.areaCardT / 0.8);
       UI.areaCard(ctx, this.areaCardName, this.areaCardSub, Math.max(0, a));
     }
     if (this.bannerT > 0 && overlayFree) {
-      this.bannerT -= 1 / 60;
+      this.bannerT -= uiDt;
       const a = this.bannerT > 2.8 ? (3.2 - this.bannerT) / 0.4 : Math.min(1, this.bannerT / 0.6);
       UI.banner(ctx, this.bannerTitle, this.bannerDesc, Math.max(0, a));
     }
@@ -765,7 +793,7 @@ const Game = {
       UI.fade(ctx, a);
     }
     if (this.hazardFlashT > 0) {
-      this.hazardFlashT -= 1 / 60;
+      this.hazardFlashT -= uiDt;
       UI.fade(ctx, Math.min(0.85, this.hazardFlashT * 2.5));
     }
 
@@ -779,6 +807,7 @@ const Game = {
   frame(t) {
     const dt = Math.min((t - this.lastT) / 1000 || 0.016, 1 / 30);
     this.lastT = t;
+    this.lastDt = dt;
     this.update(dt);
     AudioSys.update(dt);
     this.draw();

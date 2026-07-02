@@ -112,6 +112,8 @@ const AudioSys = (() => {
     update() {
       if (!ctx || muted) return;
       const interval = bossMode ? 0.55 : 2.2;
+      // if we were muted or the tab slept, don't dump the whole backlog at once
+      if (nextNoteAt < ctx.currentTime - interval) nextNoteAt = ctx.currentTime + 0.1;
       while (nextNoteAt < ctx.currentTime + 0.3) {
         const t = nextNoteAt;
         noteStep++;

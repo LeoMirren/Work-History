@@ -107,7 +107,7 @@ class GeoBit {
       ny = this.y;
     }
     this.y = ny;
-    if (dist < 26) {
+    if (dist < 26 && !Player.dead) {
       this.dead = true;
       Player.geo += this.value;
       AudioSys.sfx('geo');
@@ -842,7 +842,8 @@ class Boss {
       this.die();
       return;
     }
-    if (this.staggerPool >= 14 && this.state !== 'stagger') {
+    const airborne = this.state === 'slamRise' || this.state === 'slamFall';
+    if (this.staggerPool >= 14 && this.state !== 'stagger' && !airborne) {
       this.staggerPool = 0;
       this.state = 'stagger'; this.stateT = 0;
       this.vx = 0;
@@ -853,6 +854,7 @@ class Boss {
     this.dead = true;
     this.state = 'dying';
     this.stateT = 0;
+    Game.shots.length = 0; // no cheap deaths to leftover flames
     AudioSys.sfx('bossDie');
     Game.shake(14);
     Game.hitstopT = 0.35;
@@ -1145,8 +1147,9 @@ class Imposter {
     AudioSys.sfx('bossHit');
     Particles.burst(this.x, this.y - 8, '#cfd6ea', 7, 190);
     if (this.hp <= 0) { this.die(); return; }
-    if (this.staggerPool >= 9 && this.state !== 'stagger') {
+    if (this.staggerPool >= 9 && this.state !== 'stagger' && this.state !== 'leap') {
       this.staggerPool = 0;
+      this.comboQueued = false;
       this.setState('stagger');
       this.vx = -this.dir * 160;
       AudioSys.sfx('stag');
@@ -1155,6 +1158,7 @@ class Imposter {
   die() {
     this.dead = true;
     this.setState('dying');
+    Game.shots.length = 0;
     AudioSys.sfx('bossDie');
     Game.shake(10);
     Game.hitstopT = 0.3;
