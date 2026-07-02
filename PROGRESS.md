@@ -303,3 +303,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Ocean reefs: seagrass tufts and rose/teal coral pillars on deep sand floors; teal coral glows faintly at night
 - [x] Mob character pass: tails/ears/horns/fleece/necks per species, idle head-bob + walk roll, stalker shoulder spikes and arm claws, spitter hood + venom throat sac, melee lunge tell, shrinking death pop
 - [x] Whole batch verified together: 338 tests, strict tsc, clean build
+
+## Post-spec: Content storm (parallel workstreams II)
+
+- [x] Physical item drops: mined/harvest/kill loot pops out as spinning atlas-textured pickups (gravity, ground rest, 2.6-block magnet, walk-over collect, 90 s lifetime, 80 cap)
+- [x] Quick-place build keys: I/J/K/L place the held block ahead/left/behind/right (yaw snapped to cardinals), U/O ahead-below/ahead-above — schematic building without aiming
+- [x] Fish: dartfin / shadowscale / sunnygill school in 2-deep water (tail-wag, wall avoidance, depth steering, drained-flop), catchable for meat; wired into punch + thrown-stone paths
+- [x] Mob character pass: species tails/ears/horns/fleece/necks/feet, idle head bob + walk roll, stalker spikes/claws + melee lunge tell, spitter hood + venom sac, shrinking death pop
+- [x] Buried dungeons (~1/90 chunks): two brick/cobble rooms + corridor carved at y14-34 with loot chest, emberrock light and a crystal; stays buried, cave-intersect friendly
+- [x] Hamlets: hut rolls can upgrade to twin cabins + a cobble-ring well (2-deep water); per-piece bail on unfit ground
+- [x] Ocean reefs: seagrass tufts + rose/teal coral pillars on deep sand floors (coralTeal faintly glows); new blocks/tiles with shading-aware painters
+- [x] All verified together: 338 tests, strict tsc, clean build
