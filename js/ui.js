@@ -37,7 +37,7 @@ const UI = {
     ctx.beginPath();
     ctx.arc(ox, oy, r + 2, 0, Math.PI * 2);
     ctx.stroke();
-    const frac = Player.soul / CFG.soulMax;
+    const frac = Player.soul / Player.soulMax;
     if (frac > 0.01) {
       ctx.save();
       ctx.beginPath();
@@ -116,8 +116,8 @@ const UI = {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.font = this.font(17, 700);
-    ctx.fillStyle = '#f0d8c8';
-    ctx.fillText(CONTENT.enemyNames.boss, VIEW_W / 2, y - 8);
+    ctx.fillStyle = boss.kind === 'imposter' ? '#d8dff0' : '#f0d8c8';
+    ctx.fillText(boss.name, VIEW_W / 2, y - 8);
     ctx.fillStyle = 'rgba(12,10,14,0.8)';
     ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
     ctx.strokeStyle = '#7a4438';
@@ -339,49 +339,237 @@ const UI = {
     ctx.restore();
   },
 
-  drawPause(ctx) {
-    this.fade(ctx, 0.72, '#060910');
+  drawPause(ctx, sel) {
+    this.fade(ctx, 0.78, '#060910');
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = this.font(40, 700);
+    ctx.font = this.font(34, 700);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '8px';
     ctx.fillStyle = '#f0f4fc';
-    ctx.fillText('PAUSED', VIEW_W / 2, 92);
+    ctx.fillText('PAUSED', VIEW_W / 2, 62);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
 
-    ctx.font = this.font(17, 700);
+    // ---- left column: trinkets (selectable) --------------------------------
+    const lx = 250;
+    ctx.font = this.font(16, 700);
     ctx.fillStyle = 'rgba(200,214,236,0.9)';
-    ctx.fillText('— RELICS —', VIEW_W / 2, 150);
+    ctx.fillText('— TRINKETS —', lx, 108);
+    // notch cord
+    const used = Player.notchesUsed();
+    for (let i = 0; i < CONTENT.notches; i++) {
+      ctx.beginPath();
+      ctx.arc(lx - 30 + i * 30, 130, 7, 0, Math.PI * 2);
+      ctx.fillStyle = i < used ? '#e8eef8' : 'rgba(40,48,68,0.9)';
+      ctx.fill();
+      ctx.strokeStyle = '#8a9ab8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.font = this.font(12);
+    ctx.fillStyle = 'rgba(170,185,210,0.7)';
+    ctx.fillText('notches', lx + 78, 134);
+
+    const owned = Object.keys(CONTENT.charms).filter(c => Player.charms.has(c));
     ctx.font = this.font(15);
-    let y = 178;
-    const ab = Player.abilities;
+    let y = 168;
+    if (!owned.length) {
+      ctx.fillStyle = 'rgba(120,132,156,0.5)';
+      ctx.fillText('· no trinkets found yet ·', lx, y);
+      y += 26;
+    }
+    owned.forEach((key, i) => {
+      const meta = CONTENT.charms[key];
+      const eq = Player.equipped.has(key);
+      const isSel = i === sel;
+      if (isSel) {
+        ctx.fillStyle = 'rgba(200,214,236,0.12)';
+        ctx.fillRect(lx - 190, y - 30, 380, 40);
+      }
+      ctx.font = this.font(15, eq ? 700 : 400);
+      ctx.fillStyle = eq ? '#ffffff' : 'rgba(200,212,232,0.75)';
+      ctx.fillText(`${eq ? '◆ ' : '◇ '}${meta.name}  ·  ${meta.cost}◆${key === 'veil' && eq ? (Player.veilCharge ? '  (ready)' : '  (spent)') : ''}`, lx, y - 12);
+      ctx.font = this.font(12);
+      ctx.fillStyle = 'rgba(165,178,202,0.75)';
+      ctx.fillText(meta.desc, lx, y + 5);
+      y += 44;
+    });
+    // locked slots hint
+    const missing = Object.keys(CONTENT.charms).length - owned.length;
+    if (missing > 0) {
+      ctx.font = this.font(12);
+      ctx.fillStyle = 'rgba(120,132,156,0.5)';
+      ctx.fillText(`${missing} trinket${missing > 1 ? 's' : ''} still hidden in the kingdom`, lx, y - 6);
+    }
+
+    // ---- right column: relics & record -------------------------------------
+    const rx = 706;
+    ctx.font = this.font(16, 700);
+    ctx.fillStyle = 'rgba(200,214,236,0.9)';
+    ctx.fillText('— RELICS —', rx, 108);
+    ctx.font = this.font(14);
+    let ry = 134;
     for (const key of ['dash', 'claw', 'wings', 'spell']) {
       const meta = CONTENT.abilities[key];
-      ctx.fillStyle = ab[key] ? '#e8eef8' : 'rgba(120,132,156,0.5)';
-      ctx.fillText(ab[key] ? `${meta.name} — ${meta.desc}` : '· not yet found ·', VIEW_W / 2, y);
-      y += 24;
-    }
-
-    ctx.font = this.font(17, 700);
-    ctx.fillStyle = 'rgba(200,214,236,0.9)';
-    ctx.fillText('— TRINKETS —', VIEW_W / 2, y + 22);
-    ctx.font = this.font(15);
-    y += 50;
-    for (const key of ['coffee', 'focus', 'duck']) {
-      const meta = CONTENT.charms[key];
-      const has = Player.charms.has(key);
+      const has = Player.abilities[key];
       ctx.fillStyle = has ? '#e8eef8' : 'rgba(120,132,156,0.5)';
-      ctx.fillText(has ? `${meta.name} — ${meta.desc}` : '· not yet found ·', VIEW_W / 2, y);
-      y += 24;
+      ctx.fillText(has ? meta.name : '· not yet found ·', rx, ry);
+      ry += 22;
     }
-
-    ctx.font = this.font(15);
-    ctx.fillStyle = 'rgba(180,195,220,0.75)';
-    ctx.fillText('move ←→ · jump Z · strike X (↑/↓ to aim) · dash C · tap V cast · hold V focus', VIEW_W / 2, VIEW_H - 108);
-    ctx.fillText('sit at benches to rest and save · M mute', VIEW_W / 2, VIEW_H - 84);
+    ry += 8;
     ctx.font = this.font(16, 700);
+    ctx.fillStyle = 'rgba(200,214,236,0.9)';
+    ctx.fillText('— RECORD —', rx, ry);
+    ry += 24;
+    ctx.font = this.font(14);
+    ctx.fillStyle = '#cfd9ea';
+    const mm = Math.floor(Game.playT / 60), ss = Math.floor(Game.playT % 60);
+    const shards = Game.flags.shards || 0;
+    ctx.fillText(`time ${mm}:${String(ss).padStart(2, '0')}   deaths ${Game.deaths}`, rx, ry);
+    ctx.fillText(`geo ${Player.geo}   masks ${Player.masksMax}   soul ${Player.soulMax}`, rx, ry + 22);
+    ctx.fillText(`mask shards ${shards % 2}/2 toward the next mask`, rx, ry + 44);
+
+    // ---- the map -------------------------------------------------------------
+    this.drawMap(ctx, VIEW_W / 2, 392);
+
+    ctx.font = this.font(13);
+    ctx.fillStyle = 'rgba(180,195,220,0.7)';
+    ctx.fillText('←→ move · Z jump · X strike (↑/↓ aim) · C dash · tap V cast · hold V focus · ↑ talk/rest', VIEW_W / 2, VIEW_H - 52);
+    ctx.font = this.font(15, 700);
     ctx.fillStyle = 'rgba(230,238,250,0.9)';
-    ctx.fillText('ESC resume · ENTER quit to title', VIEW_W / 2, VIEW_H - 44);
+    ctx.fillText('↑↓ select · ENTER wear/remove · ESC resume · Q quit to title', VIEW_W / 2, VIEW_H - 26);
+    ctx.restore();
+  },
+
+  // A humble cartographer's rendering of the kingdom.
+  drawMap(ctx, centerX, centerY) {
+    const CELL_W = 42, CELL_H = 26, GAP = 8;
+    let minC = 99, maxC = -99, minR = 99, maxR = -99;
+    for (const id in MAP_LAYOUT) {
+      const [c, r, cw, ch] = MAP_LAYOUT[id];
+      minC = Math.min(minC, c); maxC = Math.max(maxC, c + cw);
+      minR = Math.min(minR, r); maxR = Math.max(maxR, r + ch);
+    }
+    const w = (maxC - minC) * (CELL_W + GAP);
+    const h = (maxR - minR) * (CELL_H + GAP);
+    const ox = centerX - w / 2, oy = centerY - h / 2;
+    const cellRect = (id) => {
+      const [c, r, cw, ch] = MAP_LAYOUT[id];
+      return {
+        x: ox + (c - minC) * (CELL_W + GAP),
+        y: oy + (r - minR) * (CELL_H + GAP),
+        w: cw * CELL_W + (cw - 1) * GAP,
+        h: ch * CELL_H + (ch - 1) * GAP,
+      };
+    };
+    ctx.save();
+    ctx.font = this.font(14, 700);
+    ctx.fillStyle = 'rgba(200,214,236,0.9)';
+    ctx.fillText('— THE KINGDOM —', centerX, oy - 14);
+
+    const visited = Game.flags.visited || [];
+    // connections between visited neighbors
+    ctx.strokeStyle = 'rgba(150,168,198,0.4)';
+    ctx.lineWidth = 2;
+    for (const id of visited) {
+      const def = ROOMS[id];
+      if (!def || !MAP_LAYOUT[id]) continue;
+      for (const ex of def.exits || []) {
+        if (!visited.includes(ex.to) || !MAP_LAYOUT[ex.to]) continue;
+        const a = cellRect(id), b = cellRect(ex.to);
+        ctx.beginPath();
+        ctx.moveTo(a.x + a.w / 2, a.y + a.h / 2);
+        ctx.lineTo(b.x + b.w / 2, b.y + b.h / 2);
+        ctx.stroke();
+      }
+    }
+    for (const id in MAP_LAYOUT) {
+      const r = cellRect(id);
+      const seen = visited.includes(id);
+      if (!seen) {
+        ctx.strokeStyle = 'rgba(70,80,105,0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        continue;
+      }
+      const area = ROOMS[id].area;
+      const pal = CONTENT.areas[area].palette;
+      ctx.fillStyle = pal.mid;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = pal.edge;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+      // bench pip
+      if (ROOMS[id].bench) {
+        ctx.fillStyle = '#e8e4c8';
+        ctx.beginPath();
+        ctx.arc(r.x + r.w - 8, r.y + 8, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // you are here
+      if (World.roomId === id) {
+        const pulse = 0.5 + Math.sin(performance.now() / 200) * 0.4;
+        ctx.strokeStyle = `rgba(255,255,255,${pulse})`;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(r.x + r.w / 2, r.y + r.h / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  // The Recruiter's wares.
+  drawShop(ctx, sel) {
+    this.fade(ctx, 0.6, '#0a0806');
+    const w = 620, x = (VIEW_W - w) / 2, y = 92;
+    const stock = Game.shopStock();
+    const h = 150 + Math.max(stock.length, 1) * 64;
+    ctx.save();
+    ctx.fillStyle = 'rgba(16,12,8,0.94)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(216,200,144,0.6)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 5, y + 5, w - 10, h - 10);
+    ctx.textAlign = 'center';
+    ctx.font = this.font(26, 700);
+    ctx.fillStyle = '#e8d8a8';
+    ctx.fillText(CONTENT.shopName.toUpperCase(), VIEW_W / 2, y + 44);
+    ctx.font = this.font(13);
+    ctx.fillStyle = 'rgba(216,204,168,0.8)';
+    ctx.fillText('"Invest in yourself. Terms and conditions apply."', VIEW_W / 2, y + 68);
+
+    // your geo
+    ctx.font = this.font(16, 700);
+    ctx.fillStyle = '#e8e4c8';
+    ctx.fillText(`your geo: ${Player.geo}`, VIEW_W / 2, y + 96);
+
+    let iy = y + 132;
+    if (!stock.length) {
+      ctx.font = this.font(16);
+      ctx.fillStyle = 'rgba(216,204,168,0.85)';
+      ctx.fillText('"Sold out! A pleasure doing business, candidate."', VIEW_W / 2, iy + 8);
+    }
+    stock.forEach((it, i) => {
+      const isSel = i === sel;
+      if (isSel) {
+        ctx.fillStyle = 'rgba(216,200,144,0.12)';
+        ctx.fillRect(x + 24, iy - 22, w - 48, 56);
+      }
+      const afford = Player.geo >= it.price;
+      ctx.font = this.font(17, 700);
+      ctx.fillStyle = afford ? '#f0e8d0' : 'rgba(150,138,110,0.7)';
+      ctx.fillText(`${it.name}   —   ${it.price} geo`, VIEW_W / 2, iy);
+      ctx.font = this.font(13);
+      ctx.fillStyle = afford ? 'rgba(216,204,168,0.85)' : 'rgba(140,130,105,0.6)';
+      ctx.fillText(it.desc, VIEW_W / 2, iy + 20);
+      iy += 64;
+    });
+
+    ctx.font = this.font(13, 700);
+    ctx.fillStyle = 'rgba(216,204,168,0.7)';
+    ctx.fillText('↑↓ browse · ENTER buy · ESC leave', VIEW_W / 2, y + h - 20);
     ctx.restore();
   },
 

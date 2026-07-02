@@ -27,6 +27,12 @@ const Particles = {
   soulWisp(x, y, tx, ty) {
     this.spawn(x, y, (tx - x) * 2.2, (ty - y) * 2.2, 0.45, 3, 'rgba(240,248,255,0.8)', 0);
   },
+  // expanding impact ring
+  rings: [],
+  ring(x, y, color, maxR = 42) {
+    if (this.rings.length > 24) this.rings.shift();
+    this.rings.push({ x, y, r: 6, maxR, color, life: 0.28, maxLife: 0.28 });
+  },
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
@@ -35,6 +41,12 @@ const Particles = {
       p.vy += p.grav * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+    }
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const r = this.rings[i];
+      r.life -= dt;
+      if (r.life <= 0) { this.rings.splice(i, 1); continue; }
+      r.r += (r.maxR - r.r) * 10 * dt;
     }
   },
   draw(ctx) {
@@ -45,9 +57,17 @@ const Particles = {
       ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.maxLife), 0, Math.PI * 2);
       ctx.fill();
     }
+    for (const r of this.rings) {
+      ctx.globalAlpha = Math.max(0, r.life / r.maxLife) * 0.8;
+      ctx.strokeStyle = r.color;
+      ctx.lineWidth = 2.5 * (r.life / r.maxLife);
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
   },
-  clear() { this.list.length = 0; },
+  clear() { this.list.length = 0; this.rings.length = 0; },
 };
 
 // ----------------------------------------------------------------------- geo
@@ -258,12 +278,12 @@ class Shot {
 // ------------------------------------------------------------------- pickups
 class Pickup {
   constructor(kind, id, x, y) {
-    this.kind = kind; // 'ability' | 'charm'
+    this.kind = kind; // 'ability' | 'charm' | 'shard'
     this.id = id;
     this.x = x; this.y = y;
     this.t = Math.random() * 6;
     this.dead = false;
-    this.hidden = false; // arena reward starts hidden
+    this.hidden = false; // encounter rewards start hidden
   }
   rect() { return { x: this.x - 14, y: this.y - 18, w: 28, h: 36 }; }
   update(dt) {
@@ -271,7 +291,7 @@ class Pickup {
     if (this.hidden || Player.dead) return;
     if (rectsOverlap(this.rect(), Player.rect())) {
       this.dead = true;
-      Game.acquire(this.kind, this.id, this.x, this.y);
+      Game.acquire(this);
     }
     if (Math.random() < 0.12) {
       Particles.spawn(this.x + (Math.random() - 0.5) * 20, this.y + 10, (Math.random() - 0.5) * 20,
@@ -304,7 +324,7 @@ class Pickup {
       ctx.moveTo(9, -2); ctx.quadraticCurveTo(22, -10, 26, 2); ctx.quadraticCurveTo(18, 2, 9, 5);
       ctx.fill();
       ctx.globalAlpha = 1;
-    } else {
+    } else if (this.kind === 'charm') {
       // charm: rune medallion
       ctx.fillStyle = '#dfe7f4';
       ctx.strokeStyle = '#8fa3c8';
@@ -317,8 +337,95 @@ class Pickup {
       ctx.beginPath();
       ctx.moveTo(-4, 4); ctx.lineTo(0, -5); ctx.lineTo(4, 4);
       ctx.stroke();
+    } else if (this.kind === 'shard') {
+      // a broken quarter of a pale mask
+      ctx.fillStyle = '#eef1f8';
+      ctx.strokeStyle = '#9fb4d8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-10, -6);
+      ctx.quadraticCurveTo(0, -13, 10, -6);
+      ctx.lineTo(6, 6);
+      ctx.lineTo(-2, 2);
+      ctx.lineTo(-7, 8);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1a2030';
+      ctx.beginPath();
+      ctx.ellipse(-3, -2, 1.6, 2.8, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
+  }
+}
+
+// ----------------------------------------------------------------- the Mentor
+class NpcEnt {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.t = Math.random() * 5;
+  }
+  get near() {
+    const pr = Player.rect();
+    return Math.abs(pr.x + pr.w / 2 - this.x) < 44 && Math.abs(pr.y + pr.h / 2 - this.y) < 50;
+  }
+  stage() {
+    if (Game.flags.bossDone) return 'end';
+    if (Player.abilities.wings) return 'late';
+    if (Player.abilities.dash) return 'mid';
+    return 'start';
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.near && Input.pressed.up && Player.grounded && Game.state === 'play') {
+      const pool = CONTENT.npcDialogue[World.roomId];
+      const lines = (pool && (pool[this.stage()] || pool.start)) || ['...'];
+      AudioSys.sfx('tablet');
+      Game.openDialog(lines);
+    }
+  }
+  draw(ctx) {
+    const breathe = Math.sin(this.t * 1.6) * 1.5;
+    ctx.save();
+    ctx.translate(this.x, this.y + 16);
+    // staff
+    ctx.strokeStyle = '#6a5c48';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(16, 0); ctx.lineTo(16, -52 - breathe);
+    ctx.stroke();
+    ctx.fillStyle = '#c8b890';
+    ctx.beginPath();
+    ctx.arc(16, -54 - breathe, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // robed, stooped body
+    ctx.fillStyle = '#4a4256';
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.quadraticCurveTo(-16, -30 - breathe, -4, -38 - breathe);
+    ctx.quadraticCurveTo(6, -42 - breathe, 10, -34 - breathe);
+    ctx.quadraticCurveTo(14, -16, 12, 0);
+    ctx.closePath();
+    ctx.fill();
+    // pale weathered head, drooping antennae
+    ctx.fillStyle = '#e2ddd0';
+    ctx.beginPath();
+    ctx.ellipse(2, -40 - breathe, 9, 8.5, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e2ddd0';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-2, -47 - breathe); ctx.quadraticCurveTo(-8, -54 - breathe, -14, -50 - breathe);
+    ctx.moveTo(6, -47 - breathe); ctx.quadraticCurveTo(10, -55 - breathe, 15, -52 - breathe);
+    ctx.stroke();
+    // tired kind eyes
+    ctx.fillStyle = '#26202e';
+    ctx.beginPath();
+    ctx.ellipse(-1, -39 - breathe, 1.6, 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(6, -39 - breathe, 1.6, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    if (this.near && Game.state === 'play') UI.worldPrompt(ctx, this.x, this.y - 46, 'TALK');
   }
 }
 
@@ -509,7 +616,10 @@ class Enemy {
     AudioSys.sfx('hitEnemy');
     Particles.burst(this.x, this.y, '#2a2f42', 14, 220);
     Particles.burst(this.x, this.y, '#e8993f', 6, 160);
-    for (let i = 0; i < this.geo; i++) Game.geoBits.push(new GeoBit(this.x, this.y));
+    Particles.ring(this.x, this.y, '#e8eef8');
+    let drop = this.geo;
+    if (Player.equipped.has('ledger')) drop = Math.ceil(drop * 1.5);
+    for (let i = 0; i < drop; i++) Game.geoBits.push(new GeoBit(this.x, this.y));
     Game.shake(3);
   }
 
@@ -703,6 +813,9 @@ class Enemy {
 // ---------------------------------------------------------------------- boss
 class Boss {
   constructor(x, y) {
+    this.kind = 'burnout';
+    this.name = CONTENT.enemyNames.boss;
+    this.title = CONTENT.bossTitle;
     this.x = x; this.y = y;
     this.w = 56; this.h = 74;
     this.hpMax = 46;
@@ -923,5 +1036,316 @@ class Boss {
     ctx.moveTo(this.dir * 2 + 8, -32 + crouch); ctx.quadraticCurveTo(this.dir * 2 + 22, -56, this.dir * 2 + 28, -46);
     ctx.stroke();
     ctx.restore();
+  }
+}
+
+// ------------------------------------------------------------ the Recruiter
+class ShopEnt {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.t = Math.random() * 5;
+  }
+  get near() {
+    const pr = Player.rect();
+    return Math.abs(pr.x + pr.w / 2 - this.x) < 44 && Math.abs(pr.y + pr.h / 2 - this.y) < 50;
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.near && Input.pressed.up && Player.grounded && Game.state === 'play') {
+      AudioSys.sfx('tablet');
+      Game.openShop();
+    }
+  }
+  draw(ctx) {
+    const breathe = Math.sin(this.t * 2.2) * 1.5;
+    ctx.save();
+    ctx.translate(this.x, this.y + 16);
+    // plump, dapper bug with a ledger
+    ctx.fillStyle = '#3c3226';
+    ctx.beginPath();
+    ctx.ellipse(0, -18 - breathe, 14, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // waistcoat
+    ctx.fillStyle = '#8a6c34';
+    ctx.beginPath();
+    ctx.ellipse(0, -12 - breathe, 11, 10, 0, 0, Math.PI);
+    ctx.fill();
+    // head
+    ctx.fillStyle = '#e6ddc8';
+    ctx.beginPath();
+    ctx.ellipse(0, -38 - breathe, 8.5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // monocle
+    ctx.strokeStyle = '#d8c890';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(3.5, -38 - breathe, 3.4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#26202e';
+    ctx.beginPath();
+    ctx.ellipse(-3, -38 - breathe, 1.5, 2.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(3.5, -38 - breathe, 1.5, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // antennae, neatly combed
+    ctx.strokeStyle = '#e6ddc8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-3, -45 - breathe); ctx.quadraticCurveTo(-6, -52 - breathe, -11, -51 - breathe);
+    ctx.moveTo(3, -45 - breathe); ctx.quadraticCurveTo(6, -52 - breathe, 11, -51 - breathe);
+    ctx.stroke();
+    // the ledger, held proudly
+    ctx.fillStyle = '#caa84e';
+    ctx.fillRect(8, -26 - breathe, 12, 15);
+    ctx.fillStyle = '#f4ecd8';
+    ctx.fillRect(9.5, -24.5 - breathe, 9, 12);
+    ctx.strokeStyle = '#b09040';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(11, -21 - breathe + i * 3.5); ctx.lineTo(17, -21 - breathe + i * 3.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (this.near && Game.state === 'play') UI.worldPrompt(ctx, this.x, this.y - 46, 'SHOP');
+  }
+}
+
+// ------------------------------------------------------- the second boss
+// THE IMPOSTER — a dark mirror of the little knight. Fights like you do.
+class Imposter {
+  constructor(x, y) {
+    this.kind = 'imposter';
+    this.name = CONTENT.enemyNames.imposter;
+    this.title = CONTENT.imposterTitle;
+    this.x = x; this.y = y;
+    this.w = 26; this.h = 46;
+    this.hpMax = 28;
+    this.hp = this.hpMax;
+    this.vx = 0; this.vy = 0;
+    this.dir = -1;
+    this.state = 'intro';
+    this.stateT = 0;
+    this.flash = 0;
+    this.dead = false;
+    this.staggerPool = 0;
+    this.t = 0;
+    this.slashActiveT = 0;
+    this.comboQueued = false;
+  }
+  rect() { return { x: this.x - this.w / 2, y: this.y - this.h / 2, w: this.w, h: this.h }; }
+  get phase2() { return this.hp < this.hpMax / 2; }
+  groundY() { return 14 * TILE - this.h / 2; }
+
+  hurt(dmg, fromDir) {
+    if (this.state === 'intro' || this.dead) return;
+    this.hp -= dmg;
+    this.flash = 0.08;
+    this.staggerPool += dmg;
+    this.vx += fromDir * 60;
+    AudioSys.sfx('bossHit');
+    Particles.burst(this.x, this.y - 8, '#cfd6ea', 7, 190);
+    if (this.hp <= 0) { this.die(); return; }
+    if (this.staggerPool >= 9 && this.state !== 'stagger') {
+      this.staggerPool = 0;
+      this.setState('stagger');
+      this.vx = -this.dir * 160;
+      AudioSys.sfx('stag');
+    }
+  }
+  die() {
+    this.dead = true;
+    this.setState('dying');
+    AudioSys.sfx('bossDie');
+    Game.shake(10);
+    Game.hitstopT = 0.3;
+  }
+  setState(s) { this.state = s; this.stateT = 0; }
+
+  slashBox() {
+    const r = 58;
+    return this.dir > 0
+      ? { x: this.x + this.w / 2 - 6, y: this.y - 24, w: r, h: 48 }
+      : { x: this.x - this.w / 2 + 6 - r, y: this.y - 24, w: r, h: 48 };
+  }
+
+  update(dt) {
+    this.t += dt;
+    this.stateT += dt;
+    this.flash = Math.max(0, this.flash - dt);
+    const gY = this.groundY();
+    const pr = Player.rect();
+    const px = pr.x + pr.w / 2;
+    const dist = Math.abs(px - this.x);
+    const tele = this.phase2 ? 0.72 : 1;
+
+    if (this.state === 'dying') {
+      this.vy += CFG.gravity * dt;
+      this.y = Math.min(this.y + this.vy * dt, gY);
+      if (Math.random() < 0.4) Particles.spawn(this.x, this.y - 10, (Math.random() - 0.5) * 60, -90, 0.6, 3, 'rgba(180,190,220,0.7)');
+      if (this.stateT > 2.0) Game.onBossDeath(this.x, this.y);
+      return;
+    }
+    if (this.state === 'intro') {
+      this.y = Math.min(this.y + 120 * dt, gY);
+      if (this.stateT > 1.4) this.setState('idle');
+      return;
+    }
+    if (this.state === 'stagger') {
+      this.vx *= 0.86;
+      this.x += this.vx * dt;
+      if (this.stateT > 0.9) this.setState('idle');
+      return;
+    }
+
+    if (this.state === 'idle') {
+      this.dir = px < this.x ? -1 : 1;
+      this.vx *= 0.8;
+      this.x += this.vx * dt;
+      this.y = gY;
+      if (this.stateT > (this.phase2 ? 0.4 : 0.6)) {
+        const roll = Math.random();
+        if (dist < 120) this.setState('slashTele');
+        else if (roll < 0.38) this.setState('dashTele');
+        else if (roll < 0.72) this.setState('approach');
+        else { this.setState('leap'); this.vy = -720; this.vx = (px - this.x) * 1.4; }
+      }
+    } else if (this.state === 'approach') {
+      this.dir = px < this.x ? -1 : 1;
+      this.vx = this.dir * 300;
+      this.x += this.vx * dt;
+      this.y = gY;
+      if (dist < 105) this.setState('slashTele');
+      else if (this.stateT > 1.1) this.setState('idle');
+    } else if (this.state === 'slashTele') {
+      this.dir = px < this.x ? -1 : 1;
+      this.vx = 0;
+      if (this.stateT > 0.32 * tele) {
+        this.setState('slash');
+        this.slashActiveT = 0.16;
+        this.vx = this.dir * 430;
+        AudioSys.sfx('slash');
+      }
+    } else if (this.state === 'slash') {
+      this.slashActiveT -= dt;
+      this.vx *= 0.92;
+      this.x += this.vx * dt;
+      this.y = gY;
+      if (this.slashActiveT > 0 && !Player.dead && rectsOverlap(this.slashBox(), Player.rect())) {
+        Player.damage(this.x);
+      }
+      if (this.stateT > 0.42) {
+        if (this.phase2 && !this.comboQueued) { this.comboQueued = true; this.setState('slashTele'); }
+        else { this.comboQueued = false; this.setState('idle'); }
+      }
+    } else if (this.state === 'dashTele') {
+      this.dir = px < this.x ? -1 : 1;
+      this.vx = 0;
+      if (this.stateT > 0.38 * tele) { this.setState('dash'); AudioSys.sfx('dash'); }
+    } else if (this.state === 'dash') {
+      this.vx = this.dir * 660;
+      this.x += this.vx * dt;
+      this.y = gY;
+      Game.ghosts.push({ x: this.x - this.w / 2, y: this.y - this.h / 2, facing: this.dir, life: 0.18 });
+      if (World.rectHitsSolid(this.x + this.dir * (this.w / 2 + 6), this.y - 16, 6, 32) || this.stateT > 0.6) {
+        this.setState('idle');
+      }
+    } else if (this.state === 'leap') {
+      this.vy += CFG.gravity * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.dir = this.vx < 0 ? -1 : 1;
+      if (this.y >= gY && this.vy > 0) {
+        this.y = gY;
+        this.vy = 0;
+        Game.shake(4);
+        Particles.dust(this.x, this.y + this.h / 2, 0);
+        this.setState(dist < 130 ? 'slashTele' : 'idle');
+      }
+    }
+
+    // stay inside the arena
+    this.x = Math.max(TILE * 1.5 + this.w / 2, Math.min(World.pxW - TILE * 1.5 - this.w / 2, this.x));
+
+    if (!Player.dead && rectsOverlap(this.rect(), Player.rect())) {
+      Player.damage(this.x);
+    }
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y + this.h / 2); // draw from feet, like the player
+    const white = this.flash > 0;
+    const stagger = this.state === 'stagger';
+    const crouch = (this.state === 'slashTele' || this.state === 'dashTele') ? 4 : 0;
+    const lean = this.state === 'dash' ? this.dir * 0.25 : 0;
+    ctx.rotate(lean);
+
+    // legs
+    ctx.strokeStyle = white ? '#ffffff' : '#0d0a12';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-4, -12); ctx.lineTo(-5, 0);
+    ctx.moveTo(4, -12); ctx.lineTo(5, 0);
+    ctx.stroke();
+
+    // cloak — the player's silhouette, drowned in shadow
+    const bodyTop = -38 + crouch;
+    ctx.fillStyle = white ? '#ffffff' : '#171020';
+    ctx.beginPath();
+    ctx.moveTo(-11, -6 + crouch);
+    ctx.quadraticCurveTo(-14, bodyTop + 12, -8, bodyTop + 6);
+    ctx.quadraticCurveTo(0, bodyTop, 8, bodyTop + 6);
+    ctx.quadraticCurveTo(14, bodyTop + 12, 11, -6 + crouch);
+    ctx.quadraticCurveTo(0, -2 + crouch, -11, -6 + crouch);
+    ctx.fill();
+
+    // dark mask, pale burning eyes
+    const headY = bodyTop - 2;
+    ctx.fillStyle = white ? '#ffffff' : '#241a2e';
+    ctx.beginPath();
+    ctx.ellipse(this.dir * 1.5, headY, 11, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = white ? '#ffffff' : '#241a2e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(this.dir * 1.5 - 6, headY - 6);
+    ctx.quadraticCurveTo(this.dir * 1.5 - 15, headY - 17, this.dir * 1.5 - 18, headY - 12);
+    ctx.moveTo(this.dir * 1.5 + 6, headY - 6);
+    ctx.quadraticCurveTo(this.dir * 1.5 + 15, headY - 17, this.dir * 1.5 + 18, headY - 12);
+    ctx.stroke();
+    ctx.fillStyle = stagger ? '#7a7a8a' : '#eef4ff';
+    ctx.beginPath();
+    ctx.ellipse(this.dir * 4 - 3, headY + 1, 2.2, 3.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(this.dir * 4 + 4, headY + 1, 2.2, 3.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // silver slash arc
+    if (this.state === 'slash' && this.slashActiveT > 0) {
+      const p = 1 - this.slashActiveT / 0.16;
+      ctx.save();
+      ctx.strokeStyle = `rgba(205,215,240,${0.9 - p * 0.6})`;
+      ctx.lineWidth = 5 - p * 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const a0 = this.dir > 0 ? -1.2 : Math.PI + 1.2;
+      const a1 = this.dir > 0 ? 1.2 : Math.PI - 1.2;
+      ctx.arc(this.x, this.y, 56, a0, a1);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // telegraph shimmer
+    if (this.state === 'slashTele' || this.state === 'dashTele') {
+      ctx.save();
+      ctx.globalAlpha = 0.4 + Math.sin(this.stateT * 40) * 0.3;
+      ctx.strokeStyle = '#cfd6ea';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y - this.h / 2 - 14, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }

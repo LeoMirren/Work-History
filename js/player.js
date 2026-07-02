@@ -15,7 +15,17 @@ const Player = {
   soul: 0,
   geo: 0,
   abilities: { dash: false, claw: false, wings: false, spell: false },
-  charms: new Set(),
+  charms: new Set(),      // owned
+  equipped: new Set(),    // worn (limited by notches)
+  soulVessels: 0,
+  veilCharge: true, // Imposter's Veil: absorbs one hit; recharged at benches
+
+  get soulMax() { return CFG.soulMax + this.soulVessels * 33; },
+  notchesUsed() {
+    let n = 0;
+    for (const c of this.equipped) n += (CONTENT.charms[c] || { cost: 1 }).cost;
+    return n;
+  },
 
   // timers / state
   coyoteT: 0,
@@ -65,7 +75,7 @@ const Player = {
   get cx() { return this.x + this.w / 2; },
   get cy() { return this.y + this.h / 2; },
 
-  nailCd() { return this.charms.has('coffee') ? CFG.nailCooldownFast : CFG.nailCooldown; },
+  nailCd() { return this.equipped.has('coffee') ? CFG.nailCooldownFast : CFG.nailCooldown; },
 
   // ------------------------------------------------------------------ update
   update(dt) {
@@ -97,7 +107,7 @@ const Player = {
       }
     }
     if (this.focusing) {
-      const focusNeed = this.charms.has('focus') ? CFG.focusTimeDeep : CFG.focusTime;
+      const focusNeed = this.equipped.has('focus') ? CFG.focusTimeDeep : CFG.focusTime;
       this.focusT += dt;
       this.vx *= 0.7;
       // soul streams inward
@@ -110,7 +120,7 @@ const Player = {
       } else if (this.focusT >= focusNeed) {
         this.focusing = false;
         this.soul -= CFG.focusCost;
-        const healed = this.charms.has('focus') ? 2 : 1;
+        const healed = this.equipped.has('focus') ? 2 : 1;
         this.masks = Math.min(this.masksMax, this.masks + healed);
         AudioSys.sfx('heal');
         Particles.burst(this.cx, this.cy, 'rgba(245,250,255,0.95)', 16, 190, -80);
@@ -266,7 +276,7 @@ const Player = {
     }
 
     // soul cap
-    if (this.soul > CFG.soulMax) this.soul = CFG.soulMax;
+    if (this.soul > this.soulMax) this.soul = this.soulMax;
 
     // run dust & animation clocks
     if (this.grounded && Math.abs(this.vx) > 60) {
@@ -357,6 +367,7 @@ const Player = {
     if (this.vy > 420) {
       Particles.dust(this.cx, this.y + this.h, 0);
       this.landT = 0.12;
+      if (this.vy > 700) Particles.ring(this.cx, this.y + this.h, 'rgba(220,230,245,0.7)', 30);
     }
     this.vy = 0;
     this.grounded = true;
@@ -378,7 +389,7 @@ const Player = {
     let pogo = false;
 
     const gainSoul = () => {
-      this.soul += CFG.soulPerHit + (this.charms.has('duck') ? CFG.soulPerHitBonus : 0);
+      this.soul += CFG.soulPerHit + (this.equipped.has('duck') ? CFG.soulPerHitBonus : 0);
       AudioSys.sfx('soul');
     };
 
@@ -464,6 +475,19 @@ const Player = {
   // ----------------------------------------------------------------- damage
   damage(fromX, isHazard = false) {
     if (this.invulnT > 0 || this.dead || Game.state !== 'play') return;
+    if (this.equipped.has('veil') && this.veilCharge) {
+      // the Veil takes the wound instead
+      this.veilCharge = false;
+      this.invulnT = CFG.invulnTime;
+      const vdir = this.cx < fromX ? -1 : 1;
+      this.vx = vdir * CFG.hurtKnockX * 0.7;
+      this.vy = CFG.hurtKnockY * 0.6;
+      AudioSys.sfx('hitWall');
+      Particles.burst(this.cx, this.cy, '#cfd6ea', 16, 220, 0);
+      Game.shake(4);
+      if (isHazard) Game.hazardRespawn();
+      return;
+    }
     this.masks--;
     this.invulnT = CFG.invulnTime;
     this.focusing = false;
@@ -476,6 +500,7 @@ const Player = {
     AudioSys.sfx('hurt');
     Particles.burst(this.cx, this.cy, '#1a1e2e', 12, 240);
     Particles.burst(this.cx, this.cy, '#c8d4e8', 6, 180);
+    Particles.ring(this.cx, this.cy, 'rgba(255,255,255,0.9)', 52);
 
     if (this.masks <= 0) {
       this.die();
@@ -578,9 +603,18 @@ const Player = {
     ctx.ellipse(this.facing * 4 + 4, headY + 1, 2.2, 3.6, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // ---- veil shimmer (charged Imposter's Veil)
+    if (this.equipped.has('veil') && this.veilCharge) {
+      ctx.strokeStyle = `rgba(207,214,234,${0.25 + Math.sin(performance.now() / 350) * 0.12})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(0, -22, 17, 26, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     // ---- focusing glow
     if (this.focusing) {
-      const focusNeed = this.charms.has('focus') ? CFG.focusTimeDeep : CFG.focusTime;
+      const focusNeed = this.equipped.has('focus') ? CFG.focusTimeDeep : CFG.focusTime;
       const pr = this.focusT / focusNeed;
       ctx.strokeStyle = 'rgba(240,248,255,0.9)';
       ctx.lineWidth = 3;

@@ -8,6 +8,7 @@
 //   A  ability pickup (room def says which)
 //   Q  charm pickup (room def says which)
 //   G  geo deposit         W  ending portal
+//   M  mask shard          N  the Mentor (NPC)
 //   P  player start        |  pillar decor   *  lamp decor
 //
 // Exits: {side, min, max, to, px, py} — min/max are the tile range along that
@@ -27,8 +28,8 @@ const ROOMS = {
       '#  |       |          |         |      #',
       '#                                      #',
       '#                                      #',
-      '#                                      #',
-      '#                                      #',
+      '#                              M       #',
+      '#                            =====     #',
       '#                                      #',
       '#                                      #',
       '#                                       ',
@@ -59,7 +60,7 @@ const ROOMS = {
       '#       ====             ====                #',
       '                                              ',
       '                                              ',
-      '   E      G  %%           T    B    E     G   ',
+      '   E      G  %%     E     T    B      N     G ',
       '##############################################',
       '##############################################',
       '##############################################',
@@ -217,7 +218,7 @@ const ROOMS = {
       '#                                                  #',
       '                                                    ',
       '                                                    ',
-      '    G      ^^        B          ^^        E    G    ',
+      '    G      ^^        B    R     ^^        E    G    ',
       '####################################################',
       '####################################################',
       '####################################################',
@@ -324,8 +325,8 @@ const ROOMS = {
       '#                                            #',
       '#                                            #',
       '#        *                    *              #',
-      '#   |          |         |          |        #',
-      '#                                            #',
+      '#   |          |         |          |   M    #',
+      '#                                      ###   #',
       '#              F                             #',
       '#                                            #',
       '#         ====        ====                   #',
@@ -333,15 +334,44 @@ const ROOMS = {
       '#                                            #',
       '                                              ',
       '                                              ',
-      '     T         ^^        H         ^^         ',
-      '##############################################',
-      '##############################################',
-      '##############################################',
+      '     T         ^^   H              ^^         ',
+      '########################   ###################',
+      '########################   ###################',
+      '########################   ###################',
     ],
     exits: [
       { side: 'left', min: 10, max: 13, to: 'fnd3', px: 22, py: 5 },
       { side: 'right', min: 10, max: 13, to: 'stk2', px: 1.5, py: 18 },
+      { side: 'bottom', min: 24, max: 26, to: 'prv1', px: 19.5, py: 2 },
     ],
+  },
+
+  // The Proving Floor — optional duel with THE IMPOSTER.
+  prv1: {
+    area: 'stacks',
+    boss: 'imposter',
+    charm: 'veil',
+    tablets: ['proving'],
+    map: [
+      '##################    ##################',
+      '#                                      #',
+      '#                                      #',
+      '#      *                    *          #',
+      '#                                      #',
+      '#                  ====                #',
+      '#                                      #',
+      '#          ====          ====          #',
+      '#                                      #',
+      '#      ====                  ====      #',
+      '#                                      #',
+      '#                                      #',
+      '#                                      #',
+      '#    T                            Q    #',
+      '########################################',
+      '########################################',
+      '########################################',
+    ],
+    exits: [{ side: 'top', min: 18, max: 21, to: 'stk1', px: 25, py: 12 }],
   },
 
   stk2: {
@@ -428,7 +458,7 @@ const ROOMS = {
       '#                                      #',
       '                                        ',
       '                                        ',
-      '       T        B                       ',
+      '       T        B       N               ',
       '########################################',
       '########################################',
       '########################################',
@@ -441,7 +471,7 @@ const ROOMS = {
 
   boss: {
     area: 'overclock',
-    boss: true,
+    boss: 'burnout',
     map: [
       '####################################',
       '#                                  #',
@@ -495,6 +525,26 @@ const ROOMS = {
 
 // Tile codes
 const T_EMPTY = 0, T_SOLID = 1, T_PLAT = 2, T_SPIKE = 3;
+
+// Pause-screen map: hand-placed grid cells [col, row, wCells, hCells].
+const MAP_LAYOUT = {
+  foyer1: [0, 0, 1, 1],
+  foyer2: [1, 0, 1, 1],
+  arch1:  [2, 0, 1, 2],
+  archQ:  [1, 2, 1, 1],
+  arch2:  [2, 2, 1, 1],
+  arch3:  [3, 2, 1, 1],
+  fnd1:   [4, 2, 1, 1],
+  fnd2:   [5, 2, 1, 1],
+  fnd3:   [6, 1, 1, 2],
+  stk1:   [7, 1, 1, 1],
+  prv1:   [7, 2, 1, 1],
+  stk2:   [8, 1, 1, 1],
+  stk3:   [9, 1, 1, 1],
+  gate1:  [10, 1, 1, 1],
+  boss:   [11, 1, 1, 1],
+  dawn:   [12, 1, 1, 1],
+};
 
 // Small seeded PRNG so parallax silhouettes are stable per room.
 function mulberry32(seed) {
@@ -571,6 +621,9 @@ const World = {
           case 'Q': this.spawnPoints.push({ type: 'charm', x: px, y: py, id: def.charm }); break;
           case 'G': this.spawnPoints.push({ type: 'geo', x: px, y: py }); break;
           case 'W': this.spawnPoints.push({ type: 'portal', x: px, y: py }); break;
+          case 'M': this.spawnPoints.push({ type: 'shard', x: px, y: py }); break;
+          case 'N': this.spawnPoints.push({ type: 'npc', x: px, y: py }); break;
+          case 'R': this.spawnPoints.push({ type: 'shop', x: px, y: py }); break;
         }
       }
       this.grid.push(line);

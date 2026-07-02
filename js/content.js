@@ -105,6 +105,12 @@ const CONTENT = {
       'To go higher you must first be surrounded,',
       'and remain.',
     ],
+    proving: [
+      'Beneath the long nights lives the voice that says:',
+      'you never deserved any of this.',
+      'It wears your face. It swings your nail.',
+      'It is wrong, and you may tell it so.',
+    ],
     overclock_gate: [
       'TURN BACK. Beyond burns the fire that eats its keeper —',
       'the flame called BURNOUT, which whispers:',
@@ -128,10 +134,32 @@ const CONTENT = {
   },
 
   // ---- Trinkets (charms) ----------------------------------------------------
+  // cost = notches. You have 3 notches; choose what to carry.
   charms: {
-    coffee: { name: 'Coffee Shard',       desc: 'The nail swings notably faster. Sleep is a rumor.' },
-    focus:  { name: 'Deep Focus',         desc: 'Focusing heals two masks, but takes far longer.' },
-    duck:   { name: "Duckling's Insight", desc: 'Explaining the problem grants bonus SOUL on every nail strike.' },
+    coffee: { name: 'Coffee Shard',       cost: 1, desc: 'The nail swings notably faster. Sleep is a rumor.' },
+    focus:  { name: 'Deep Focus',         cost: 1, desc: 'Focusing heals two masks, but takes far longer.' },
+    duck:   { name: "Duckling's Insight", cost: 1, desc: 'Explaining the problem grants bonus SOUL on every nail strike.' },
+    veil:   { name: "Imposter's Veil",    cost: 2, desc: 'Absorbs one wound without harm. Mended again at any bench.' },
+    ledger: { name: 'Golden Ledger',      cost: 1, desc: 'Fallen foes yield half again as much geo.' },
+  },
+  notches: 3,
+
+  // ---- The Recruiter (shop) --------------------------------------------------
+  shopName: 'The Recruiter',
+  shopGreeting: [
+    'Ah — a candidate! Sit, sit. Well, stand.',
+    'Everything in this kingdom has a price, little worker.',
+    'Fortunately for you, I set them. Browse. Invest in yourself.',
+  ],
+  shopItems: [
+    { id: 'shard',  name: 'Severance Shard',    price: 140, desc: 'Half of a new mask, pre-owned. Lightly haunted.' },
+    { id: 'vessel', name: 'Vessel of Overtime', price: 120, desc: 'Holds 33 more SOUL. The hours had to go somewhere.' },
+    { id: 'ledger', name: 'Golden Ledger',      price: 90,  desc: 'A trinket: fallen foes yield half again as much geo.' },
+  ],
+
+  shardBanner: {
+    half: ['Mask Shard', 'Half of a new mask. Keep going.'],
+    full: ['A MASK IS FORGED', 'Your endurance grows. Health fully restored.'],
   },
 
   // ---- Bestiary display names ------------------------------------------------
@@ -141,6 +169,61 @@ const CONTENT = {
     spitter: 'The Critic',
     heavy: 'Deadline Golem',
     boss: 'BURNOUT, the Consuming Flame',
+    imposter: 'THE IMPOSTER, echo of doubt',
+  },
+
+  imposterTitle: ['THE IMPOSTER', 'echo of doubt'],
+
+  // ---- The Mentor (NPC) ------------------------------------------------------
+  // Dialogue is staged by progress: start → mid (has dash) → late (has wings)
+  // → end (Burnout defeated).
+  npcName: 'The Mentor',
+  npcDialogue: {
+    foyer2: {
+      start: [
+        'Oh! A new hire. No — older than that. A returning one.',
+        'I am the Mentor. I have watched every worker who ever',
+        'walked into this kingdom, and I remember all of them.',
+        'Rest at benches. Read the tablets. Your history is kinder',
+        'than you think, Tristan — go down and see for yourself.',
+      ],
+      mid: [
+        'Moving quicker now, I see. Momentum suits you.',
+        'The Foundry lies ahead. It is loud, and it is honest —',
+        'everything in there was made by someone who cared.',
+      ],
+      late: [
+        'You have your second wind. Few find it.',
+        'What waits at the bottom of the Overclock cannot be',
+        'reasoned with. It can only be outlasted. You know how.',
+      ],
+      end: [
+        'The fire is out, and yet here you stand — whole.',
+        'That was always the trick, you know.',
+        'Not the working. The remaining.',
+      ],
+    },
+    gate1: {
+      start: [
+        'You should not be here yet, little worker. And yet you are.',
+        'Stubborn. Good. You will need that.',
+      ],
+      mid: [
+        'Beyond this gate the hours burn faster than they pass.',
+        'Sit a while first. The bench asks nothing of you.',
+      ],
+      late: [
+        'Listen to me once, before you go in.',
+        'BURNOUT does not want your death. It wants your dawn —',
+        'every dawn, forever. Refuse it, and it starves.',
+        'I will be here. I am always here. Go.',
+      ],
+      end: [
+        'I saw the light go out from here. I confess I wept.',
+        'Walk east, Tristan. The dawn you saved is waiting,',
+        'and it is quiet, and it is yours.',
+      ],
+    },
   },
 
   benches: {

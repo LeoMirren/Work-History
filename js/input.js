@@ -15,6 +15,7 @@ const Input = (() => {
     Enter: 'confirm',
     Escape: 'pause',     KeyP: 'pause',
     KeyM: 'mute',
+    KeyQ: 'quit',
   };
 
   const down = {}, pressed = {}, released = {};

@@ -4,15 +4,17 @@
 const SAVE_KEY = 'worksong.save.v1';
 
 const Game = {
-  state: 'title', // title | play | pause | dialog | dead | ending
+  state: 'title', // title | play | pause | dialog | dead | ending | shop
   canvas: null, ctx: null,
   lastT: 0,
   titleT: 0,
   titleSel: 0,
+  pauseSel: 0,
+  shopSel: 0,
 
   // room entities
   enemies: [], shots: [], orbs: [], geoBits: [], pickups: [],
-  tablets: [], benches: [], deposits: [], portals: [], ghosts: [],
+  tablets: [], benches: [], deposits: [], portals: [], ghosts: [], npcs: [],
   shadeEnt: null, boss: null,
 
   // fx / timing
@@ -35,11 +37,20 @@ const Game = {
 
   flags: {
     arenaDone: false,
-    bossDone: false,
+    bossDone: false,      // BURNOUT
+    imposterDone: false,  // THE IMPOSTER
+    shards: 0,            // mask shards found (2 → +1 mask)
     shade: null,          // {room,x,y,geo}
     benchRoom: null,
     benchPos: null,       // {x,y} feet-center px
     collected: [],        // ["room:kind:id"]
+    visited: [],          // room ids seen (drawn on the map)
+    shopSold: [],         // item ids bought from the Recruiter
+  },
+
+  bossFlagFor(kind) { return kind === 'imposter' ? 'imposterDone' : 'bossDone'; },
+  applyShards() {
+    Player.masksMax = Math.min(7, CFG.masksMax + Math.floor((this.flags.shards || 0) / 2));
   },
 
   // ---------------------------------------------------------------- boot
@@ -69,6 +80,8 @@ const Game = {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         abilities: Player.abilities,
         charms: [...Player.charms],
+        equipped: [...Player.equipped],
+        soulVessels: Player.soulVessels,
         geo: Player.geo,
         flags: this.flags,
         deaths: this.deaths,
@@ -84,8 +97,12 @@ const Game = {
       const s = JSON.parse(raw);
       Object.assign(Player.abilities, s.abilities || {});
       Player.charms = new Set(s.charms || []);
+      Player.equipped = new Set(s.equipped || []);
+      Player.soulVessels = s.soulVessels || 0;
       Player.geo = s.geo || 0;
       this.flags = Object.assign(this.flags, s.flags || {});
+      if (!this.flags.visited) this.flags.visited = [];
+      if (!this.flags.shopSold) this.flags.shopSold = [];
       this.deaths = s.deaths || 0;
       this.playT = s.playT || 0;
       return true;
@@ -98,12 +115,16 @@ const Game = {
       Player.abilities = { dash: false, claw: false, wings: false, spell: false };
       Player.charms = new Set();
       Player.geo = 0;
-      this.flags = { arenaDone: false, bossDone: false, shade: null, benchRoom: null, benchPos: null, collected: [] };
+      this.flags = { arenaDone: false, bossDone: false, imposterDone: false, shards: 0, shade: null, benchRoom: null, benchPos: null, collected: [], visited: [], shopSold: [] };
+      Player.equipped = new Set();
+      Player.soulVessels = 0;
       this.deaths = 0;
       this.playT = 0;
     } else {
       this.loadSave();
     }
+    this.applyShards();
+    Player.veilCharge = true;
     Player.masks = Player.masksMax;
     Player.soul = 0;
     this.lastArea = null;
@@ -117,9 +138,11 @@ const Game = {
     World.load(id);
     this.enemies = []; this.shots = []; this.orbs = []; this.geoBits = [];
     this.pickups = []; this.tablets = []; this.benches = []; this.deposits = [];
-    this.portals = []; this.ghosts = [];
+    this.portals = []; this.ghosts = []; this.npcs = [];
     this.shadeEnt = null; this.boss = null; this.arena = null; this.bossArmed = false;
     Particles.clear();
+
+    const bossPending = World.def.boss && !this.flags[this.bossFlagFor(World.def.boss)];
 
     let benchSpawn = null;
     for (const sp of World.spawnPoints) {
@@ -137,12 +160,13 @@ const Game = {
         case 'tablet':
           this.tablets.push(new TabletEnt(sp.id, sp.x, sp.y));
           break;
-        case 'ability': case 'charm': {
-          const key = `${id}:${sp.type}:${sp.id}`;
+        case 'ability': case 'charm': case 'shard': {
+          const key = `${id}:${sp.type}:${sp.id || Math.round(sp.x)}`;
           if (this.flags.collected.includes(key)) break;
           const pk = new Pickup(sp.type, sp.id, sp.x, sp.y);
           pk.saveKey = key;
-          if (World.def.arena && !this.flags.arenaDone) pk.hidden = true;
+          // encounter rewards stay hidden until the fight is won
+          if ((World.def.arena && !this.flags.arenaDone) || bossPending) pk.hidden = true;
           this.pickups.push(pk);
           break;
         }
@@ -151,6 +175,12 @@ const Game = {
           break;
         case 'portal':
           this.portals.push(new PortalEnt(sp.x, sp.y));
+          break;
+        case 'npc':
+          this.npcs.push(new NpcEnt(sp.x, sp.y));
+          break;
+        case 'shop':
+          this.npcs.push(new ShopEnt(sp.x, sp.y));
           break;
       }
     }
@@ -172,7 +202,10 @@ const Game = {
 
     // encounters
     if (World.def.arena && !this.flags.arenaDone) this.arena = { phase: 'wait', wave: 0 };
-    if (World.def.boss && !this.flags.bossDone) this.bossArmed = true;
+    if (bossPending) this.bossArmed = true;
+
+    // map knowledge
+    if (!this.flags.visited.includes(id)) this.flags.visited.push(id);
 
     // music + area card
     AudioSys.setScale(CONTENT.areas[World.areaId].scale);
@@ -200,6 +233,7 @@ const Game = {
 
   restAtBench(bench) {
     Player.masks = Player.masksMax;
+    Player.veilCharge = true;
     this.flags.benchRoom = World.roomId;
     this.flags.benchPos = { x: bench.x, y: bench.y + TILE / 2 };
     this.save();
@@ -215,25 +249,81 @@ const Game = {
     this.bannerT = 3.2;
   },
 
-  acquire(kind, id, x, y) {
-    if (kind === 'ability') {
-      Player.abilities[id] = true;
-      const meta = CONTENT.abilities[id];
+  acquire(pk) {
+    if (pk.kind === 'ability') {
+      Player.abilities[pk.id] = true;
+      const meta = CONTENT.abilities[pk.id];
       this.showBanner(meta.name, meta.desc);
-    } else {
-      Player.charms.add(id);
-      const meta = CONTENT.charms[id];
-      this.showBanner(meta.name, meta.desc);
+    } else if (pk.kind === 'charm') {
+      this.grantCharm(pk.id);
+    } else if (pk.kind === 'shard') {
+      this.grantShard();
     }
-    const pk = this.pickups.find(p => p.dead && p.id === id);
-    if (pk && pk.saveKey && !this.flags.collected.includes(pk.saveKey)) {
+    if (pk.saveKey && !this.flags.collected.includes(pk.saveKey)) {
       this.flags.collected.push(pk.saveKey);
     }
     this.save();
     AudioSys.sfx('pickup');
     this.hitstopT = 0.18;
     this.shake(4);
-    Particles.burst(x, y, '#ffffff', 22, 260, -40);
+    Particles.burst(pk.x, pk.y, '#ffffff', 22, 260, -40);
+  },
+
+  grantShard() {
+    this.flags.shards = (this.flags.shards || 0) + 1;
+    const whole = this.flags.shards % 2 === 0;
+    this.applyShards();
+    if (whole) Player.masks = Player.masksMax;
+    const b = whole ? CONTENT.shardBanner.full : CONTENT.shardBanner.half;
+    this.showBanner(b[0], b[1]);
+  },
+
+  grantCharm(id) {
+    Player.charms.add(id);
+    if (id === 'veil') Player.veilCharge = true;
+    const meta = CONTENT.charms[id];
+    // auto-equip when there's room for it
+    if (Player.notchesUsed() + meta.cost <= CONTENT.notches) Player.equipped.add(id);
+    this.showBanner(meta.name, `${meta.desc} (${meta.cost}◆)`);
+  },
+
+  // -------------------------------------------------------------------- shop
+  openShop() {
+    this.shopSel = 0;
+    this.state = 'shop';
+  },
+
+  shopStock() {
+    return CONTENT.shopItems.filter(it => !this.flags.shopSold.includes(it.id));
+  },
+
+  updateShop() {
+    const stock = this.shopStock();
+    if (Input.pressed.pause || Input.pressed.quit || stock.length === 0 && Input.pressed.confirm) {
+      this.state = 'play';
+      return;
+    }
+    if (stock.length === 0) return;
+    if (Input.pressed.down) { this.shopSel = (this.shopSel + 1) % stock.length; AudioSys.sfx('soul'); }
+    if (Input.pressed.up) { this.shopSel = (this.shopSel + stock.length - 1) % stock.length; AudioSys.sfx('soul'); }
+    this.shopSel = Math.min(this.shopSel, stock.length - 1);
+    if (Input.pressed.confirm || Input.pressed.jump) {
+      const it = stock[this.shopSel];
+      if (Player.geo >= it.price) {
+        Player.geo -= it.price;
+        this.flags.shopSold.push(it.id);
+        if (it.id === 'shard') this.grantShard();
+        else if (it.id === 'vessel') {
+          Player.soulVessels++;
+          this.showBanner(it.name, 'Your soul runs deeper now.');
+        } else if (it.id === 'ledger') this.grantCharm('ledger');
+        this.save();
+        AudioSys.sfx('pickup');
+        Particles.burst(Player.cx, Player.cy - 20, '#e8e4c8', 14, 200, -40);
+      } else {
+        AudioSys.sfx('hitWall');
+      }
+    }
   },
 
   onPlayerDeath() {
@@ -259,15 +349,21 @@ const Game = {
   },
 
   onBossDeath(x, y) {
+    const kind = this.boss ? this.boss.kind : 'burnout';
     this.boss = null;
-    this.flags.bossDone = true;
+    this.flags[this.bossFlagFor(kind)] = true;
     this.save();
     AudioSys.setBoss(false);
     this.unseal();
-    Particles.burst(x, y, '#ffb050', 40, 380);
+    for (const p of this.pickups) p.hidden = false;
+    Particles.burst(x, y, kind === 'imposter' ? '#cfd6ea' : '#ffb050', 40, 380);
     Particles.burst(x, y, '#f4f7ff', 26, 300);
     this.shake(12);
-    this.showBanner('BURNOUT is extinguished', 'The way onward stands open.');
+    if (kind === 'imposter') {
+      this.showBanner('THE IMPOSTER dissolves', 'It never knew you at all. Something waits below.');
+    } else {
+      this.showBanner('BURNOUT is extinguished', 'The way onward stands open.');
+    }
   },
 
   startEnding() {
@@ -338,9 +434,12 @@ const Game = {
 
   updateBossTrigger() {
     if (!this.bossArmed || this.boss) return;
-    if (Player.cx > TILE * 8) {
+    if (Player.cx > TILE * 6 && Player.grounded) {
       this.bossArmed = false;
-      this.boss = new Boss(World.pxW / 2, TILE * 11);
+      const kind = World.def.boss;
+      this.boss = kind === 'imposter'
+        ? new Imposter(World.pxW / 2, TILE * 9)
+        : new Boss(World.pxW / 2, TILE * 11);
       this.seal();
       AudioSys.setBoss(true);
       AudioSys.sfx('roar');
@@ -405,12 +504,39 @@ const Game = {
     }
 
     if (this.state === 'pause') {
-      if (Input.pressed.pause) this.state = 'play';
-      else if (Input.pressed.confirm) {
+      if (Input.pressed.pause) { this.state = 'play'; return; }
+      if (Input.pressed.quit) {
         this.save();
         this.state = 'title';
         this.titleSel = 0;
+        return;
       }
+      const owned = Object.keys(CONTENT.charms).filter(c => Player.charms.has(c));
+      if (owned.length) {
+        if (Input.pressed.down) { this.pauseSel = (this.pauseSel + 1) % owned.length; AudioSys.sfx('soul'); }
+        if (Input.pressed.up) { this.pauseSel = (this.pauseSel + owned.length - 1) % owned.length; AudioSys.sfx('soul'); }
+        this.pauseSel = Math.min(this.pauseSel, owned.length - 1);
+        if (Input.pressed.confirm || Input.pressed.jump) {
+          const id = owned[this.pauseSel];
+          const meta = CONTENT.charms[id];
+          if (Player.equipped.has(id)) {
+            Player.equipped.delete(id);
+            AudioSys.sfx('hitWall');
+          } else if (Player.notchesUsed() + meta.cost <= CONTENT.notches) {
+            Player.equipped.add(id);
+            if (id === 'veil') { /* charge state persists; benches restore it */ }
+            AudioSys.sfx('bench');
+          } else {
+            AudioSys.sfx('hurt'); // no room on the cord
+          }
+          this.save();
+        }
+      }
+      return;
+    }
+
+    if (this.state === 'shop') {
+      this.updateShop();
       return;
     }
 
@@ -492,6 +618,7 @@ const Game = {
     for (const d of this.deposits) if (!d.dead) d.update(dt);
     for (const t of this.tablets) t.update();
     for (const b of this.benches) b.update();
+    for (const n of this.npcs) n.update(dt);
     for (const p of this.portals) p.update(dt);
     if (this.shadeEnt && !this.shadeEnt.dead) this.shadeEnt.update(dt);
 
@@ -513,9 +640,22 @@ const Game = {
 
     Particles.update(dt);
 
-    // ambient motes
-    if (Math.random() < 0.12) {
-      Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + Math.random() * VIEW_H,
+    // ambient atmosphere, tuned per area
+    const area = World.areaId;
+    if (area === 'archives') {
+      if (Math.random() < 0.14) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y - 10,
+        (Math.random() - 0.5) * 18, 18 + Math.random() * 22, 4, 2, 'rgba(140,220,160,0.3)');
+    } else if (area === 'foundry') {
+      if (Math.random() < 0.2) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + VIEW_H + 8,
+        (Math.random() - 0.5) * 24, -30 - Math.random() * 50, 3, 1.8, 'rgba(255,150,60,0.35)');
+    } else if (area === 'overclock') {
+      if (Math.random() < 0.3) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + VIEW_H + 8,
+        (Math.random() - 0.5) * 40, -60 - Math.random() * 90, 2.2, 2, 'rgba(255,90,40,0.4)');
+    } else if (area === 'stacks') {
+      if (Math.random() < 0.1) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + Math.random() * VIEW_H,
+        (Math.random() - 0.5) * 8, -4 - Math.random() * 8, 4, 1.6, 'rgba(150,140,220,0.25)');
+    } else {
+      if (Math.random() < 0.12) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + Math.random() * VIEW_H,
         (Math.random() - 0.5) * 12, -8 - Math.random() * 14, 2.5, 1.6, 'rgba(190,205,230,0.28)');
     }
 
@@ -554,6 +694,7 @@ const Game = {
     World.drawTiles(ctx, this.cam);
     for (const d of this.deposits) d.draw(ctx);
     for (const b of this.benches) b.draw(ctx);
+    for (const n of this.npcs) n.draw(ctx);
     for (const t of this.tablets) t.draw(ctx);
     for (const p of this.pickups) p.draw(ctx);
     for (const p of this.portals) p.draw(ctx);
@@ -593,21 +734,22 @@ const Game = {
       ctx.globalAlpha = a;
       ctx.font = UI.font(40, 700);
       if ('letterSpacing' in ctx) ctx.letterSpacing = '8px';
-      ctx.fillStyle = '#ffb890';
-      ctx.fillText(CONTENT.bossTitle[0], VIEW_W / 2, VIEW_H / 2 - 60);
+      ctx.fillStyle = this.boss.kind === 'imposter' ? '#cfd6ea' : '#ffb890';
+      ctx.fillText(this.boss.title[0], VIEW_W / 2, VIEW_H / 2 - 60);
       if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
       ctx.font = UI.font(18);
-      ctx.fillStyle = 'rgba(255,220,200,0.9)';
-      ctx.fillText(CONTENT.bossTitle[1], VIEW_W / 2, VIEW_H / 2 - 28);
+      ctx.fillStyle = this.boss.kind === 'imposter' ? 'rgba(215,225,245,0.9)' : 'rgba(255,220,200,0.9)';
+      ctx.fillText(this.boss.title[1], VIEW_W / 2, VIEW_H / 2 - 28);
       ctx.restore();
     }
 
-    if (this.areaCardT > 0) {
+    const overlayFree = this.state === 'play' || this.state === 'dialog' || this.state === 'dead';
+    if (this.areaCardT > 0 && overlayFree) {
       this.areaCardT -= 1 / 60;
       const a = this.areaCardT > 2.9 ? (3.4 - this.areaCardT) / 0.5 : Math.min(1, this.areaCardT / 0.8);
       UI.areaCard(ctx, this.areaCardName, this.areaCardSub, Math.max(0, a));
     }
-    if (this.bannerT > 0) {
+    if (this.bannerT > 0 && overlayFree) {
       this.bannerT -= 1 / 60;
       const a = this.bannerT > 2.8 ? (3.2 - this.bannerT) / 0.4 : Math.min(1, this.bannerT / 0.6);
       UI.banner(ctx, this.bannerTitle, this.bannerDesc, Math.max(0, a));
@@ -627,7 +769,8 @@ const Game = {
       UI.fade(ctx, Math.min(0.85, this.hazardFlashT * 2.5));
     }
 
-    if (this.state === 'pause') UI.drawPause(ctx);
+    if (this.state === 'pause') UI.drawPause(ctx, this.pauseSel);
+    if (this.state === 'shop') UI.drawShop(ctx, this.shopSel);
     if (this.state === 'dead') UI.drawDeath(ctx, this.deathT, this.deathQuote);
     if (this.state === 'ending') UI.drawEnding(ctx, this.endT, { playT: this.playT, deaths: this.deaths, geo: Player.geo });
   },
