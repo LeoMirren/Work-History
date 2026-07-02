@@ -49,8 +49,10 @@ const DUNGEON_D = 7;
 const HAMLET_W = 12; // two hut footprints with a 2-column gap between them
 const HAMLET_D = 8; // hut rows plus the well row south of them
 /** Village grid: chunk space is partitioned into square regions this many chunks per side. */
-export const VILLAGE_REGION = 6;
+export const VILLAGE_REGION = 8;
 const VILLAGE_CHANCE_PCT = 45; // ~45% of regions host a village
+/** Member chunks reach this Chebyshev distance from the centre (5x5 chunks). */
+export const VILLAGE_RADIUS = 2;
 const LONGHOUSE_W = 8; // village hall footprint: 8 columns of plank walls...
 const LONGHOUSE_D = 5; // ...by 5 rows, cobble pillars on the corners
 const FARM_W = 6; // farm plot footprint: crop rows either side of the channel
@@ -235,11 +237,11 @@ export function worldShapeOf(seed: string): WorldShape {
  * grid, or null if that region rolled none. Pure and stateless: everything
  * derives from hash2(seedInt, rx, rz), where seedInt is the world's village
  * seed, cyrb128(`${seed} villages`)[0]. About VILLAGE_CHANCE_PCT% of regions
- * host a village; the centre chunk sits 1..4 chunks in from the region
- * origin on each axis, so the full 3x3 block of member chunks (Chebyshev
- * distance <= 1 from the centre) never leaves the region. Any chunk can
- * therefore resolve its own village membership from its region alone —
- * zero cross-chunk data flow. Exported for tests and future NPC spawning.
+ * host a village; the centre chunk sits 2..5 chunks in from the region
+ * origin on each axis, so the full 5x5 block of member chunks (Chebyshev
+ * distance <= VILLAGE_RADIUS from the centre) never leaves the region. Any
+ * chunk can therefore resolve its own village membership from its region
+ * alone — zero cross-chunk data flow. Exported for tests and NPC spawning.
  */
 export function villageCenterFor(
   seedInt: number,
@@ -249,8 +251,8 @@ export function villageCenterFor(
   const h = hash2(seedInt, rx, rz);
   if (h % 100 >= VILLAGE_CHANCE_PCT) return null;
   return {
-    cx: rx * VILLAGE_REGION + 1 + ((h >>> 8) % 4),
-    cz: rz * VILLAGE_REGION + 1 + ((h >>> 16) % 4),
+    cx: rx * VILLAGE_REGION + VILLAGE_RADIUS + ((h >>> 8) % 4),
+    cz: rz * VILLAGE_REGION + VILLAGE_RADIUS + ((h >>> 16) % 4),
   };
 }
 
@@ -423,16 +425,21 @@ function createOverworld(seed: string): Generator {
     // exactly like the lone planters, leaving that terrain untouched.
     const vc = villageCenterFor(villageSeed, Math.floor(cx / VILLAGE_REGION), Math.floor(cz / VILLAGE_REGION));
     let inVillage = false;
-    if (vc !== null && Math.max(Math.abs(cx - vc.cx), Math.abs(cz - vc.cz)) <= 1) {
+    if (vc !== null && Math.max(Math.abs(cx - vc.cx), Math.abs(cz - vc.cz)) <= VILLAGE_RADIUS) {
       const mid = CHUNK_SIZE >> 1;
       const cbiome = biomes[mid * CHUNK_SIZE + mid] ?? Biome.plains;
       if (cbiome === Biome.plains || cbiome === Biome.savanna) {
         inVillage = true;
         const vhash = hash2(villageSeed, cx, cz);
-        if (cx === vc.cx && cz === vc.cz) {
-          // The village heart: a hut, the town well and a lamp post. Each
-          // piece hunts its own fit site (with a claim ring keeping them
-          // apart) so the trio conforms to whatever ground the chunk offers.
+        const ring = Math.max(Math.abs(cx - vc.cx), Math.abs(cz - vc.cz));
+        // Roads first: the surface cobble they lay naturally repels the
+        // grass-hunting site scans, so buildings line the lanes instead of
+        // squatting on them.
+        layVillageRoad(data, heights, Math.sign(vc.cx - cx), Math.sign(vc.cz - cz));
+        if (ring === 0) {
+          // The village heart: a hut, the town well on its plaza, and a lamp
+          // post. Each piece hunts its own fit site (with a claim ring
+          // keeping them apart) so the trio conforms to the ground.
           const taken: Rect[] = [];
           const hut = findSite(data, heights, hash2(vhash, 1, 0), HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
           if (hut !== null) {
@@ -441,32 +448,65 @@ function createOverworld(seed: string): Generator {
           }
           const well = findSite(data, heights, hash2(vhash, 2, 0), WELL_SIZE, WELL_SIZE, 0, taken);
           if (well !== null) {
+            // Well first (it needs grass under its footprint), then pave the
+            // plaza around it — the paving skips the well's water shaft.
             tryPlantWell(data, heights, well[0], well[1]);
+            layPlaza(data, heights, well[0], well[1]);
             taken.push(claim(well[0], well[1], WELL_SIZE, WELL_SIZE));
           }
           const lamp = findSite(data, heights, hash2(vhash, 3, 0), 1, 1, 0, taken);
           if (lamp !== null) tryPlantLampPost(data, heights, lamp[0], lamp[1]);
+        } else if (ring === 1) {
+          // Inner ring: town proper — two independent building rolls so the
+          // blocks around the heart feel built-up.
+          const taken: Rect[] = [];
+          for (let slot = 0; slot < 2; slot++) {
+            const shash = hash2(vhash, 20 + slot, slot);
+            const roll = shash % 9;
+            if (roll < 3) {
+              const site = findSite(data, heights, shash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT, taken);
+              if (site !== null) {
+                tryPlantHut(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], HUT_SIZE, HUT_SIZE));
+              }
+            } else if (roll < 5) {
+              const site = findSite(data, heights, shash, LONGHOUSE_W, LONGHOUSE_D, BUILD_DRIFT, taken);
+              if (site !== null) {
+                tryPlantLongHouse(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], LONGHOUSE_W, LONGHOUSE_D));
+              }
+            } else if (roll < 7) {
+              const site = findSite(data, heights, shash, FARM_W, FARM_D, FARM_DRIFT, taken);
+              if (site !== null) {
+                tryPlantFarm(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], FARM_W, FARM_D));
+              }
+            } else if (roll < 8) {
+              const site = findSite(data, heights, shash, 1, 1, 0, taken);
+              if (site !== null) {
+                tryPlantLampPost(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], 1, 1, 3));
+              }
+            }
+            // roll 8: green — this slot stays open.
+          }
         } else {
-          // Ring chunks roll their building from the village stream:
-          // hut 3 / long house 2 / farm 2 / lamp-post pair 1 / green 1.
+          // Outer ring: farmland outskirts — one roll, field-weighted:
+          // farm 3 / hut 2 / lamp pair 2 / green 2.
           const roll = vhash % 9;
           if (roll < 3) {
-            const site = findSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
-            if (site !== null) tryPlantHut(data, heights, site[0], site[1]);
-          } else if (roll < 5) {
-            const site = findSite(data, heights, vhash, LONGHOUSE_W, LONGHOUSE_D, BUILD_DRIFT);
-            if (site !== null) tryPlantLongHouse(data, heights, site[0], site[1]);
-          } else if (roll < 7) {
             const site = findSite(data, heights, vhash, FARM_W, FARM_D, FARM_DRIFT);
             if (site !== null) tryPlantFarm(data, heights, site[0], site[1]);
-          } else if (roll < 8) {
-            // A pair of lamp posts along the lane, kept a few cells apart.
+          } else if (roll < 5) {
+            const site = findSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
+            if (site !== null) tryPlantHut(data, heights, site[0], site[1]);
+          } else if (roll < 7) {
             const a = findSite(data, heights, hash2(vhash, 1, 0), 1, 1, 0);
             if (a !== null) tryPlantLampPost(data, heights, a[0], a[1]);
             const b = findSite(data, heights, hash2(vhash, 2, 0), 1, 1, 0, a !== null ? [claim(a[0], a[1], 1, 1, 3)] : []);
             if (b !== null) tryPlantLampPost(data, heights, b[0], b[1]);
           }
-          // roll 8: the village green — this member chunk stays open.
+          // rolls 7-8: open outskirts.
         }
       }
     }
@@ -1048,6 +1088,65 @@ export function tryPlantLampPost(data: Uint8Array, heights: Int32Array, x: numbe
   if (data[blockIndex(x, base, z)] !== Block.grass) return;
   for (let dy = 1; dy <= LAMP_HEIGHT; dy++) data[blockIndex(x, base + dy, z)] = Block.cobblestone;
   data[blockIndex(x, base + LAMP_HEIGHT + 1, z)] = Block.lantern;
+}
+
+/**
+ * Pave one surface cell into a cobblestone road tile. Only replaces a
+ * grass/sand/snow top (never water, trees, buildings or an existing road),
+ * never stacks above the surface, and bails on steep columns (an in-bounds
+ * cardinal neighbour more than one block higher/lower) so paths hug the land
+ * instead of carving stairs. Surface-replacement only, so the terrain's
+ * height profile is unchanged.
+ */
+function pave(data: Uint8Array, heights: Int32Array, x: number, z: number): void {
+  if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return;
+  const h = heights[z * CHUNK_SIZE + x] ?? -1;
+  if (h < SEA_LEVEL + 1) return;
+  const s = data[blockIndex(x, h, z)];
+  if (s !== Block.grass && s !== Block.sand && s !== Block.snow) return;
+  for (const [nx, nz] of [
+    [x - 1, z],
+    [x + 1, z],
+    [x, z - 1],
+    [x, z + 1],
+  ] as const) {
+    if (nx < 0 || nx >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) continue;
+    if (Math.abs((heights[nz * CHUNK_SIZE + nx] ?? h) - h) > 1) return;
+  }
+  data[blockIndex(x, h, z)] = Block.cobblestone;
+}
+
+/**
+ * Lay this member chunk's road segment as a 2-wide cobblestone strip through
+ * the chunk middle, oriented by the sign of the direction to the village
+ * centre: an X strip for east/west members, a Z strip for north/south, and a
+ * full cross for diagonal members and the centre chunk — so adjacent members'
+ * strips always meet at the shared chunk edge and the lanes chain into the
+ * heart. Pure surface replacement; deterministic.
+ */
+function layVillageRoad(data: Uint8Array, heights: Int32Array, dirX: number, dirZ: number): void {
+  const mid = CHUNK_SIZE >> 1;
+  const layX = dirX !== 0 || dirZ === 0;
+  const layZ = dirZ !== 0 || dirX === 0;
+  if (layX) {
+    for (let x = 0; x < CHUNK_SIZE; x++) {
+      pave(data, heights, x, mid - 1);
+      pave(data, heights, x, mid);
+    }
+  }
+  if (layZ) {
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      pave(data, heights, mid - 1, z);
+      pave(data, heights, mid, z);
+    }
+  }
+}
+
+/** Pave a 5x5 plaza around a 3x3 well footprint at local (x0, z0). */
+function layPlaza(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  for (let dz = -1; dz <= 3; dz++) {
+    for (let dx = -1; dx <= 3; dx++) pave(data, heights, x0 + dx, z0 + dz);
+  }
 }
 
 /**

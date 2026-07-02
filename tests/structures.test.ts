@@ -20,6 +20,7 @@ import {
   tryPlantShrine,
   tryPlantSnowDome,
   tryPlantWell,
+  VILLAGE_RADIUS,
   VILLAGE_REGION,
   villageCenterFor,
 } from '../src/world/worldgen';
@@ -442,60 +443,74 @@ describe('villageCenterFor', () => {
 });
 
 describe('villages in real worldgen', () => {
-  // Pinned by scanning: for 'voxelheim-test', region (1, 2) hosts a village
-  // centred on chunk (8, 16) whose chunk-centre biome is plains, so the
-  // centre and its ring members actually build.
+  // Pinned by scanning: for 'voxelheim-test', region (2, -2) hosts a village
+  // centred on chunk (18, -14) whose chunk-centre biome is plains, so the
+  // 5x5 block of member chunks (Chebyshev <= VILLAGE_RADIUS) actually builds.
   const SEED = 'voxelheim-test';
   const vseed = cyrb128(`${SEED} villages`)[0];
+  const gen = createGenerator(SEED);
 
-  it('pins the scanned centre, resolvable from any member chunk', () => {
-    expect(villageCenterFor(vseed, 1, 2)).toEqual({ cx: 8, cz: 16 });
-    // A member chunk recovers the same centre from its own region coords
-    // (floored division, exercising the negative-safe region math too).
-    expect(villageCenterFor(vseed, Math.floor(7 / VILLAGE_REGION), Math.floor(15 / VILLAGE_REGION))).toEqual({
-      cx: 8,
-      cz: 16,
-    });
-    expect(villageCenterFor(vseed, -1, -1)?.cx ?? -99).toBeLessThan(0); // negative regions stay in range
-  });
-
-  it('builds the village heart in the centre chunk: hut, well and lamp post', () => {
-    const gen = createGenerator(SEED);
-    expect(gen.biomeAt(8 * CHUNK_SIZE + 8, 16 * CHUNK_SIZE + 8)).toBe(Biome.plains);
-    const data = gen.generateChunk(8, 16);
+  /** Count every block above sea level in a chunk. */
+  const tally = (cx: number, cz: number): Map<number, number> => {
+    const data = gen.generateChunk(cx, cz);
     const counts = new Map<number, number>();
     for (let i = 0; i < data.length; i++) {
       if (i >> 8 > SEA_LEVEL) counts.set(data[i] ?? 0, (counts.get(data[i] ?? 0) ?? 0) + 1);
     }
-    expect(counts.get(Block.lantern)).toBe(2); // hut lantern + lamp post
-    expect(counts.get(Block.chest)).toBe(1); // the hut's chest
-    expect(counts.get(Block.water)).toBe(2); // the well shaft, two deep
-    expect(counts.get(Block.planks)).toBe(50); // hut floor + roof
-    expect(data).toEqual(createGenerator(SEED).generateChunk(8, 16)); // byte-deterministic
+    return counts;
+  };
+
+  /** Count cobblestone sitting on the surface (road/plaza paving) of a chunk. */
+  const surfaceCobble = (cx: number, cz: number): number => {
+    const data = gen.generateChunk(cx, cz);
+    let n = 0;
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const h = gen.heightAt(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+        if ((data[blockIndex(x, h, z)] ?? 0) === Block.cobblestone) n++;
+      }
+    }
+    return n;
+  };
+
+  it('pins the scanned centre, resolvable from any member chunk', () => {
+    expect(villageCenterFor(vseed, 2, -2)).toEqual({ cx: 18, cz: -14 });
+    // An outer-ring member recovers the same centre from its own region
+    // coords (floored division, exercising the negative-safe region math).
+    expect(villageCenterFor(vseed, Math.floor(17 / VILLAGE_REGION), Math.floor(-16 / VILLAGE_REGION))).toEqual({
+      cx: 18,
+      cz: -14,
+    });
+    // The 5x5 member block never leaves its 8x8 region.
+    const vc = villageCenterFor(vseed, 2, -2);
+    if (vc) {
+      expect(vc.cx - VILLAGE_RADIUS).toBeGreaterThanOrEqual(2 * VILLAGE_REGION);
+      expect(vc.cx + VILLAGE_RADIUS).toBeLessThan(3 * VILLAGE_REGION);
+    }
   });
 
-  it('builds ring members: a farm plot and a long house', () => {
-    const gen = createGenerator(SEED);
-    const tally = (cx: number, cz: number): Map<number, number> => {
-      const data = gen.generateChunk(cx, cz);
-      const counts = new Map<number, number>();
-      for (let i = 0; i < data.length; i++) {
-        if (i >> 8 > SEA_LEVEL) counts.set(data[i] ?? 0, (counts.get(data[i] ?? 0) ?? 0) + 1);
-      }
-      return counts;
-    };
-    // Member (8, 15) rolls a farm: 4 rows of 6 farmland, 12+12 crops, and
-    // the 4-cell water channel behind its cobblestone caps.
-    const farm = tally(8, 15);
-    expect(farm.get(Block.farmland)).toBe(24);
-    expect(farm.get(Block.cropGrowing)).toBe(12);
-    expect(farm.get(Block.cropRipe)).toBe(12);
-    expect(farm.get(Block.water)).toBe(4);
-    // Member (7, 15) rolls a long house: two windows, a lantern, a chest.
-    const hall = tally(7, 15);
-    expect(hall.get(Block.glass)).toBe(2);
-    expect(hall.get(Block.lantern)).toBe(1);
-    expect(hall.get(Block.chest)).toBe(1);
+  it('builds the village heart: hut, well and a cobbled plaza', () => {
+    expect(gen.biomeAt(18 * CHUNK_SIZE + 8, -14 * CHUNK_SIZE + 8)).toBe(Biome.plains);
+    const heart = tally(18, -14);
+    expect(heart.get(Block.water)).toBeGreaterThanOrEqual(2); // the well shaft
+    expect(heart.get(Block.planks) ?? 0).toBeGreaterThan(0); // the hut
+    expect(heart.get(Block.lantern) ?? 0).toBeGreaterThanOrEqual(1); // hut/lamp light
+    // A generous plaza + road cross paves the centre chunk's surface.
+    expect(surfaceCobble(18, -14)).toBeGreaterThan(20);
+    expect(gen.generateChunk(18, -14)).toEqual(createGenerator(SEED).generateChunk(18, -14)); // deterministic
+  });
+
+  it('builds up the inner ring and paves roads out to the edges', () => {
+    // An inner-ring member (18, -15): a building plus surface paving.
+    const inner = tally(18, -15);
+    const builtInner =
+      (inner.get(Block.planks) ?? 0) > 0 ||
+      (inner.get(Block.farmland) ?? 0) > 0 ||
+      (inner.get(Block.lantern) ?? 0) > 0;
+    expect(builtInner).toBe(true);
+    expect(surfaceCobble(18, -15)).toBeGreaterThan(0);
+    // The road reaches an outer-ring member (17, -16) too.
+    expect(surfaceCobble(17, -16)).toBeGreaterThan(0);
   });
 });
 

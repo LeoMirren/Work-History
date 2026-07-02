@@ -317,3 +317,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Horizon-blended distance fog (terrain fades into the live sky colour), soft screen vignette + light canvas grade
 - [x] Per-seed spawn points: each world lands you somewhere new on dry land (deterministic per seed)
 - [x] Round verified: 376 tests, strict tsc, clean build
+
+## Post-spec: Village wardens, barter & bigger towns
+
+- [x] Village wardens: hooded per-village NPCs (5-dye tunics, walk/idle animation, day wander + night huddle, leashed to their village); right-click to barter, punch only startles them (flee, no drops)
+- [x] Barter: deterministic 3-offer book per warden (grain/coal/gems/gold economy), atomic trades, dedicated Barter screen wired to the aim outline + hint
+- [x] Bigger villages: region 6->8 chunks, members Chebyshev<=2 (5x5 chunks ≈ 80 blocks); centre plaza + heart, dense inner ring (2 rolls/chunk), farmland outskirts, and 2-wide cobblestone roads chaining every member to the heart (surface-replacement paving, steepness-safe)
+- [x] Fixes found via a headless Playwright probe (console clean, screenshots): snowfield face-contrast bump, fish were inert (missing fixedUpdate/setWorld wiring), controls-panel key wrapping
+- [x] Round verified: 398 tests, strict tsc, clean build

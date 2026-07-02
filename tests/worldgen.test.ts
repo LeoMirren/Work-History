@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE } from '../src/world/chunk';
-import { Biome, biomeName, createGenerator, findSafeSpawnY, SEA_LEVEL } from '../src/world/worldgen';
+import {
+  Biome,
+  biomeName,
+  createGenerator,
+  findSafeSpawnY,
+  SEA_LEVEL,
+  VILLAGE_RADIUS,
+  VILLAGE_REGION,
+  villageCenterFor,
+} from '../src/world/worldgen';
+import { cyrb128 } from '../src/world/noise';
 
 function fnv1a(data: Uint8Array): number {
   let h = 0x811c9dc5;
@@ -67,8 +77,16 @@ describe('worldgen content rules', () => {
   it('floods oceans, sands beaches/peaks, and lays biome surfaces on land', () => {
     let waterColumns = 0;
     let grassColumns = 0;
+    // Villages overlay roads/plazas/buildings on the natural surface; skip
+    // their member chunks so this test stays about the terrain rules.
+    const villageSeedInt = cyrb128(`${SEED} villages`)[0];
+    const isVillageChunk = (cx: number, cz: number): boolean => {
+      const vc = villageCenterFor(villageSeedInt, Math.floor(cx / VILLAGE_REGION), Math.floor(cz / VILLAGE_REGION));
+      return vc !== null && Math.max(Math.abs(cx - vc.cx), Math.abs(cz - vc.cz)) <= VILLAGE_RADIUS;
+    };
     for (let cz = -4; cz <= 4; cz++) {
       for (let cx = -4; cx <= 4; cx++) {
+        if (isVillageChunk(cx, cz)) continue;
         const data = gen.generateChunk(cx, cz);
         for (let z = 0; z < CHUNK_SIZE; z++) {
           for (let x = 0; x < CHUNK_SIZE; x++) {
