@@ -11,7 +11,8 @@ import { TapAudio } from './engine/audio';
 import { Clouds } from './engine/clouds';
 import { Sky, skyColors } from './engine/sky';
 import { Ambience } from './engine/ambience';
-import { brightnessAt, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
+import { Weather, weatherPhaseFor, type WeatherMode } from './engine/weather';
+import { brightnessAt, DAY_LENGTH_SECONDS, DayNight, isNightTime, nextDay, NOON_TIME } from './engine/daynight';
 import { startLoop } from './engine/loop';
 import { debugInfo, exposeDebug, FpsCounter } from './engine/debug';
 import { Input } from './engine/input';
@@ -32,6 +33,9 @@ import { InventoryScreen } from './ui/inventoryScreen';
 import { ChestScreen } from './ui/chestScreen';
 import { BlockPicker } from './ui/blockPicker';
 import { Guide } from './ui/guide';
+import { GoalTracker, type GoalEvent } from './world/goals';
+import { GoalToast } from './ui/goalToast';
+import { Minimap, terrainShade } from './ui/minimap';
 import { ContainerStore } from './world/containers';
 import { Block } from './world/blocks';
 import { AnimalSystem } from './entities/animals';
@@ -47,7 +51,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { createGenerator, dungeonFor, findSafeSpawnY, type Dimension } from './world/worldgen';
+import { Biome, createGenerator, dungeonFor, findSafeSpawnY, SEA_LEVEL, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -59,6 +63,7 @@ import type { WorldStats } from './world/world';
 const BASE_SENSITIVITY = 0.002;
 const AUTOSAVE_INTERVAL_MS = 10_000;
 const UNDERWORLD_SKY = new THREE.Color(0x1a0d10);
+const SNOWY_BIOME = Biome.snowy;
 /** Quick-place bindings: schematic building relative to the facing. */
 const BUILD_KEY_MAP: ReadonlyArray<readonly [string, BuildKey]> = [
   ['KeyI', 'front'],
@@ -114,6 +119,7 @@ async function boot(): Promise<void> {
   const clouds = new Clouds(gr.scene, 'voxelheim');
   const sky = new Sky(gr.scene, 'voxelheim');
   const ambience = new Ambience(gr.scene);
+  const weather = new Weather(gr.scene);
 
   // Scene lights shade the Lambert-lit entities (chunks use their own shader);
   // intensities track the day cycle in the render loop. The camera joins the
@@ -142,6 +148,17 @@ async function boot(): Promise<void> {
   let chestOpen = false;
   const guide = new Guide(app);
   let guideOpen = false;
+  const goals = new GoalTracker();
+  const goalToast = new GoalToast(app);
+  const minimap = new Minimap(app);
+  /** Feed a gameplay event to the goal tracker; a newly-completed goal toasts. */
+  function signalGoal(event: GoalEvent): void {
+    const done = goals.signal(event);
+    if (done) goalToast.show(done.title, done.text);
+  }
+  inventoryScreen.onMake = (name, station) => signalGoal({ kind: station, name });
+  interaction.onKill = (what) => signalGoal({ kind: 'kill', what });
+  interaction.onCatch = () => signalGoal({ kind: 'catch' });
   const infoPanel = new InfoPanel(app);
   const damageOverlay = new DamageOverlay(app);
   const hurt = new HurtIndicator();
@@ -184,6 +201,9 @@ async function boot(): Promise<void> {
   let villagers = new VillagerSystem(gr.scene, 0);
   // Recreated per session too: guardians haunt this seed's dungeon map.
   let guardians = new GuardianSystem(gr.scene, () => null);
+  // Per-session weather inputs (set at startSession).
+  let weatherSeedInt = 0;
+  let overworldBiomeAt: ((wx: number, wz: number) => number) | null = null;
   const tradeScreen = new TradeScreen(app);
   let tradeOpen = false;
   interaction.onTradeVillager = (villager) => {
@@ -191,7 +211,10 @@ async function boot(): Promise<void> {
     const offers = offersFor(cyrb128(`${session.seed} villages`)[0] ?? 0, villager.villageKey, villager.index);
     tradeScreen.open(offers, inventory, session.atlasCanvas, (offerIndex) => {
       const offer = offers[offerIndex];
-      if (offer && applyTrade(inventory, offer)) audio.play('place', offer.get.id);
+      if (offer && applyTrade(inventory, offer)) {
+        audio.play('place', offer.get.id);
+        signalGoal({ kind: 'trade' });
+      }
     });
     tradeOpen = true;
     document.exitPointerLock();
@@ -228,14 +251,17 @@ async function boot(): Promise<void> {
   const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (h) {
-      hostiles.hurt(h.stalker, dx, dz);
+      if (hostiles.hurt(h.stalker, dx, dz)) signalGoal({ kind: 'kill', what: 'hostile' });
       return true;
     }
     const g = guardians.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (g) {
       const b = g.guardian.body;
       const loot = guardians.hurt(g.guardian, dx, dz);
-      if (loot) itemDrops.spawn(loot.id, loot.count, b.x, b.y + 0.6, b.z);
+      if (loot) {
+        itemDrops.spawn(loot.id, loot.count, b.x, b.y + 0.6, b.z);
+        signalGoal({ kind: 'kill', what: 'guardian' });
+      }
       return true;
     }
     const a = animals.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
@@ -274,6 +300,8 @@ async function boot(): Promise<void> {
     if (kind === 'break') {
       const [r, g, b] = blockRGB(id);
       particles.burst(x + 0.5, y + 0.5, z + 0.5, r, g, b);
+      signalGoal({ kind: 'break', id });
+      if (id === Block.cropRipe) signalGoal({ kind: 'harvest', id });
     }
   };
   interaction.onActivateRift = (_x, _y, _z) => {
@@ -287,6 +315,7 @@ async function boot(): Promise<void> {
     if (session?.dimension === 'overworld' && isNightTime(dayNight.time)) {
       dayNight.time = nextDay(dayNight.time);
     }
+    signalGoal({ kind: 'sleep' });
     return true;
   };
   let inventoryOpen = false;
@@ -349,6 +378,7 @@ async function boot(): Promise<void> {
       timeOfDay: dayNight.time,
       dimension: session?.dimension ?? 'overworld',
       containers: containers.serialize(),
+      goals: [...goals.completed],
     };
   }
 
@@ -480,7 +510,19 @@ async function boot(): Promise<void> {
     guardians.setWorld(mode === 'survival' ? entityWorld : null);
     interaction.guardians = guardians;
     projectiles.clear();
+    weather.clear();
     infoPanel.show();
+    // Minimap + weather: overworld only, sampling this seed's terrain/biomes.
+    weatherSeedInt = cyrb128(`${seed} weather`)[0] ?? 0;
+    if (dimension === 'overworld') {
+      const overworldGen = createGenerator(seed, 'overworld');
+      overworldBiomeAt = overworldGen.biomeAt;
+      minimap.bind(overworldGen.heightAt, (h) => terrainShade(h, SEA_LEVEL));
+      minimap.setVisible(true);
+    } else {
+      overworldBiomeAt = null;
+      minimap.setVisible(false);
+    }
     applyMode(mode, world, atlasCanvas);
     if (inventoryOpen) {
       inventoryScreen.close();
@@ -510,6 +552,7 @@ async function boot(): Promise<void> {
     atlasCtx = null;
     tileColorCache.clear();
     containers.load(resume?.containers);
+    goals.load(resume?.goals);
 
     session = { seed, mode, dimension, world, texture, atlasCanvas, persistedKeys };
     menus.setPauseSeed(seed);
@@ -526,6 +569,7 @@ async function boot(): Promise<void> {
     const wz = Math.floor(player.body.z);
     const safeY = findSafeSpawnY(s.seed, target, wx, wz);
     startSession(s.seed, s.mode, null, keys, target, { x: wx + 0.5, y: safeY, z: wz + 0.5 }, true);
+    signalGoal({ kind: 'dimension', dimension: target });
     input.requestLock();
   }
 
@@ -679,8 +723,10 @@ async function boot(): Promise<void> {
       } else {
         dayNight.apply(gr, materials, clouds.material);
       }
-      // Entity lighting tracks the sky (dim ember glow in the underworld).
-      const envBrightness = session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time);
+      // Entity lighting tracks the sky (dim ember glow in the underworld),
+      // dimmed further under heavy weather so storms feel overcast.
+      const stormDim = 1 - weather.intensity * 0.4;
+      const envBrightness = (session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time)) * stormDim;
       hemiLight.intensity = 0.25 + 0.95 * envBrightness;
       sunLight.intensity = 0.65 * envBrightness;
       // Terrain fog fades into the sky-dome horizon, so the distance blends
@@ -700,6 +746,20 @@ async function boot(): Promise<void> {
         const moteMode =
           session.dimension === 'underworld' ? 'underworld' : isNightTime(dayNight.time) ? 'night' : 'day';
         ambience.update(frameDt, player.body.x, player.body.y, player.body.z, moteMode);
+      }
+      // Weather: deterministic wet/clear spells (overworld only). Each day
+      // splits into 4 cycles; wet falls as snow in freezing biomes, else rain.
+      if (session && session.dimension === 'overworld') {
+        const cycleIndex = Math.floor(dayNight.time / (DAY_LENGTH_SECONDS / 4));
+        const wet = weatherPhaseFor(weatherSeedInt, cycleIndex) === 'wet';
+        let weatherMode: WeatherMode = 'clear';
+        if (wet) {
+          const freezing = overworldBiomeAt ? overworldBiomeAt(player.body.x, player.body.z) === SNOWY_BIOME : false;
+          weatherMode = freezing ? 'snow' : 'rain';
+        }
+        weather.update(frameDt, player.body.x, player.body.y, player.body.z, weatherMode);
+      } else {
+        weather.update(frameDt, player.body.x, player.body.y, player.body.z, 'clear');
       }
       clouds.update(frameDt, player.body.x, player.body.z);
       // Damage feedback: flash on hp loss, steady vignette at low health.
@@ -836,6 +896,11 @@ async function boot(): Promise<void> {
       // Water shimmer clock (only the water shader reads it).
       elapsedSeconds += frameDt;
       materials.water.uniforms.uTime.value = elapsedSeconds;
+      // Minimap follows the player (north-up); depth goal fires once deep.
+      if (session) {
+        minimap.update(player.body.x, player.body.z, player.yaw);
+        if (player.body.y < 24) signalGoal({ kind: 'depth', y: Math.floor(player.body.y) });
+      }
       session?.world.update(player.body.x, player.body.z);
       gr.render();
       fps.tick();

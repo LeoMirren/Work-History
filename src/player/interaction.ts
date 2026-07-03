@@ -167,6 +167,10 @@ export class Interaction {
   guardians: GuardianSystem | null = null;
   /** Right-click on a warden: main opens the barter screen. */
   onTradeVillager: ((villager: Villager) => void) | null = null;
+  /** A hostile or guardian died to the player's melee (goal tracking). */
+  onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
+  /** A fish was caught by melee (goal tracking). */
+  onCatch: (() => void) | null = null;
   /** Edit notification hook (block-tap audio). */
   onEdit: ((kind: 'break' | 'place', blockId: number) => void) | null = null;
   /** Right-click on a container block (chest): opens it, consumes the click. */
@@ -463,12 +467,13 @@ export class Interaction {
     if (kind === null) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
     if (kind === 'hostile' && hostileHit) {
-      this.hostiles?.hurt(hostileHit.stalker, dx, dz);
+      if (this.hostiles?.hurt(hostileHit.stalker, dx, dz)) this.onKill?.('hostile');
     } else if (kind === 'guardian' && guardianHit) {
       const loot = this.guardians?.hurt(guardianHit.guardian, dx, dz) ?? null;
-      if (loot && inventory) {
+      if (loot) {
         const b = guardianHit.guardian.body;
-        this.award(inventory, loot.id, loot.count, b.x, b.y + 0.6, b.z);
+        if (inventory) this.award(inventory, loot.id, loot.count, b.x, b.y + 0.6, b.z);
+        this.onKill?.('guardian');
       }
     } else if (kind === 'animal' && animalHit) {
       const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
@@ -478,9 +483,10 @@ export class Interaction {
       }
     } else if (kind === 'fish' && fishHit) {
       const drops = this.fish?.hurt(fishHit.fish, dx, dz) ?? null;
-      if (drops && inventory) {
+      if (drops) {
         const b = fishHit.fish.body;
-        this.award(inventory, drops.id, drops.count, b.x, b.y + 0.2, b.z);
+        if (inventory) this.award(inventory, drops.id, drops.count, b.x, b.y + 0.2, b.z);
+        this.onCatch?.();
       }
     } else if (kind === 'villager' && villagerHit) {
       this.villagers?.startle(villagerHit.villager, dx, dz); // no drops, ever

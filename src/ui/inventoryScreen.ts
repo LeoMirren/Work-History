@@ -18,6 +18,8 @@ function nameFor(id: number): string {
 
 export class InventoryScreen {
   visible = false;
+  /** Fired when a recipe is successfully made (station distinguishes craft/smelt). */
+  onMake: ((name: string, station: 'craft' | 'smelt') => void) | null = null;
   private readonly root: HTMLDivElement;
   private readonly grid: HTMLDivElement;
   private readonly recipeList: HTMLDivElement;
@@ -201,7 +203,10 @@ export class InventoryScreen {
       button.textContent = times > 0 ? `Make (${times})` : recipe.station === 'smelt' ? 'Smelt' : 'Craft';
       button.disabled = times === 0;
       button.addEventListener('click', () => {
-        if (craft(inv, recipe, ctx)) this.render();
+        if (craft(inv, recipe, ctx)) {
+          this.onMake?.(recipe.name, recipe.station);
+          this.render();
+        }
       });
       row.append(icon, label, button);
       this.recipeList.appendChild(row);

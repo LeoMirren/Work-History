@@ -23,6 +23,8 @@ export interface WorldMeta {
   timeOfDay: number;
   dimension?: 'overworld' | 'underworld';
   containers?: Array<{ pos: [number, number, number]; items: Array<[number, number] | null> }>;
+  /** Completed achievement ids (goals system). */
+  goals?: string[];
 }
 
 export interface StorageBackend {

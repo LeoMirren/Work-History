@@ -325,3 +325,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Bigger villages: region 6->8 chunks, members Chebyshev<=2 (5x5 chunks ≈ 80 blocks); centre plaza + heart, dense inner ring (2 rolls/chunk), farmland outskirts, and 2-wide cobblestone roads chaining every member to the heart (surface-replacement paving, steepness-safe)
 - [x] Fixes found via a headless Playwright probe (console clean, screenshots): snowfield face-contrast bump, fish were inert (missing fixedUpdate/setWorld wiring), controls-panel key wrapping
 - [x] Round verified: 398 tests, strict tsc, clean build
+
+## Post-spec: Guardians, biomes, weather, goals, minimap
+
+- [x] Dungeon guardians: vault-brute mobs (violet eye slits, stone-knuckle fists) haunt buried dungeons — leashed, drop gems/gold; wired into melee + thrown-stone combat
+- [x] Biome-tinted foliage: grass/leaves/water take a per-biome hue baked in the mesher (jungle deep green, savanna olive-gold, snowy pale), matched across worker + sync mesh paths
+- [x] Underworld flora: glowing teal glowmoss (light 8) carpets cavern floors, ash spires rise with ember caps
+- [x] Weather: deterministic wet/clear spells per day-quarter, rain or snow (by biome), storms dim the sky/light; overworld only
+- [x] Goals: 14 original achievements (First Timber → Vault Breaker) with slide-in completion toasts; persisted per world; fired from break/harvest/craft/smelt/trade/sleep/depth/dimension/kill/catch
+- [x] Minimap: north-up terrain overview bottom-left with a rotating player arrow, 8-block redraw gating
+- [x] Held blocks render as a real mini 3D cube (per-face tiles + shading); trackpad controls (R = place/use, C = mine/attack)
+- [x] Round verified: 468 tests, strict tsc, clean build
