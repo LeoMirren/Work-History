@@ -82,6 +82,52 @@ const JITTER_MINERAL_IDS = new Set<number>([Block.stone, Block.sand, Block.snow]
 const TINT_SALT = 0x7e11a9;
 const TINTED = new Set<number>([Block.grass, Block.leaves]);
 
+/** RGB multiplier triple (all values near 1; applied on top of the grade). */
+export interface TintRGB {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+}
+
+/**
+ * BIOME TINT — per-biome hue multipliers, indexed by worldgen biome id
+ * (0 plains, 1 forest, 2 desert, 3 savanna, 4 snowy, 5 jungle — see
+ * worldgen's Biome table). `foliage` multiplies grass tops/sides and leaves;
+ * `water` gives the water surface a subtle climate shift. Applied only when
+ * meshChunk receives a per-column biome array; without one the mesh is
+ * byte-identical to the untinted (pre-biome) output.
+ *
+ *  plains   fresh light green      | water neutral
+ *  forest   rich deep green        | slightly cool green
+ *  desert   dusty warm (rare)      | faint warm
+ *  savanna  olive-gold, dry        | faintly green-warm
+ *  snowy    pale desaturated       | steel-blue
+ *  jungle   deep saturated green   | warmer teal
+ */
+export const BIOME_TINT: ReadonlyArray<{ foliage: TintRGB; water: TintRGB }> = [
+  { foliage: { r: 1.0, g: 1.06, b: 0.95 }, water: { r: 1.0, g: 1.0, b: 1.0 } }, // plains
+  { foliage: { r: 0.88, g: 1.0, b: 0.86 }, water: { r: 0.97, g: 1.0, b: 0.99 } }, // forest
+  { foliage: { r: 1.06, g: 0.97, b: 0.8 }, water: { r: 1.0, g: 1.01, b: 0.97 } }, // desert
+  { foliage: { r: 1.12, g: 0.98, b: 0.7 }, water: { r: 1.0, g: 1.01, b: 0.96 } }, // savanna
+  { foliage: { r: 1.05, g: 0.97, b: 1.04 }, water: { r: 0.95, g: 0.98, b: 1.05 } }, // snowy
+  { foliage: { r: 0.78, g: 1.04, b: 0.74 }, water: { r: 0.96, g: 1.05, b: 0.99 } }, // jungle
+];
+
+// Flat [r,g,b] LUTs mirroring BIOME_TINT, so the hot mesh loop indexes
+// numbers instead of allocating/chasing objects per quad.
+const BIOME_FOLIAGE_FLAT = new Float64Array(BIOME_TINT.length * 3);
+const BIOME_WATER_FLAT = new Float64Array(BIOME_TINT.length * 3);
+for (let i = 0; i < BIOME_TINT.length; i++) {
+  const def = BIOME_TINT[i];
+  if (!def) continue;
+  BIOME_FOLIAGE_FLAT[i * 3] = def.foliage.r;
+  BIOME_FOLIAGE_FLAT[i * 3 + 1] = def.foliage.g;
+  BIOME_FOLIAGE_FLAT[i * 3 + 2] = def.foliage.b;
+  BIOME_WATER_FLAT[i * 3] = def.water.r;
+  BIOME_WATER_FLAT[i * 3 + 1] = def.water.g;
+  BIOME_WATER_FLAT[i * 3 + 2] = def.water.b;
+}
+
 export function foliageTint(wx: number, wz: number): { r: number; b: number } {
   // 4-block patches; subtle ±6% red / ±8% blue swing around neutral.
   const h = hash2(TINT_SALT, wx >> 2, wz >> 2);
@@ -311,8 +357,18 @@ const vertexLightScratch = new Float32Array(8);
  * Mesh the center chunk of a 3×3 snapshot. Pure — (cx, cz) only seed the
  * deterministic foliage-tint and column-jitter hashes, so identical inputs
  * always produce byte-identical meshes.
+ *
+ * `biomes` (optional): 256 per-column biome ids in z*16+x layout matching the
+ * chunk interior. When present, BIOME_TINT multiplies into the foliage tint
+ * of grass tops/sides and leaves, and into the water color, per column.
+ * Absent, the output is byte-identical to the pre-biome mesher.
  */
-export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMeshData {
+export function meshChunk(
+  snapshot: Uint8Array,
+  cx: number,
+  cz: number,
+  biomes?: Uint8Array,
+): ChunkMeshData {
   const light = computeLight(snapshot);
   const opaque = new QuadSink();
   const cutout = new QuadSink();
@@ -396,12 +452,25 @@ export function meshChunk(snapshot: Uint8Array, cx: number, cz: number): ChunkMe
           const jg = id === Block.grass && f === 3 ? 1 : jit.g;
           const gradeRG = FACE_GRADE_RG[f] ?? 1;
           let colR = gradeRG * jit.r;
-          const colG = gradeRG * jg;
+          let colG = gradeRG * jg;
           let colB = (FACE_GRADE_B[f] ?? 1) * jit.b;
           if (TINTED.has(id)) {
             const tint = foliageTint(wx, wz);
             colR *= tint.r;
             colB *= tint.b;
+            // Per-biome foliage hue; the grass dirt underside stays neutral
+            // (same faces the green jitter exemption covers).
+            if (biomes && !(id === Block.grass && f === 3)) {
+              const bt = (biomes[z * CHUNK_SIZE + x] ?? 0) * 3;
+              colR *= BIOME_FOLIAGE_FLAT[bt] ?? 1;
+              colG *= BIOME_FOLIAGE_FLAT[bt + 1] ?? 1;
+              colB *= BIOME_FOLIAGE_FLAT[bt + 2] ?? 1;
+            }
+          } else if (biomes && id === Block.water) {
+            const bt = (biomes[z * CHUNK_SIZE + x] ?? 0) * 3;
+            colR *= BIOME_WATER_FLAT[bt] ?? 1;
+            colG *= BIOME_WATER_FLAT[bt + 1] ?? 1;
+            colB *= BIOME_WATER_FLAT[bt + 2] ?? 1;
           }
           sink.pushQuad(
             x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,

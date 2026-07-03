@@ -39,6 +39,7 @@ import { HostileSystem } from './entities/hostiles';
 import { ItemDrops } from './entities/drops';
 import { FishSystem } from './entities/fish';
 import { VillagerSystem } from './entities/villagers';
+import { GuardianSystem } from './entities/guardians';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { applyTrade, offersFor } from './world/trades';
 import { cyrb128 } from './world/noise';
@@ -46,7 +47,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { createGenerator, findSafeSpawnY, type Dimension } from './world/worldgen';
+import { createGenerator, dungeonFor, findSafeSpawnY, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -181,6 +182,8 @@ async function boot(): Promise<void> {
   interaction.fish = fish;
   // Recreated per session — village layouts (and so warden homes) are per-seed.
   let villagers = new VillagerSystem(gr.scene, 0);
+  // Recreated per session too: guardians haunt this seed's dungeon map.
+  let guardians = new GuardianSystem(gr.scene, () => null);
   const tradeScreen = new TradeScreen(app);
   let tradeOpen = false;
   interaction.onTradeVillager = (villager) => {
@@ -226,6 +229,13 @@ async function boot(): Promise<void> {
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (h) {
       hostiles.hurt(h.stalker, dx, dz);
+      return true;
+    }
+    const g = guardians.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
+    if (g) {
+      const b = g.guardian.body;
+      const loot = guardians.hurt(g.guardian, dx, dz);
+      if (loot) itemDrops.spawn(loot.id, loot.count, b.x, b.y + 0.6, b.z);
       return true;
     }
     const a = animals.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
@@ -296,6 +306,7 @@ async function boot(): Promise<void> {
     player.setMode(mode);
     interaction.mode = mode;
     hostiles.setWorld(mode === 'survival' ? { isSolid: world.isSolid, getBlock: world.blockAt } : null);
+    guardians.setWorld(mode === 'survival' ? { isSolid: world.isSolid, getBlock: world.blockAt } : null);
     if (hud) {
       hud.setSurvivalVisible(mode === 'survival');
       hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
@@ -459,6 +470,15 @@ async function boot(): Promise<void> {
     villagers = new VillagerSystem(gr.scene, cyrb128(`${seed} villages`)[0] ?? 0);
     villagers.setWorld(dimension === 'overworld' ? entityWorld : null);
     interaction.villagers = villagers;
+    // Guardians haunt this seed's overworld dungeons (survival threat only).
+    guardians.clear();
+    const dungeonSeedInt = cyrb128(`${seed} dungeons`)[0] ?? 0;
+    guardians = new GuardianSystem(
+      gr.scene,
+      dimension === 'overworld' ? (gcx, gcz) => dungeonFor(dungeonSeedInt, gcx, gcz) : () => null,
+    );
+    guardians.setWorld(mode === 'survival' ? entityWorld : null);
+    interaction.guardians = guardians;
     projectiles.clear();
     infoPanel.show();
     applyMode(mode, world, atlasCanvas);
@@ -646,6 +666,7 @@ async function boot(): Promise<void> {
           threatBrightness,
           (dmg) => player.hurt(dmg),
         );
+        guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
       }
     },
     render(alpha, frameDt) {

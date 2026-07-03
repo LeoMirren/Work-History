@@ -124,11 +124,15 @@ export interface Generator {
   generateChunk(cx: number, cz: number): Uint8Array;
 }
 
-// Underworld: an enclosed cavern realm of ashstone lit by emberrock veins.
+// Underworld: an enclosed cavern realm of ashstone lit by emberrock veins,
+// its cavern floors dressed with glowing moss and tapering ash spires.
 const UW_FLOOR = 4;
 const UW_CEIL = 118;
 const UW_CAVERN_THRESHOLD = 0.2; // |noise| below this carves open cavern
 const UW_EMBER_THRESHOLD = 0.8;
+const UW_MOSS_CHANCE = 26; // ~1 cavern-floor column in 26 sprouts glowmoss
+const UW_SPIRE_CHANCE = 60; // ~1 cavern-floor column in 60 raises an ash spire
+const UW_SPIRE_EMBER_DIV = 3; // ~1 spire in 3 wears a glowing emberrock cap
 
 export function createGenerator(seed: string, dimension: Dimension = 'overworld'): Generator {
   if (dimension === 'underworld') return createUnderworld(seed);
@@ -159,6 +163,7 @@ function createUnderworld(seed: string): Generator {
   const cavern: NoiseFunction3D = seededNoise3D(seed, 'uw:cavern');
   const ember: NoiseFunction3D = seededNoise3D(seed, 'uw:ember');
   const roof: NoiseFunction3D = seededNoise3D(seed, 'uw:roof');
+  const floraSeed = cyrb128(`${seed} uw:flora`)[0];
 
   function generateChunk(cx: number, cz: number): Uint8Array {
     const data = createChunkData();
@@ -186,6 +191,27 @@ function createUnderworld(seed: string): Generator {
         }
       }
     }
+    // Decor: per-column hash rolls from the flora seed stream dress ashstone
+    // cavern floors, everything kept inside its own column/chunk. Spires
+    // first (they add ashstone), then glowmoss in a second pass — moss
+    // re-scans for its floor, so it only ever seats on ashstone that still
+    // has open air above it, no matter what the spires grew nearby.
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const fhash = hash2(floraSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+        if ((fhash >>> 8) % UW_SPIRE_CHANCE !== 0) continue;
+        const floorY = cavernFloorY(data, x, z);
+        if (floorY !== null) raiseAshSpire(data, fhash, x, z, floorY);
+      }
+    }
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const fhash = hash2(floraSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+        if (fhash % UW_MOSS_CHANCE !== 0) continue;
+        const floorY = cavernFloorY(data, x, z);
+        if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.glowmoss;
+      }
+    }
     return data;
   }
 
@@ -196,6 +222,63 @@ function createUnderworld(seed: string): Generator {
     biomeAt: () => 0,
     generateChunk,
   };
+}
+
+/**
+ * Lowest open cavern floor of an underworld column: the first ashstone cell
+ * with two air cells above it, scanning the cavern band bottom-up. Returns
+ * null when the column has no such floor (fully solid, or capped by
+ * emberrock/bedrock everywhere the cavern opens).
+ */
+function cavernFloorY(data: Uint8Array, x: number, z: number): number | null {
+  for (let y = 2; y <= UW_CEIL - 3; y++) {
+    if (
+      data[blockIndex(x, y, z)] === Block.ashstone &&
+      data[blockIndex(x, y + 1, z)] === Block.air &&
+      data[blockIndex(x, y + 2, z)] === Block.air
+    ) {
+      return y;
+    }
+  }
+  return null;
+}
+
+/**
+ * Raise an ash spire from the cavern floor cell at local (x, z): a tapering
+ * ashstone column 3-6 blocks tall (hash-rolled) that grows only through open
+ * air and stops early at any obstruction, so it never harms terrain. Tall
+ * spires (5+) flare into a 2x2 base over their lower half — the companion
+ * columns step toward the chunk interior, so the whole spire stays inside
+ * its chunk — and ~1 in UW_SPIRE_EMBER_DIV wears a glowing emberrock cap.
+ */
+function raiseAshSpire(data: Uint8Array, hash: number, x: number, z: number, floorY: number): void {
+  const height = 3 + ((hash >>> 12) % 4);
+  let top = floorY;
+  for (let dy = 1; dy <= height; dy++) {
+    const y = floorY + dy;
+    if (y >= UW_CEIL) break;
+    const i = blockIndex(x, y, z);
+    if (data[i] !== Block.air) break;
+    data[i] = Block.ashstone;
+    top = y;
+  }
+  if (top === floorY) return; // no room to grow at all
+  if ((hash >>> 16) % UW_SPIRE_EMBER_DIV === 0) data[blockIndex(x, top, z)] = Block.emberrock;
+  if (height >= 5) {
+    const sx = x === CHUNK_SIZE - 1 ? -1 : 1;
+    const sz = z === CHUNK_SIZE - 1 ? -1 : 1;
+    const baseTop = Math.min(floorY + (height >> 1), top);
+    for (const [bx, bz] of [
+      [x + sx, z],
+      [x, z + sz],
+      [x + sx, z + sz],
+    ] as const) {
+      for (let y = floorY + 1; y <= baseTop; y++) {
+        const i = blockIndex(bx, y, bz);
+        if (data[i] === Block.air) data[i] = Block.ashstone;
+      }
+    }
+  }
 }
 
 /**
@@ -576,17 +659,16 @@ function createOverworld(seed: string): Generator {
 
     // Buried dungeons: rolled on their own seed stream, independent of the
     // surface-structure rolls, so they coexist with landmarks above. The
-    // 14x7 footprint is kept fully inside the chunk; carving only proceeds
-    // when every column over the footprint is dry land holding at least 8
-    // blocks of cover above the complex, which keeps it buried and upholds
-    // the "no openings under oceans" invariant of the cave carver.
-    const dhash = hash2(dungeonSeed, cx, cz);
-    if (dhash % DUNGEON_CHANCE === 0) {
-      const m = 1;
-      const spanX = Math.max(1, CHUNK_SIZE - DUNGEON_W - 2 * m);
-      const spanZ = Math.max(1, CHUNK_SIZE - DUNGEON_D - 2 * m);
-      const x0 = m + ((dhash >>> 4) % spanX);
-      const z0 = m + ((dhash >>> 8) % spanZ);
+    // placement roll lives in rollDungeon — shared with the exported
+    // dungeonFor locator, so guardian spawning and the carver can never
+    // disagree. The 14x7 footprint is kept fully inside the chunk; carving
+    // only proceeds when every column over the footprint is dry land holding
+    // at least 8 blocks of cover above the complex, which keeps it buried
+    // and upholds the "no openings under oceans" invariant of the cave
+    // carver.
+    const droll = rollDungeon(dungeonSeed, cx, cz);
+    if (droll !== null) {
+      const { hash: dhash, x0, z0 } = droll;
       let minH = CHUNK_HEIGHT;
       for (let dz = 0; dz < DUNGEON_D; dz++) {
         for (let dx = 0; dx < DUNGEON_W; dx++) {
@@ -784,6 +866,51 @@ export function tryPlantShrine(data: Uint8Array, heights: Int32Array, x0: number
 /** Hash-picked dungeon floor height in [DUNGEON_MIN_Y, DUNGEON_MAX_Y]. */
 function dungeonY(hash: number): number {
   return DUNGEON_MIN_Y + ((hash >>> 16) % (DUNGEON_MAX_Y - DUNGEON_MIN_Y + 1));
+}
+
+/**
+ * The single source of the buried-dungeon placement roll: does chunk
+ * (cx, cz) host a dungeon, and if so where does its footprint origin sit?
+ * Pure and stateless — everything derives from hash2(dungeonSeedInt, cx, cz),
+ * where dungeonSeedInt is the world's dungeon seed,
+ * cyrb128(`${seed} dungeons`)[0]. Shared by generateChunk's carver and the
+ * dungeonFor locator so the two can never disagree. Returns null for chunks
+ * whose roll misses the 1-in-DUNGEON_CHANCE.
+ */
+function rollDungeon(
+  dungeonSeedInt: number,
+  cx: number,
+  cz: number,
+): { hash: number; x0: number; z0: number } | null {
+  const hash = hash2(dungeonSeedInt, cx, cz);
+  if (hash % DUNGEON_CHANCE !== 0) return null;
+  const m = 1;
+  const spanX = Math.max(1, CHUNK_SIZE - DUNGEON_W - 2 * m);
+  const spanZ = Math.max(1, CHUNK_SIZE - DUNGEON_D - 2 * m);
+  return { hash, x0: m + ((hash >>> 4) % spanX), z0: m + ((hash >>> 8) % spanZ) };
+}
+
+/**
+ * Locate the dungeon hosted by chunk (cx, cz), or null when the chunk rolls
+ * none. Returns the WORLD coordinates of room A's interior centre: x/z in
+ * the middle of the 5x5 interior (footprint origin + 3 on both axes) and y
+ * at the interior floor — the first air cell above the brick floor. Pure, so
+ * callers (guardian-mob spawning) need no generator; note the carver still
+ * self-bails under oceans or thin cover, so a non-null result means "this is
+ * where the dungeon sits if the chunk's terrain let it carve".
+ */
+export function dungeonFor(
+  dungeonSeedInt: number,
+  cx: number,
+  cz: number,
+): { x: number; y: number; z: number } | null {
+  const roll = rollDungeon(dungeonSeedInt, cx, cz);
+  if (roll === null) return null;
+  return {
+    x: cx * CHUNK_SIZE + roll.x0 + 3,
+    y: dungeonY(roll.hash) + 1,
+    z: cz * CHUNK_SIZE + roll.z0 + 3,
+  };
 }
 
 /**

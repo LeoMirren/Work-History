@@ -1,7 +1,8 @@
 /**
  * Surface structures: the outpost hut / desert ruin / snow dome / shrine
- * planters (pure), the buried dungeon carver, hamlets (twin huts + well),
- * ocean reef décor, and region-seeded villages — villageCenterFor's grid
+ * planters (pure), the buried dungeon carver and its dungeonFor locator,
+ * hamlets (twin huts + well), ocean reef décor, underworld flora (glowmoss
+ * and ash spires), and region-seeded villages — villageCenterFor's grid
  * math plus the long house / farm plot / lamp post / well planters — plus
  * that the worldgen stays byte-deterministic with structures enabled.
  */
@@ -9,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Biome,
   createGenerator,
+  dungeonFor,
   SEA_LEVEL,
   tryCarveDungeon,
   tryPlantFarm,
@@ -242,6 +244,101 @@ describe('buried dungeon', () => {
     expect(ember).toBe(2);
     expect(crystal).toBeGreaterThanOrEqual(1); // dungeon crystal (+ any geode)
     expect(data).toEqual(createGenerator('voxelheim-test').generateChunk(5, 5));
+  });
+});
+
+describe('dungeonFor locator', () => {
+  const dseed = cyrb128('voxelheim-test dungeons')[0];
+
+  it('agrees with a real generated chunk: air at room A centre, brick below', () => {
+    // Chunk (5, 5) hosts a carved dungeon (pinned by the carver test above);
+    // dungeonFor must land on room A's interior centre, one above the brick.
+    const at = dungeonFor(dseed, 5, 5);
+    expect(at).toEqual({ x: 84, y: 34, z: 88 });
+    const data = createGenerator('voxelheim-test').generateChunk(5, 5);
+    const lx = 84 - 5 * CHUNK_SIZE;
+    const lz = 88 - 5 * CHUNK_SIZE;
+    expect(data[blockIndex(lx, 34, lz)]).toBe(Block.air); // interior floor cell
+    expect(data[blockIndex(lx, 33, lz)]).toBe(Block.brick); // brick floor below
+    expect(data[blockIndex(lx, 35, lz)]).toBe(Block.air); // headroom above
+  });
+
+  it('agrees for a second scanned host chunk', () => {
+    // Scanned: chunk (4, 6) of this seed also rolls and carves a dungeon.
+    const at = dungeonFor(dseed, 4, 6);
+    expect(at).not.toBeNull();
+    const data = createGenerator('voxelheim-test').generateChunk(4, 6);
+    const lx = at!.x - 4 * CHUNK_SIZE;
+    const lz = at!.z - 6 * CHUNK_SIZE;
+    expect(data[blockIndex(lx, at!.y, lz)]).toBe(Block.air);
+    expect(data[blockIndex(lx, at!.y - 1, lz)]).toBe(Block.brick);
+  });
+
+  it('returns null for a chunk that hosts no dungeon, and is pure', () => {
+    // Scanned: hash2(dseed, 0, 0) % DUNGEON_CHANCE = 28, so no dungeon.
+    expect(dungeonFor(dseed, 0, 0)).toBeNull();
+    expect(dungeonFor(dseed, 5, 5)).toEqual(dungeonFor(dseed, 5, 5)); // stateless
+  });
+
+  it('keeps the roll inside the buried floor band', () => {
+    for (let cz = -20; cz <= 20; cz++) {
+      for (let cx = -20; cx <= 20; cx++) {
+        const at = dungeonFor(dseed, cx, cz);
+        if (at === null) continue;
+        // Interior floor y sits one above a hash-picked y0 in [14, 34].
+        expect(at.y).toBeGreaterThanOrEqual(15);
+        expect(at.y).toBeLessThanOrEqual(35);
+        // Room A centre stays inside its own chunk.
+        expect(at.x - cx * CHUNK_SIZE).toBeGreaterThanOrEqual(0);
+        expect(at.x - cx * CHUNK_SIZE).toBeLessThan(CHUNK_SIZE);
+        expect(at.z - cz * CHUNK_SIZE).toBeGreaterThanOrEqual(0);
+        expect(at.z - cz * CHUNK_SIZE).toBeLessThan(CHUNK_SIZE);
+      }
+    }
+  });
+});
+
+describe('underworld flora', () => {
+  const SEED = 'voxelheim-test';
+
+  it('sprouts glowmoss and raises an ember-capped ash spire in a pinned chunk', () => {
+    // Pinned by scanning: chunk (0, -6) of this seed grows five glowmoss
+    // tufts and, at local column (5, 15), a full-height ash spire off the
+    // cavern floor at y=21 — ashstone shaft y22..26, emberrock cap at y27 —
+    // flaring a 2x2 base into the neighbour column (5, 14) over y22..24.
+    const data = createGenerator(SEED, 'underworld').generateChunk(0, -6);
+    let moss = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] === Block.glowmoss) moss++;
+    }
+    expect(moss).toBe(5);
+    expect(data[blockIndex(2, 7, 7)]).toBe(Block.glowmoss);
+    expect(data[blockIndex(5, 21, 15)]).toBe(Block.ashstone); // spire floor
+    for (let y = 22; y <= 26; y++) expect(data[blockIndex(5, y, 15)]).toBe(Block.ashstone); // shaft
+    expect(data[blockIndex(5, 27, 15)]).toBe(Block.emberrock); // glowing cap
+    for (let y = 22; y <= 24; y++) expect(data[blockIndex(5, y, 14)]).toBe(Block.ashstone); // base flare
+    // The decorated chunk regenerates byte-identically.
+    expect(data).toEqual(createGenerator(SEED, 'underworld').generateChunk(0, -6));
+  });
+
+  it('always seats glowmoss on ashstone with open air above', () => {
+    const gen = createGenerator(SEED, 'underworld');
+    let moss = 0;
+    for (let cz = -6; cz <= 6; cz += 3) {
+      for (let cx = -6; cx <= 6; cx += 3) {
+        const data = gen.generateChunk(cx, cz);
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] !== Block.glowmoss) continue;
+          moss++;
+          const x = i & 15;
+          const y = i >> 8;
+          const z = (i >> 4) & 15;
+          expect(data[blockIndex(x, y - 1, z)]).toBe(Block.ashstone);
+          expect(data[blockIndex(x, y + 1, z)]).toBe(Block.air);
+        }
+      }
+    }
+    expect(moss).toBeGreaterThan(0);
   });
 });
 

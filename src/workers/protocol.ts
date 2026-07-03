@@ -15,6 +15,10 @@ export interface GenJob {
 
 export interface MeshJob {
   kind: 'mesh';
+  /** World seed: the worker derives per-column biomes for foliage tinting. */
+  seed: string;
+  /** Biomes are overworld-only; underworld meshes stay untinted. */
+  dimension: Dimension;
   cx: number;
   cz: number;
   padded: Uint8Array;

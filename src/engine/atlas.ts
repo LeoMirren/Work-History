@@ -79,10 +79,11 @@ export const Tiles = {
   crack1: 63,
   crack2: 64,
   crack3: 65,
-  // Row 4 continues: ocean-life flora.
+  // Row 4 continues: ocean-life flora, then underworld flora.
   coralRose: 66,
   coralTeal: 67,
   seagrass: 68,
+  glowmoss: 69,
 } as const;
 
 type Rng = () => number;
@@ -981,6 +982,41 @@ const paintSeagrass: TilePainter = (set, rng) => {
   }
 };
 
+/**
+ * Glowmoss ground cover: clumpy teal-cyan moss patches hugging the lower half
+ * of a transparent tile, dotted with bright cyan speck highlights so the
+ * emissive cave light reads at a glance. Every opaque pixel keeps green and
+ * blue well above red, and well under half the tile is covered.
+ */
+const paintGlowmoss: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  const mossy = new Uint8Array(TILE_PX * TILE_PX);
+  for (let c = 0; c < 5; c++) {
+    const cx = 1 + rng() * 13;
+    const cy = 9 + rng() * 5; // clumps hug the tile floor
+    const r = 1.3 + rng() * 1.6;
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) {
+        if (Math.hypot(x - cx, (y - cy) * 1.35) >= r) continue;
+        const n = jitter(rng, 18);
+        set(x, y, 24 + n * 0.4, 148 + n, 130 + n * 0.9);
+        mossy[y * TILE_PX + x] = 1;
+      }
+    }
+  }
+  // Bright glowing specks, only ever on moss.
+  let placed = 0;
+  for (let tries = 0; tries < 48 && placed < 7; tries++) {
+    const x = Math.floor(rng() * TILE_PX);
+    const y = Math.floor(rng() * TILE_PX);
+    if (mossy[y * TILE_PX + x] !== 1) continue;
+    set(x, y, 168, 255, 236);
+    placed++;
+  }
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -1051,6 +1087,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.coralRose, 'coralRose', paintCoral(236, 92, 138)],
   [Tiles.coralTeal, 'coralTeal', paintCoral(56, 204, 194)],
   [Tiles.seagrass, 'seagrass', paintSeagrass],
+  [Tiles.glowmoss, 'glowmoss', paintGlowmoss],
 ];
 
 /**

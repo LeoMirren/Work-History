@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/world/blocks';
 import { blockIndex, createChunkData } from '../src/world/chunk';
-import { FACE_GRADE_RG, FACES, meshChunk, type MeshArrays } from '../src/world/mesher';
+import {
+  BIOME_TINT,
+  FACE_GRADE_RG,
+  FACES,
+  meshChunk,
+  type ChunkMeshData,
+  type MeshArrays,
+} from '../src/world/mesher';
 import { SNAP_VOLUME, snapIndex } from '../src/world/lighting';
-import { createGenerator } from '../src/world/worldgen';
+import { Biome, createGenerator } from '../src/world/worldgen';
 
 /** Snapshot with the chunk at center and air neighbors (floating island). */
 function padWithAir(data: Uint8Array): Uint8Array {
@@ -16,6 +23,35 @@ function padWithAir(data: Uint8Array): Uint8Array {
     }
   }
   return snapshot;
+}
+
+/** One 16×16 slab of `id` at y=10; its top faces sit on the y=11 plane. */
+function slab(id: number): Uint8Array {
+  const data = createChunkData();
+  for (let z = 0; z < 16; z++) {
+    for (let x = 0; x < 16; x++) data[blockIndex(x, 10, z)] = id;
+  }
+  return padWithAir(data);
+}
+
+/** Collect a color channel over every quad lying fully on plane y (slab tops). */
+function planeChannel(mesh: MeshArrays, planeY: number, channel: 0 | 1 | 2): number[] {
+  const out: number[] = [];
+  const { positions, colors } = mesh;
+  for (let v = 0; v < positions.length / 3; v += 4) {
+    let onPlane = true;
+    for (let c = 0; c < 4; c++) {
+      if (positions[(v + c) * 3 + 1] !== planeY) onPlane = false;
+    }
+    if (!onPlane) continue;
+    for (let c = 0; c < 4; c++) out.push(colors[(v + c) * 3 + channel] ?? -1);
+  }
+  return out;
+}
+
+/** 256-entry per-column biome array uniformly filled with one biome id. */
+function uniformBiomes(id: number): Uint8Array {
+  return new Uint8Array(16 * 16).fill(id);
 }
 
 describe('mesher', () => {
@@ -112,30 +148,6 @@ describe('mesher', () => {
 });
 
 describe('color grading & column jitter', () => {
-  /** One 16×16 slab of `id` at y=10; its top faces sit on the y=11 plane. */
-  function slab(id: number): Uint8Array {
-    const data = createChunkData();
-    for (let z = 0; z < 16; z++) {
-      for (let x = 0; x < 16; x++) data[blockIndex(x, 10, z)] = id;
-    }
-    return padWithAir(data);
-  }
-
-  /** Collect a color channel over every quad lying fully on plane y (slab tops). */
-  function planeChannel(mesh: MeshArrays, planeY: number, channel: 0 | 1 | 2): number[] {
-    const out: number[] = [];
-    const { positions, colors } = mesh;
-    for (let v = 0; v < positions.length / 3; v += 4) {
-      let onPlane = true;
-      for (let c = 0; c < 4; c++) {
-        if (positions[(v + c) * 3 + 1] !== planeY) onPlane = false;
-      }
-      if (!onPlane) continue;
-      for (let c = 0; c < 4; c++) out.push(colors[(v + c) * 3 + channel] ?? -1);
-    }
-    return out;
-  }
-
   it('is deterministic: identical inputs produce identical mesh bytes', () => {
     const generator = createGenerator('voxelheim-m1');
     const snap = padWithAir(generator.generateChunk(-2, 3)); // negative wx columns too
@@ -194,5 +206,92 @@ describe('color grading & column jitter', () => {
     expect(new Set(planeChannel(planks, 11, 0)).size).toBe(1); // no jitter class
     expect(new Set(planeChannel(planks, 11, 1)).size).toBe(1);
     expect(new Set(planeChannel(planks, 11, 2)).size).toBe(1);
+  });
+});
+
+describe('biome tinting', () => {
+  /** FNV-1a over raw bytes, chained across arrays. */
+  function fnv1a(bytes: Uint8Array, h: number): number {
+    for (let i = 0; i < bytes.length; i++) {
+      h ^= bytes[i]!;
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h;
+  }
+
+  /** One checksum over every array of every pass, in fixed order. */
+  function meshHash(mesh: ChunkMeshData): number {
+    let h = 0x811c9dc5;
+    for (const pass of [mesh.opaque, mesh.cutout, mesh.water]) {
+      if (!pass) continue;
+      for (const arr of [pass.positions, pass.uvs, pass.colors, pass.lights, pass.indices]) {
+        h = fnv1a(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength), h);
+      }
+    }
+    return h;
+  }
+
+  it('no-array call byte-matches the pre-biome mesher (pinned hash)', () => {
+    // Hash captured from the mesher BEFORE biome tinting existed: omitting
+    // the biome array must reproduce that output exactly, byte for byte.
+    const generator = createGenerator('voxelheim-m1');
+    const snap = padWithAir(generator.generateChunk(-2, 3));
+    expect(meshHash(meshChunk(snap, -2, 3))).toBe(0xb1baddd0);
+  });
+
+  it('jungle-tinted grass tops differ from snowy on identical geometry', () => {
+    const snap = slab(Block.grass);
+    const jungle = meshChunk(snap, 0, 0, uniformBiomes(Biome.jungle)).opaque!;
+    const snowy = meshChunk(snap, 0, 0, uniformBiomes(Biome.snowy)).opaque!;
+    // Same geometry and UVs — only the baked colors change.
+    expect(jungle.positions).toEqual(snowy.positions);
+    expect(jungle.uvs).toEqual(snowy.uvs);
+    expect(jungle.indices).toEqual(snowy.indices);
+    // Every top-face vertex differs by exactly the tint-table ratio.
+    for (const ch of [0, 1, 2] as const) {
+      const j = planeChannel(jungle, 11, ch);
+      const s = planeChannel(snowy, 11, ch);
+      expect(j.length).toBe(16 * 16 * 4);
+      const key = (['r', 'g', 'b'] as const)[ch];
+      const ratio = BIOME_TINT[Biome.jungle]!.foliage[key] / BIOME_TINT[Biome.snowy]!.foliage[key];
+      for (let i = 0; i < j.length; i++) expect(j[i]! / s[i]!).toBeCloseTo(ratio, 6);
+    }
+    // And the climates actually read differently (green channel apart).
+    expect(planeChannel(jungle, 11, 1)).not.toEqual(planeChannel(snowy, 11, 1));
+  });
+
+  it('tints grass tops but leaves the dirt underside biome-neutral', () => {
+    const snap = slab(Block.grass);
+    const plain = meshChunk(snap, 0, 0).opaque!;
+    const jungle = meshChunk(snap, 0, 0, uniformBiomes(Biome.jungle)).opaque!;
+    // Bottom faces (dirt underside, y=10 plane): untouched by the biome hue.
+    for (const ch of [0, 1, 2] as const) {
+      expect(planeChannel(jungle, 10, ch)).toEqual(planeChannel(plain, 10, ch));
+    }
+    // Tops (y=11 plane) carry the jungle hue.
+    expect(planeChannel(jungle, 11, 1)).not.toEqual(planeChannel(plain, 11, 1));
+  });
+
+  it('shifts water color per biome (jungle teal, snowy steel-blue)', () => {
+    const snap = slab(Block.water);
+    const plain = meshChunk(snap, 0, 0).water!;
+    const jungle = meshChunk(snap, 0, 0, uniformBiomes(Biome.jungle)).water!;
+    const snowy = meshChunk(snap, 0, 0, uniformBiomes(Biome.snowy)).water!;
+    const bp = planeChannel(plain, 11, 2);
+    const bj = planeChannel(jungle, 11, 2);
+    const bs = planeChannel(snowy, 11, 2);
+    for (let i = 0; i < bp.length; i++) {
+      expect(bj[i]! / bp[i]!).toBeCloseTo(BIOME_TINT[Biome.jungle]!.water.b, 6);
+      expect(bs[i]! / bp[i]!).toBeCloseTo(BIOME_TINT[Biome.snowy]!.water.b, 6);
+    }
+    // Snowy leans cooler (more blue) than jungle's warm teal.
+    expect(BIOME_TINT[Biome.snowy]!.water.b).toBeGreaterThan(BIOME_TINT[Biome.jungle]!.water.b);
+  });
+
+  it('never tints non-foliage blocks, whatever the biome array says', () => {
+    const snap = slab(Block.stone);
+    const plain = meshChunk(snap, 0, 0).opaque!;
+    const jungle = meshChunk(snap, 0, 0, uniformBiomes(Biome.jungle)).opaque!;
+    expect(jungle.colors).toEqual(plain.colors);
   });
 });

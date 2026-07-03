@@ -25,6 +25,7 @@ import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { FishSystem } from '../entities/fish';
 import { VILLAGER_HALF_WIDTH, VILLAGER_HEIGHT, type Villager, type VillagerSystem } from '../entities/villagers';
+import { GUARDIAN_HALF_WIDTH, GUARDIAN_HEIGHT, type GuardianSystem } from '../entities/guardians';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
 import type { World } from '../world/world';
@@ -162,6 +163,8 @@ export class Interaction {
   fish: FishSystem | null = null;
   /** Village wardens (bound by main; right-click barters, punches startle). */
   villagers: VillagerSystem | null = null;
+  /** Dungeon guardians (bound by main; fought like hostiles, drop loot). */
+  guardians: GuardianSystem | null = null;
   /** Right-click on a warden: main opens the barter screen. */
   onTradeVillager: ((villager: Villager) => void) | null = null;
   /** Edit notification hook (block-tap audio). */
@@ -257,29 +260,46 @@ export class Interaction {
     // outline the creature instead of the block.
     const animalAim = this.animals?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
     const hostileAim = this.hostiles?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
-    const aimHostile = hostileAim !== null && (animalAim === null || hostileAim.distance <= animalAim.distance);
-    const aimDist = aimHostile ? hostileAim?.distance : animalAim?.distance;
-    const entityAimed = aimDist !== undefined && (!this.hasTarget || aimDist < this.hit.distance);
+    // Nearest creature along the ray (outline + hint); hostiles win ties.
+    const guardianAim = this.guardians?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
+    let aimBody: { x: number; y: number; z: number } | null = null;
+    let aimHalf = 0;
+    let aimHeight = 0;
+    let aimDist = Infinity;
+    if (hostileAim) {
+      aimBody = hostileAim.stalker.body;
+      aimHalf = STALKER_HALF_WIDTH;
+      aimHeight = STALKER_HEIGHT;
+      aimDist = hostileAim.distance;
+    }
+    if (guardianAim && guardianAim.distance < aimDist) {
+      aimBody = guardianAim.guardian.body;
+      aimHalf = GUARDIAN_HALF_WIDTH;
+      aimHeight = GUARDIAN_HEIGHT;
+      aimDist = guardianAim.distance;
+    }
+    if (animalAim && animalAim.distance < aimDist) {
+      aimBody = animalAim.animal.body;
+      aimHalf = ANIMAL_HALF_WIDTH;
+      aimHeight = ANIMAL_HEIGHT;
+      aimDist = animalAim.distance;
+    }
+    const entityAimed = aimBody !== null && (!this.hasTarget || aimDist < this.hit.distance);
     // Village wardens win the crosshair only when strictly nearest.
     const villagerAim = this.villagers?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
     const villagerAimed =
       villagerAim !== null &&
-      (aimDist === undefined || villagerAim.distance < aimDist) &&
+      villagerAim.distance < aimDist &&
       (!this.hasTarget || villagerAim.distance < this.hit.distance);
     if (villagerAimed && villagerAim) {
       const b = villagerAim.villager.body;
       this.entityOutline.visible = true;
       this.entityOutline.position.set(b.x, b.y + VILLAGER_HEIGHT / 2, b.z);
       this.entityOutline.scale.set(VILLAGER_HALF_WIDTH * 2 + 0.08, VILLAGER_HEIGHT + 0.08, VILLAGER_HALF_WIDTH * 2 + 0.08);
-    } else if (entityAimed) {
-      const aimBody = aimHostile && hostileAim ? hostileAim.stalker.body : animalAim?.animal.body;
-      const hw = aimHostile ? STALKER_HALF_WIDTH : ANIMAL_HALF_WIDTH;
-      const h = aimHostile ? STALKER_HEIGHT : ANIMAL_HEIGHT;
-      if (aimBody) {
-        this.entityOutline.visible = true;
-        this.entityOutline.position.set(aimBody.x, aimBody.y + h / 2, aimBody.z);
-        this.entityOutline.scale.set(hw * 2 + 0.08, h + 0.08, hw * 2 + 0.08);
-      }
+    } else if (entityAimed && aimBody) {
+      this.entityOutline.visible = true;
+      this.entityOutline.position.set(aimBody.x, aimBody.y + aimHeight / 2, aimBody.z);
+      this.entityOutline.scale.set(aimHalf * 2 + 0.08, aimHeight + 0.08, aimHalf * 2 + 0.08);
     } else {
       this.entityOutline.visible = false;
     }
@@ -415,13 +435,18 @@ export class Interaction {
     const hostileHit = this.hostiles?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const fishHit = this.fish?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const villagerHit = this.villagers?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    const guardianHit = this.guardians?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     // Nearest wins; hostiles break distance ties (they're the danger), and
     // wardens are last so a fight never startles one by accident.
     let dist = Infinity;
-    let kind: 'hostile' | 'animal' | 'fish' | 'villager' | null = null;
+    let kind: 'hostile' | 'guardian' | 'animal' | 'fish' | 'villager' | null = null;
     if (hostileHit && hostileHit.distance < dist) {
       dist = hostileHit.distance;
       kind = 'hostile';
+    }
+    if (guardianHit && guardianHit.distance < dist) {
+      dist = guardianHit.distance;
+      kind = 'guardian';
     }
     if (animalHit && animalHit.distance < dist) {
       dist = animalHit.distance;
@@ -439,6 +464,12 @@ export class Interaction {
     if (this.hasTarget && this.hit.distance < dist) return false;
     if (kind === 'hostile' && hostileHit) {
       this.hostiles?.hurt(hostileHit.stalker, dx, dz);
+    } else if (kind === 'guardian' && guardianHit) {
+      const loot = this.guardians?.hurt(guardianHit.guardian, dx, dz) ?? null;
+      if (loot && inventory) {
+        const b = guardianHit.guardian.body;
+        this.award(inventory, loot.id, loot.count, b.x, b.y + 0.6, b.z);
+      }
     } else if (kind === 'animal' && animalHit) {
       const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
       if (drops && inventory) {

@@ -103,6 +103,22 @@ describe('atlas generation', () => {
     expect(c3).toBeGreaterThan(c2);
   });
 
+  it('draws glowmoss mostly transparent with teal opaque pixels', () => {
+    const px = generateAtlasPixels('s');
+    const moss = tilePixels(px, Tiles.glowmoss);
+    let opaque = 0;
+    for (let i = 0; i < moss.length; i += 4) {
+      if ((moss[i + 3] ?? 0) === 0) continue;
+      expect(moss[i + 3]).toBe(255);
+      opaque++;
+      // Teal-cyan: green and blue clearly dominate red on every moss pixel.
+      expect(moss[i + 1] ?? 0).toBeGreaterThan(moss[i] ?? 0);
+      expect(moss[i + 2] ?? 0).toBeGreaterThan(moss[i] ?? 0);
+    }
+    expect(opaque).toBeGreaterThan(0);
+    expect(opaque).toBeLessThan((TILE_PX * TILE_PX) / 2); // mostly transparent
+  });
+
   it('stays deterministic after the shading post-pass', () => {
     const a = generateAtlasPixels('post-pass-seed');
     const b = generateAtlasPixels('post-pass-seed');

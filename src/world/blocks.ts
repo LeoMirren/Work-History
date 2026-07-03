@@ -40,6 +40,7 @@ export const Block = {
   coralRose: 32,
   coralTeal: 33,
   seagrass: 34,
+  glowmoss: 35,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -106,6 +107,8 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.coralRose, name: 'coralRose', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.6, tiles: tiles(T.coralRose) },
   { id: Block.coralTeal, name: 'coralTeal', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 0.6, tiles: tiles(T.coralTeal) },
   { id: Block.seagrass, name: 'seagrass', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.seagrass) },
+  // Underworld flora: walk-through cave-floor moss that glows soft teal.
+  { id: Block.glowmoss, name: 'glowmoss', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.glowmoss) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -131,6 +134,7 @@ LIGHT_EMIT[Block.torch] = 12; // cheaper, dimmer early-game light
 LIGHT_EMIT[Block.emberrock] = 10;
 LIGHT_EMIT[Block.crystal] = 7;
 LIGHT_EMIT[Block.coralTeal] = 4; // faint glow so shallow reefs shimmer at night
+LIGHT_EMIT[Block.glowmoss] = 8; // soft teal light for underworld cavern floors
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

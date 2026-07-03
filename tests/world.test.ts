@@ -17,16 +17,32 @@ class SyncJobPool implements JobPool {
   readonly hasIdle = true;
   private readonly generators = new Map<string, Generator>();
 
+  private generatorFor(seed: string, dimension: 'overworld' | 'underworld'): Generator {
+    let gen = this.generators.get(`${seed}|${dimension}`);
+    if (!gen) {
+      gen = createGenerator(seed, dimension);
+      this.generators.set(`${seed}|${dimension}`, gen);
+    }
+    return gen;
+  }
+
   submit(job: WorkerJob, _transfer: ArrayBuffer[], onDone: ResponseHandler): void {
     if (job.kind === 'gen') {
-      let gen = this.generators.get(`${job.seed}|${job.dimension}`);
-      if (!gen) {
-        gen = createGenerator(job.seed, job.dimension);
-        this.generators.set(`${job.seed}|${job.dimension}`, gen);
-      }
+      const gen = this.generatorFor(job.seed, job.dimension);
       onDone({ id: 0, kind: 'gen', cx: job.cx, cz: job.cz, data: gen.generateChunk(job.cx, job.cz) });
     } else {
-      onDone({ id: 0, kind: 'mesh', cx: job.cx, cz: job.cz, mesh: meshChunk(job.padded, job.cx, job.cz) });
+      // Mirror the real worker: per-column biomes for the mesher's tinting.
+      let biomes: Uint8Array | undefined;
+      if (job.dimension === 'overworld') {
+        const biomeAt = this.generatorFor(job.seed, job.dimension).biomeAt;
+        biomes = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+        for (let z = 0; z < CHUNK_SIZE; z++) {
+          for (let x = 0; x < CHUNK_SIZE; x++) {
+            biomes[z * CHUNK_SIZE + x] = biomeAt(job.cx * CHUNK_SIZE + x, job.cz * CHUNK_SIZE + z);
+          }
+        }
+      }
+      onDone({ id: 0, kind: 'mesh', cx: job.cx, cz: job.cz, mesh: meshChunk(job.padded, job.cx, job.cz, biomes) });
     }
   }
 }
@@ -207,6 +223,36 @@ describe('world edits', () => {
     const y = surfaceY(world, 8, 8);
     expect(world.setBlock(8, y, 8, Block.air)).toBe(true);
     expect(world.getBlock(8, y, 8)).toBe(Block.air);
+  });
+
+  it('tints identically on the worker and sync remesh paths (same seed)', () => {
+    const { world } = makeWorld();
+    settle(world, 8, 8);
+    // Worker-shaped biome array: fresh generator from (seed, dimension),
+    // biomeAt per column — exactly what src/workers/worker.ts builds.
+    const gen = createGenerator('sync-test', 'overworld');
+    const workerBiomes = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        workerBiomes[z * CHUNK_SIZE + x] = gen.biomeAt(x, z);
+      }
+    }
+    // Sync-shaped array: the World's lazily-cached biomeAt (remeshNow path).
+    const syncBiomes = world.columnBiomes(0, 0);
+    expect(syncBiomes).toEqual(workerBiomes);
+
+    // And the meshes built from each are byte-identical.
+    const padded = world.buildPaddedSnapshot(0, 0);
+    expect(padded).not.toBeNull();
+    const a = meshChunk(padded!, 0, 0, workerBiomes);
+    const b = meshChunk(new Uint8Array(padded!), 0, 0, syncBiomes);
+    for (const pass of ['opaque', 'cutout', 'water'] as const) {
+      expect(a[pass] === null).toBe(b[pass] === null);
+      if (!a[pass] || !b[pass]) continue;
+      expect(a[pass].colors).toEqual(b[pass].colors);
+      expect(a[pass].positions).toEqual(b[pass].positions);
+      expect(a[pass].indices).toEqual(b[pass].indices);
+    }
   });
 
   it('injectChunk overrides data and invalidates dependents (persistence path)', () => {

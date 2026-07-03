@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { SOLID } from './blocks';
-import type { Dimension } from './worldgen';
+import { createGenerator, type Dimension } from './worldgen';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, chunkCoord, localCoord } from './chunk';
 import { meshChunk, type ChunkMeshData, type MeshArrays } from './mesher';
 import { SNAP_VOLUME, snapIndex } from './lighting';
@@ -108,6 +108,8 @@ export class World {
   private cachedRec: ChunkRecord | null = null;
   private readonly persistence: ChunkPersistence | null;
   private pendingLoads = 0;
+  /** Lazily-created biome sampler for sync remeshes (matches worker tinting). */
+  private biomeAtFn: ((wx: number, wz: number) => number) | null = null;
   /** Chunks edited since the last save flush. */
   private readonly dirtySet = new Set<ChunkRecord>();
 
@@ -185,7 +187,26 @@ export class World {
       this.scanNeeded = true;
       return;
     }
-    this.installMesh(rec, meshChunk(padded, rec.cx, rec.cz));
+    this.installMesh(rec, meshChunk(padded, rec.cx, rec.cz, this.columnBiomes(rec.cx, rec.cz)));
+  }
+
+  /**
+   * 256 per-column biome ids (z*16+x) for a chunk, built exactly like the
+   * mesh worker builds them (createGenerator(seed, dimension).biomeAt per
+   * column), so synchronously remeshed edits re-tint identically to
+   * worker-meshed chunks. Overworld only — the underworld has no biomes and
+   * returns undefined (untinted). Public so tests can pin the two paths equal.
+   */
+  columnBiomes(cx: number, cz: number): Uint8Array | undefined {
+    if (this.dimension !== 'overworld') return undefined;
+    if (!this.biomeAtFn) this.biomeAtFn = createGenerator(this.seed, this.dimension).biomeAt;
+    const biomes = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        biomes[z * CHUNK_SIZE + x] = this.biomeAtFn(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+      }
+    }
+    return biomes;
   }
 
   /**
@@ -425,16 +446,20 @@ export class World {
     if (!padded) return; // neighbor vanished; a later rescan will requeue
     const seq = rec.meshSeq;
     rec.meshPending = true;
-    this.pool.submit({ kind: 'mesh', cx: rec.cx, cz: rec.cz, padded }, [padded.buffer as ArrayBuffer], (res) => {
-      rec.meshPending = false;
-      if (res.kind !== 'mesh') return;
-      if (rec.meshSeq !== seq) {
-        this.scanNeeded = true; // edited while meshing: requeue
-        return;
-      }
-      if (this.chebyshev(rec) > this.renderDistance + UNLOAD_MARGIN) return;
-      this.uploadQueue.push({ rec, seq, mesh: res.mesh });
-    });
+    this.pool.submit(
+      { kind: 'mesh', seed: this.seed, dimension: this.dimension, cx: rec.cx, cz: rec.cz, padded },
+      [padded.buffer as ArrayBuffer],
+      (res) => {
+        rec.meshPending = false;
+        if (res.kind !== 'mesh') return;
+        if (rec.meshSeq !== seq) {
+          this.scanNeeded = true; // edited while meshing: requeue
+          return;
+        }
+        if (this.chebyshev(rec) > this.renderDistance + UNLOAD_MARGIN) return;
+        this.uploadQueue.push({ rec, seq, mesh: res.mesh });
+      },
+    );
   }
 
   /**
