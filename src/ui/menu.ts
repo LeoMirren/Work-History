@@ -77,7 +77,7 @@ export class Menus {
     const controls = document.createElement('p');
     controls.className = 'controls-hint';
     controls.textContent =
-      'WASD move · Space jump · Shift sneak · Ctrl sprint · F fly · LMB break · RMB place · 1-9 hotbar · F3 debug · Esc menu';
+      'WASD move · Space jump · Shift sneak · Ctrl sprint · F fly · LMB break · RMB place · trackpads: C mine, R place · 1-9 hotbar · Esc menu';
     titlePanel.append(h1, tagline, seedRow, modeRow, playButton, controls);
     this.title.appendChild(titlePanel);
     parent.appendChild(this.title);
