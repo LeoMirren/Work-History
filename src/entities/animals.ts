@@ -28,6 +28,7 @@ import {
 } from '../player/physics';
 import type { WorldView } from '../player/controller';
 import { Biome } from '../world/worldgen';
+import { hideMaterial } from './skins';
 
 export type BiomeFn = (wx: number, wz: number) => number;
 
@@ -245,9 +246,9 @@ function makeAnimalMesh(
 } {
   const def = SPECIES[species];
   const mats: THREE.MeshLambertMaterial[] = [];
-  /** Per-animal Lambert clone, registered so the hurt flash tints it. */
+  /** Per-animal furred Lambert clone, registered so the hurt flash tints it. */
   const mat = (color: THREE.Color | number): THREE.MeshLambertMaterial => {
-    const m = new THREE.MeshLambertMaterial({ color });
+    const m = hideMaterial(color, 'fur');
     mats.push(m);
     return m;
   };

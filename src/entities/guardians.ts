@@ -23,6 +23,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
+import { hideMaterial } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const GUARDIAN_HALF_WIDTH = 0.42;
@@ -111,9 +112,9 @@ function makeGuardianMesh(): {
   limbs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
-  const hideMat = new THREE.MeshLambertMaterial({ color: 0x73737b }); // ashstone hide
-  const limbMat = new THREE.MeshLambertMaterial({ color: 0x53545c }); // darker limbs
-  const fistMat = new THREE.MeshLambertMaterial({ color: 0x8b8c92 }); // stone knuckles
+  const hideMat = hideMaterial(0x73737b, 'stone'); // ashstone hide
+  const limbMat = hideMaterial(0x53545c, 'stone'); // darker limbs
+  const fistMat = hideMaterial(0x8b8c92, 'stone'); // stone knuckles
   const group = new THREE.Group();
   group.name = 'entity';
 

@@ -24,6 +24,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
+import { hideMaterial } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const VILLAGER_HALF_WIDTH = 0.3;
@@ -127,9 +128,9 @@ function makeVillagerMesh(tunicColor: number, apron: boolean): {
   mats: THREE.MeshLambertMaterial[];
 } {
   const mats: THREE.MeshLambertMaterial[] = [];
-  /** Per-warden Lambert clone, registered so the startle flash tints it. */
+  /** Per-warden cloth-textured Lambert clone, registered for the startle flash. */
   const mat = (color: THREE.Color | number): THREE.MeshLambertMaterial => {
-    const m = new THREE.MeshLambertMaterial({ color });
+    const m = hideMaterial(color, 'cloth');
     mats.push(m);
     return m;
   };

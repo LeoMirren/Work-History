@@ -22,6 +22,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
+import { hideMaterial } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const FISH_HALF_WIDTH = 0.2;
@@ -134,8 +135,8 @@ function makeFishMesh(kind: FishKindId): {
   mats: THREE.MeshLambertMaterial[];
 } {
   const def = KINDS[kind];
-  const bodyMat = new THREE.MeshLambertMaterial({ color: def.bodyColor });
-  const finMat = new THREE.MeshLambertMaterial({ color: def.finColor });
+  const bodyMat = hideMaterial(def.bodyColor, 'scale');
+  const finMat = hideMaterial(def.finColor, 'scale');
   const group = new THREE.Group();
   group.name = 'entity';
   group.rotation.order = 'YXZ'; // yaw first, then the gentle swim pitch

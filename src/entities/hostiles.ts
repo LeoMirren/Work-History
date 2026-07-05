@@ -17,6 +17,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
+import { hideMaterial } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const STALKER_HALF_WIDTH = 0.3;
@@ -112,9 +113,9 @@ function makeStalkerMesh(ranged: boolean): {
   limbs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
-  const torsoMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x2f3a2b : 0x2b2f3a });
-  const headMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x66a04a : 0x3a4150 });
-  const limbMat = new THREE.MeshLambertMaterial({ color: ranged ? 0x27301f : 0x232733 });
+  const torsoMat = hideMaterial(ranged ? 0x2f3a2b : 0x2b2f3a, 'hide');
+  const headMat = hideMaterial(ranged ? 0x66a04a : 0x3a4150, 'hide');
+  const limbMat = hideMaterial(ranged ? 0x27301f : 0x232733, 'hide');
   const group = new THREE.Group();
   group.name = 'entity';
 
