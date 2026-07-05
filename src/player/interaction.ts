@@ -327,26 +327,30 @@ export class Interaction {
       if (this.feedbackTimer <= 0) this.feedback = null;
     }
 
+    // Control scheme: EITHER mouse button breaks / attacks; the U key is the
+    // single "use" action — place a block, talk/barter, open a chest, use a
+    // bed or rift, eat, throw, farm, fill a bucket.
     input.takeClicks(this.clicks);
+    const use = input.takePressed('KeyU');
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
-      for (const button of this.clicks) {
-        if (button === 0) {
-          this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
-        } else if (button === 2) {
-          if (this.tryTradeVillager(body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
-          if (this.tryActivateRift(world)) continue;
-          if (this.tryUseBed(world)) continue;
-          if (this.tryOpenContainer(world)) continue;
-          if (this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
-          if (this.tryFarm(world, hotbar)) continue;
-          if (this.tryEat(player, hotbar)) continue;
-          if (this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)) continue;
-          if (!this.hasTarget) {
-            this.setFeedback(FEEDBACK_TOO_FAR);
-            continue;
-          }
-          this.trySurvivalPlace(world, body, hotbar);
+      // Every queued click swings at the aimed entity (blocks mine via hold).
+      for (let c = 0; c < this.clicks.length; c++) {
+        this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, hotbar.inventory);
+      }
+      if (use) {
+        if (
+          !this.tryTradeVillager(body.x, eyeY, body.z, dirX, dirY, dirZ) &&
+          !this.tryActivateRift(world) &&
+          !this.tryUseBed(world) &&
+          !this.tryOpenContainer(world) &&
+          !this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
+          !this.tryFarm(world, hotbar) &&
+          !this.tryEat(player, hotbar) &&
+          !this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)
+        ) {
+          if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
+          else this.setFeedback(FEEDBACK_TOO_FAR);
         }
       }
     } else {
@@ -354,19 +358,14 @@ export class Interaction {
       // survival break-in-progress so the crack overlay can't linger across
       // a mode switch.
       this.resetBreaking();
-      for (const button of this.clicks) {
-        if (button === 0) {
-          if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
-          if (this.hasTarget) this.tryBreak(world);
-        } else if (button === 2) {
-          if (!this.hasTarget) {
-            this.setFeedback(FEEDBACK_TOO_FAR);
-            continue;
-          }
-          if (this.tryActivateRift(world)) continue;
-          if (this.tryUseBed(world)) continue;
-          if (this.tryOpenContainer(world)) continue;
-          this.tryPlace(world, body, hotbar.creativeBlock);
+      for (let c = 0; c < this.clicks.length; c++) {
+        if (this.tryPunchAnimal(body.x, eyeY, body.z, dirX, dirY, dirZ, null)) continue;
+        if (this.hasTarget) this.tryBreak(world);
+      }
+      if (use) {
+        if (!this.tryActivateRift(world) && !this.tryUseBed(world) && !this.tryOpenContainer(world)) {
+          if (this.hasTarget) this.tryPlace(world, body, hotbar.creativeBlock);
+          else this.setFeedback(FEEDBACK_TOO_FAR);
         }
       }
     }
@@ -645,7 +644,7 @@ export class Interaction {
     inventory: Inventory,
     hotbar: HotbarState,
   ): void {
-    if (!this.hasTarget || !input.isButtonDown(0)) {
+    if (!this.hasTarget || !input.anyBreakDown) {
       this.resetBreaking();
       return;
     }

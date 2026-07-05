@@ -65,12 +65,12 @@ const AUTOSAVE_INTERVAL_MS = 10_000;
 const UNDERWORLD_SKY = new THREE.Color(0x1a0d10);
 const SNOWY_BIOME = Biome.snowy;
 /** Quick-place bindings: schematic building relative to the facing. */
+// Quick-place: I/J/K/L horizontal, O up (U is the reserved "use" key).
 const BUILD_KEY_MAP: ReadonlyArray<readonly [string, BuildKey]> = [
   ['KeyI', 'front'],
   ['KeyJ', 'left'],
   ['KeyK', 'back'],
   ['KeyL', 'right'],
-  ['KeyU', 'down'],
   ['KeyO', 'up'],
 ];
 
@@ -875,12 +875,13 @@ async function boot(): Promise<void> {
           }
         }
         // First-person held item: mirror the selection, bob with movement,
-        // swing while mining / on right-click.
+        // swing while mining (either button) or using (U). isDown peeks
+        // without consuming U — interaction.update owns the press.
         const heldId = session.mode === 'survival' ? (inventory.slots[hud.selectedSlot]?.id ?? 0) : hud.selectedBlock;
         viewModel.setItem(heldId, session.atlasCanvas);
-        if (input.isButtonDown(2)) viewModel.swing();
+        if (input.isDown('KeyU')) viewModel.swing();
         const pb = player.body;
-        viewModel.update(frameDt, pb.onGround && Math.hypot(pb.vx, pb.vz) > 0.5, input.isButtonDown(0));
+        viewModel.update(frameDt, pb.onGround && Math.hypot(pb.vx, pb.vz) > 0.5, input.anyBreakDown);
         interaction.update(input, session.world, player, frameDt, hotbarState);
         // Click-failure feedback ('out of reach', …) outranks the aim hint.
         hud.setTargetHint(interaction.feedback ?? interaction.targetHint);
