@@ -70,6 +70,18 @@ export const RECIPES: readonly Recipe[] = [
   { name: 'torches', station: 'craft', output: Block.torch, outputCount: 4, inputs: [{ id: Item.coal, count: 1 }, { id: Item.stick, count: 1 }] },
   { name: 'hoe', station: 'craft', output: Item.hoe, outputCount: 1, inputs: [{ id: Block.planks, count: 2 }, { id: Item.stick, count: 2 }] },
   { name: 'bread', station: 'craft', output: Item.bread, outputCount: 1, inputs: [{ id: Item.grain, count: 3 }] },
+  // The deep-boss summon: an endgame-priced idol of gems, gold and crystal.
+  {
+    name: 'sovereign totem',
+    station: 'craft',
+    output: Item.sovereignTotem,
+    outputCount: 1,
+    inputs: [
+      { id: Item.gem, count: 6 },
+      { id: Item.goldIngot, count: 3 },
+      { id: Block.crystal, count: 1 },
+    ],
+  },
   {
     name: 'rift frame',
     station: 'craft',

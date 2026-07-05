@@ -44,6 +44,8 @@ import { ItemDrops } from './entities/drops';
 import { FishSystem } from './entities/fish';
 import { VillagerSystem } from './entities/villagers';
 import { GuardianSystem } from './entities/guardians';
+import { BossSystem } from './entities/boss';
+import { BossBar } from './ui/bossBar';
 import { ThrownProjectiles, type StrikeFn } from './entities/projectiles';
 import { applyTrade, offersFor } from './world/trades';
 import { cyrb128 } from './world/noise';
@@ -221,6 +223,9 @@ async function boot(): Promise<void> {
   };
   const projectiles = new ThrownProjectiles(gr.scene);
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
+  const boss = new BossSystem(gr.scene);
+  const bossBar = new BossBar(app);
+  interaction.onSummonBoss = (x, y, z) => boss.summon(x, y + 0.5, z);
   const cropGrowth = new CropGrowth();
   const particles = new BreakParticles(gr.scene);
   const viewModel = new ViewModel(gr.camera);
@@ -247,8 +252,16 @@ async function boot(): Promise<void> {
     tileColorCache.set(id, rgb);
     return rgb;
   }
-  /** Sweep a thrown-stone segment for a mob hit (hostiles first, then wildlife). */
+  /** Damage the boss along a ray; returns true if the boss took the hit. */
+  function strikeBoss(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number, damage: number): boolean {
+    const hit = boss.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
+    if (!hit) return false;
+    if (boss.hurt(hit.boss, damage, dx, dz)) signalGoal({ kind: 'kill', what: 'guardian' }); // king-slayer reuses the vault-breaker goal
+    return true;
+  }
+  /** Sweep a thrown-stone segment for a mob hit (boss, hostiles, then wildlife). */
   const strikeMob: StrikeFn = (ox, oy, oz, dx, dy, dz, maxDist) => {
+    if (strikeBoss(ox, oy, oz, dx, dy, dz, maxDist, 4)) return true;
     const h = hostiles.raycastNearest(ox, oy, oz, dx, dy, dz, maxDist);
     if (h) {
       if (hostiles.hurt(h.stalker, dx, dz)) signalGoal({ kind: 'kill', what: 'hostile' });
@@ -517,6 +530,8 @@ async function boot(): Promise<void> {
     );
     guardians.setWorld(mode === 'survival' ? entityWorld : null);
     interaction.guardians = guardians;
+    boss.clear(); // the King never survives a world/dimension switch
+    interaction.boss = boss;
     projectiles.clear();
     weather.clear();
     infoPanel.show();
@@ -719,6 +734,17 @@ async function boot(): Promise<void> {
           (dmg) => player.hurt(dmg),
         );
         guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
+        // The Sunken King fights in survival: summons stalker adds, showers loot.
+        boss.fixedUpdate(
+          dt,
+          session.world,
+          player.body.x,
+          player.body.y,
+          player.body.z,
+          (dmg) => player.hurt(dmg),
+          (ax, ay, az) => hostiles.spawnAt(ax, ay, az),
+          (id, count, lx, ly, lz) => itemDrops.spawn(id, count, lx, ly, lz),
+        );
       }
     },
     render(alpha, frameDt) {
@@ -769,6 +795,7 @@ async function boot(): Promise<void> {
       } else {
         weather.update(frameDt, player.body.x, player.body.y, player.body.z, 'clear');
       }
+      bossBar.update(boss.active, boss.name, boss.healthFraction);
       clouds.update(frameDt, player.body.x, player.body.z);
       // Damage feedback: flash on hp loss, steady vignette at low health.
       if (session?.mode === 'survival') {

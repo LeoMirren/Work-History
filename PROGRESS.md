@@ -336,3 +336,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Minimap: north-up terrain overview bottom-left with a rotating player arrow, 8-block redraw gating
 - [x] Held blocks render as a real mini 3D cube (per-face tiles + shading); trackpad controls (R = place/use, C = mine/attack)
 - [x] Round verified: 468 tests, strict tsc, clean build
+
+## Post-spec: The Sunken King (first great boss)
+
+- [x] Boss framework: BossSystem drives one great boss at a time with a top-screen boss bar (name + draining violet health), reusable by future bosses
+- [x] The Sunken King — a ~3.2-block crowned brute summoned deep underground (y<30) by a crafted Sovereign Totem (6 gem + 3 gold + 1 crystal); three escalating phases (chase & ground-slam → summons stalker adds → enraged faster/harder), telegraphed slam, knockback-resistant, dramatic shrinking death
+- [x] Weapon-scaled melee: the King's greataxe (kingsplitter) hits for 14, tools 6, fists 3; boss is melee- and thrown-stone-hittable with the aim outline
+- [x] Loot fountain on death: the sunken crown trophy + the kingsplitter apex greataxe (tier-7 mining) + a burst of 6-10 gems and 8-13 gold
+- [x] Original tiles for totem/greataxe/crown; recipe; usage hints; unstackable specials; pure phase/loot logic unit-tested
+- [x] Round verified: 477 tests, strict tsc, clean build, boots error-free in survival

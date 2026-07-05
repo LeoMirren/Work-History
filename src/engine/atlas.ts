@@ -91,6 +91,10 @@ export const Tiles = {
   wildgrass: 73,
   sunwisp: 74,
   duskbell: 75,
+  // Deep-boss summon totem and its reward tier.
+  sovereignTotem: 76,
+  kingsplitter: 77,
+  crown: 78,
 } as const;
 
 type Rng = () => number;
@@ -1172,6 +1176,74 @@ function paintFlower(pr: number, pg: number, pb: number, cr: number, cg: number,
   };
 }
 
+/** A carved stone idol on a transparent tile: a totem face with a violet gem. */
+const paintSovereignTotem: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // A tapered stone pillar.
+  for (let y = 1; y <= 14; y++) {
+    const inset = y < 3 ? 4 : y > 12 ? 5 : 3;
+    for (let x = inset; x < TILE_PX - inset; x++) {
+      const n = jitter(rng, 18);
+      set(x, y, 92 + n, 88 + n, 98 + n); // violet-grey stone
+    }
+  }
+  // Carved eyes + mouth (dark) and a violet gem in the brow.
+  for (const [ex, ey] of [[6, 6], [9, 6], [6, 10], [9, 10]] as const) set(ex, ey, 30, 26, 34);
+  for (let x = 6; x <= 9; x++) set(x, 12, 34, 28, 38);
+  set(7, 3, 150, 96, 220);
+  set(8, 3, 168, 110, 236);
+};
+
+/** A greataxe: long dark haft crowned by a broad violet-edged axe head. */
+const paintKingsplitter: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Haft from bottom-left to upper area.
+  for (let i = 2; i <= 13; i++) {
+    const n = jitter(rng, 10);
+    set(i, 15 - i, 96 + n, 72 + n * 0.7, 44 + n * 0.5);
+    set(i + 1, 15 - i, 78 + n, 58 + n * 0.7, 36 + n * 0.5);
+  }
+  // Broad double-bit head near the top.
+  for (let y = 1; y <= 7; y++) {
+    for (let x = 8; x <= 14; x++) {
+      const edge = x >= 13 || x <= 8;
+      const n = jitter(rng, 16);
+      if (Math.abs(y - 4) + Math.abs(x - 11) > 6) continue;
+      set(x, y, (edge ? 150 : 70) + n, (edge ? 110 : 74) + n, (edge ? 220 : 86) + n); // violet edge, dark body
+    }
+  }
+};
+
+/** A golden crown with three gem-tipped points on a transparent tile. */
+const paintCrown: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Band.
+  for (let x = 3; x <= 12; x++) {
+    for (let y = 9; y <= 12; y++) {
+      const n = jitter(rng, 18);
+      set(x, y, 226 + n, 190 + n, 74 + n * 0.5);
+    }
+  }
+  // Three points rising from the band.
+  for (const px of [3, 7, 11]) {
+    for (let y = 5; y <= 9; y++) {
+      const n = jitter(rng, 16);
+      set(px, y, 232 + n, 198 + n, 82 + n * 0.5);
+      set(px + 1, y, 214 + n, 178 + n, 70 + n * 0.5);
+    }
+  }
+  // Gem tips.
+  set(3, 4, 150, 96, 220);
+  set(7, 4, 226, 90, 110);
+  set(11, 4, 96, 190, 224);
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -1249,6 +1321,9 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.wildgrass, 'wildgrass', paintWildgrass],
   [Tiles.sunwisp, 'sunwisp', paintFlower(238, 206, 64, 178, 118, 32)],
   [Tiles.duskbell, 'duskbell', paintFlower(104, 92, 208, 226, 232, 255)],
+  [Tiles.sovereignTotem, 'sovereignTotem', paintSovereignTotem],
+  [Tiles.kingsplitter, 'kingsplitter', paintKingsplitter],
+  [Tiles.crown, 'crown', paintCrown],
 ];
 
 /**

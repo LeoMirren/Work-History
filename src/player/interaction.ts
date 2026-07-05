@@ -16,7 +16,7 @@ import { Tiles, tileUVRect } from '../engine/atlas';
 import { Block, BREAKABLE, SOLID } from '../world/blocks';
 import { CHUNK_HEIGHT } from '../world/chunk';
 import { raycast, type RaycastHit } from '../world/raycast';
-import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, Item, useBucketOn } from '../world/items';
+import { bonusDropFor, breakSecondsFor, dropFor, foodValue, isBlockId, isFood, isThrowable, isToolId, Item, useBucketOn } from '../world/items';
 import { isCrop, plantResult, tillResult } from '../world/farming';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
@@ -25,6 +25,7 @@ import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { FishSystem } from '../entities/fish';
 import { VILLAGER_HALF_WIDTH, VILLAGER_HEIGHT, type Villager, type VillagerSystem } from '../entities/villagers';
+import { BOSS_HALF_WIDTH, BOSS_HEIGHT, BOSS_SUMMON_MAX_Y, type BossSystem } from '../entities/boss';
 import { GUARDIAN_HALF_WIDTH, GUARDIAN_HEIGHT, type GuardianSystem } from '../entities/guardians';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
@@ -66,6 +67,7 @@ const HINT_BARTER = 'right-click: barter';
 const FEEDBACK_TOO_FAR = 'out of reach — get closer to a surface';
 const FEEDBACK_BLOCKED = "can't place there — aim at a face beside open space";
 const FEEDBACK_EMPTY = 'select a block in the hotbar (1-9)';
+const FEEDBACK_TOTEM_SHALLOW = 'the totem only wakes the King in the deep dark (y<30)';
 
 /**
  * Crack stage shown for a hold-to-break progress value: quarters of the 0..1
@@ -165,8 +167,14 @@ export class Interaction {
   villagers: VillagerSystem | null = null;
   /** Dungeon guardians (bound by main; fought like hostiles, drop loot). */
   guardians: GuardianSystem | null = null;
+  /** The great boss (bound by main; melee-hittable with weapon-scaled damage). */
+  boss: BossSystem | null = null;
+  /** Held-item melee damage for this frame (set in update from the selection). */
+  private currentMeleeDamage = 3;
   /** Right-click on a warden: main opens the barter screen. */
   onTradeVillager: ((villager: Villager) => void) | null = null;
+  /** Use a Sovereign Totem deep underground: summon the boss at (x,y,z). Returns true if it summoned. */
+  onSummonBoss: ((x: number, y: number, z: number) => boolean) | null = null;
   /** A hostile or guardian died to the player's melee (goal tracking). */
   onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
   /** A fish was caught by melee (goal tracking). */
@@ -282,6 +290,13 @@ export class Interaction {
       aimHeight = GUARDIAN_HEIGHT;
       aimDist = guardianAim.distance;
     }
+    const bossAim = this.boss?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
+    if (bossAim && bossAim.distance < aimDist) {
+      aimBody = bossAim.boss.body;
+      aimHalf = BOSS_HALF_WIDTH;
+      aimHeight = BOSS_HEIGHT;
+      aimDist = bossAim.distance;
+    }
     if (animalAim && animalAim.distance < aimDist) {
       aimBody = animalAim.animal.body;
       aimHalf = ANIMAL_HALF_WIDTH;
@@ -332,6 +347,9 @@ export class Interaction {
     // bed or rift, eat, throw, farm, fill a bucket.
     input.takeClicks(this.clicks);
     const use = input.takePressed('KeyU');
+    // Weapon-scaled melee: the King's greataxe hits hardest, tools middling.
+    const held = this.heldId(hotbar);
+    this.currentMeleeDamage = held === Item.kingsplitter ? 14 : isToolId(held) ? 6 : 3;
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
       // Every queued click swings at the aimed entity (blocks mine via hold).
@@ -347,7 +365,8 @@ export class Interaction {
           !this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.tryFarm(world, hotbar) &&
           !this.tryEat(player, hotbar) &&
-          !this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ)
+          !this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
+          !this.trySummonTotem(player, hotbar)
         ) {
           if (this.hasTarget) this.trySurvivalPlace(world, body, hotbar);
           else this.setFeedback(FEEDBACK_TOO_FAR);
@@ -439,10 +458,15 @@ export class Interaction {
     const fishHit = this.fish?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const villagerHit = this.villagers?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
     const guardianHit = this.guardians?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
-    // Nearest wins; hostiles break distance ties (they're the danger), and
-    // wardens are last so a fight never startles one by accident.
+    const bossHit = this.boss?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    // Nearest wins; the boss and hostiles break ties (they're the danger),
+    // and wardens are last so a fight never startles one by accident.
     let dist = Infinity;
-    let kind: 'hostile' | 'guardian' | 'animal' | 'fish' | 'villager' | null = null;
+    let kind: 'boss' | 'hostile' | 'guardian' | 'animal' | 'fish' | 'villager' | null = null;
+    if (bossHit && bossHit.distance < dist) {
+      dist = bossHit.distance;
+      kind = 'boss';
+    }
     if (hostileHit && hostileHit.distance < dist) {
       dist = hostileHit.distance;
       kind = 'hostile';
@@ -465,7 +489,9 @@ export class Interaction {
     }
     if (kind === null) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
-    if (kind === 'hostile' && hostileHit) {
+    if (kind === 'boss' && bossHit) {
+      if (this.boss?.hurt(bossHit.boss, this.currentMeleeDamage, dx, dz)) this.onKill?.('guardian');
+    } else if (kind === 'hostile' && hostileHit) {
       if (this.hostiles?.hurt(hostileHit.stalker, dx, dz)) this.onKill?.('hostile');
     } else if (kind === 'guardian' && guardianHit) {
       const loot = this.guardians?.hurt(guardianHit.guardian, dx, dz) ?? null;
@@ -538,6 +564,21 @@ export class Interaction {
     if (!inventory.consumeOne(hotbar.slot)) return false;
     player.eat(foodValue(stack.id));
     this.onEdit?.('place', stack.id);
+    return true;
+  }
+
+  /** Use a Sovereign Totem: summon the boss when deep enough, consuming it. */
+  private trySummonTotem(player: PlayerController, hotbar: HotbarState): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || stack.id !== Item.sovereignTotem || !this.onSummonBoss) return false;
+    if (player.body.y >= BOSS_SUMMON_MAX_Y) {
+      this.setFeedback(FEEDBACK_TOTEM_SHALLOW);
+      return true; // consumed the click (don't fall through to placing)
+    }
+    if (!this.onSummonBoss(player.body.x, player.body.y, player.body.z)) return true;
+    inventory.consumeOne(hotbar.slot);
+    this.onEdit?.('place', Item.sovereignTotem);
     return true;
   }
 

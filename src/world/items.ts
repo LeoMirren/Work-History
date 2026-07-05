@@ -33,6 +33,10 @@ export const Item = {
   grain: 123,
   bread: 124,
   hoe: 125,
+  // Deep-boss summon and its reward tier.
+  sovereignTotem: 126,
+  kingsplitter: 127, // the Sunken King's greataxe: apex melee weapon
+  crown: 128, // trophy of the fallen king
 } as const;
 
 /**
@@ -110,6 +114,7 @@ const PICKAXES = new Set<number>([
   Item.ironPickaxe,
   Item.goldPickaxe,
   Item.gemPickaxe,
+  Item.kingsplitter, // the king's greataxe also mines at the apex tier
 ]);
 
 export function isBlockId(id: number): boolean {
@@ -120,7 +125,7 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
-const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe]);
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown]);
 
 export function stackLimit(id: number): number {
   return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
@@ -153,6 +158,9 @@ const ITEM_TILE: Record<number, number> = {
   [Item.grain]: Tiles.grain,
   [Item.bread]: Tiles.bread,
   [Item.hoe]: Tiles.hoe,
+  [Item.sovereignTotem]: Tiles.sovereignTotem,
+  [Item.kingsplitter]: Tiles.kingsplitter,
+  [Item.crown]: Tiles.crown,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -188,6 +196,9 @@ const ITEM_NAME: Record<number, string> = {
   [Item.grain]: 'grain',
   [Item.bread]: 'bread',
   [Item.hoe]: 'hoe',
+  [Item.sovereignTotem]: 'sovereign totem',
+  [Item.kingsplitter]: 'kingsplitter greataxe',
+  [Item.crown]: 'sunken crown',
 };
 
 export function itemName(id: number): string {
@@ -207,8 +218,10 @@ export function usageHintFor(id: number): string {
   if (id === Item.bucket) return 'right-click water: scoop it up';
   if (id === Item.waterBucket) return 'right-click: pour the water out';
   if (isThrowable(id)) return 'right-click: throw';
+  if (id === Item.sovereignTotem) return 'U deep underground (y<30): summon the Sunken King';
+  if (id === Item.crown) return 'a trophy of the fallen king';
   if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
-  if (isToolId(id)) return 'hold left-click: mine — fast on stone and ore';
+  if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
   if (id === Block.riftframe) return 'right-click: place · right-click a placed frame: travel realms';
   if (id === Block.chest) return 'right-click: place · right-click a placed chest: store items';
@@ -231,13 +244,15 @@ export function pickaxeTier(heldId: number): number {
       return 5;
     case Item.gemPickaxe:
       return 6;
+    case Item.kingsplitter:
+      return 7; // apex: mines anything, instantly on soft stone
     default:
       return 0;
   }
 }
 
-/** Mining-speed multiplier by tier (gold is fast-but-soft; gem is the apex). */
-const TIER_SPEED = [1, 2, 4, 5, 6, 9, 12] as const;
+/** Mining-speed multiplier by tier (gold is fast-but-soft; king's axe is apex). */
+const TIER_SPEED = [1, 2, 4, 5, 6, 9, 12, 20] as const;
 const ORE_WRONG_TOOL_PENALTY = 5;
 
 interface OreInfo {
