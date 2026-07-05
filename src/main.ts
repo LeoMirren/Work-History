@@ -22,7 +22,7 @@ import { Interaction, type HotbarState } from './player/interaction';
 import { BuildKeys, buildTargetFor, type BuildKey } from './player/buildkeys';
 import { Inventory } from './player/inventory';
 import { ViewModel } from './player/viewmodel';
-import { armorReductionOf, iconTileFor } from './world/items';
+import { armorReductionOf, iconTileFor, isBlockId, stackLimit } from './world/items';
 import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { DamageOverlay } from './ui/damageOverlay';
@@ -324,10 +324,18 @@ async function boot(): Promise<void> {
   let settings: Settings = { ...DEFAULT_SETTINGS };
   const hotbarState: HotbarState = { creativeBlock: 0, inventory: null, slot: 0 };
   blockPicker.onPick = (id) => {
-    if (hud) hud.setCreativeSlot(hud.selectedSlot, id);
-    blockPicker.close();
-    pickerOpen = false;
-    input.requestLock();
+    if (isBlockId(id)) {
+      // Blocks load the hotbar slot and close the catalogue.
+      if (hud) hud.setCreativeSlot(hud.selectedSlot, id);
+      blockPicker.close();
+      pickerOpen = false;
+      input.requestLock();
+      return;
+    }
+    // Items drop a full stack into the (persistent) inventory; the catalogue
+    // stays open so you can stock up in one visit.
+    inventory.add(id, stackLimit(id));
+    audio.play('place', id);
   };
 
   /** Everything that flips with the game mode, shared by session start and the live toggle. */

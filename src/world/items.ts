@@ -100,6 +100,9 @@ export function foodValue(id: number): number {
 
 export const MAX_STACK = 64;
 
+/** Every obtainable item id, in registry order — the creative catalogue. */
+export const PICKER_ITEMS: readonly number[] = Object.values(Item);
+
 const PICKAXES = new Set<number>([
   Item.woodPickaxe,
   Item.stonePickaxe,

@@ -1149,3 +1149,20 @@ input[type='range']:focus-visible {
 .panel-label.key {
   white-space: nowrap;
 }
+
+/* Creative catalogue: scrollable body with per-section headers. */
+.picker-body {
+  max-height: 56vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker-section {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--amber, #e8b64c);
+  margin: 4px 0 0;
+}

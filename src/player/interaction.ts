@@ -682,7 +682,8 @@ export class Interaction {
   private tryBreak(world: World): void {
     const { bx, by, bz } = this.hit;
     const id = world.getBlock(bx, by, bz);
-    if (BREAKABLE[id] !== 1) return;
+    // Creative ignores the survival breakability gate — bedrock included.
+    if (id === Block.air || id === Block.water) return;
     world.setBlock(bx, by, bz, Block.air);
     this.popCropAbove(world, bx, by, bz, null);
     this.onEdit?.('break', id);
@@ -693,7 +694,8 @@ export class Interaction {
     const bx = this.hit.bx + this.hit.nx;
     const by = this.hit.by + this.hit.ny;
     const bz = this.hit.bz + this.hit.nz;
-    if (blockId <= 0) {
+    // Only real blocks may enter world data (item ids would corrupt chunks).
+    if (blockId <= 0 || !isBlockId(blockId)) {
       this.setFeedback(FEEDBACK_EMPTY);
       return;
     }
