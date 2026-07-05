@@ -1138,22 +1138,37 @@ function paintFlower(pr: number, pg: number, pb: number, cr: number, cg: number,
     for (let y = 0; y < TILE_PX; y++) {
       for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
     }
-    for (let y = 8; y <= 15; y++) {
-      const n = jitter(rng, 12);
-      set(7, y, 70 + n * 0.5, 124 + n, 50 + n * 0.5); // stem
+    // A slightly waving stem up the centre.
+    for (let y = 7; y <= 15; y++) {
+      const wob = y < 11 ? 0 : 1;
+      const n = jitter(rng, 10);
+      set(7 - wob, y, 66 + n * 0.5, 120 + n, 48 + n * 0.5);
     }
-    set(5, 11, 82, 138, 56); // leaf nub
-    set(6, 11, 90, 148, 60);
-    // Plus-shaped petal head.
-    for (const [px, py] of [
-      [7, 3], [6, 4], [8, 4], [5, 5], [9, 5], [6, 6], [8, 6], [7, 7],
+    // Two leaf blades off the stem.
+    for (const [lx, ly] of [
+      [5, 11], [4, 12], [9, 10], [10, 11],
     ] as const) {
-      const n = jitter(rng, 22);
-      set(px, py, pr + n, pg + n * 0.8, pb + n * 0.5);
+      const n = jitter(rng, 12);
+      set(lx, ly, 78 + n, 140 + n, 54 + n * 0.5);
     }
-    set(7, 5, cr, cg, cb); // core
-    set(7, 4, pr, pg, pb);
-    set(7, 6, pr, pg, pb);
+    // A round bloom: a ring of petals (darker rim) around a bright core,
+    // centred near the top of the stem — reads as a real flower head.
+    const cx = 7;
+    const cy = 4;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > 3.2) continue;
+        const n = jitter(rng, 20);
+        if (d > 2.0) {
+          set(cx + dx, cy + dy, pr * 0.8 + n, pg * 0.8 + n * 0.8, pb * 0.8 + n * 0.5); // petal rim
+        } else if (d > 1.0) {
+          set(cx + dx, cy + dy, pr + n, pg + n * 0.8, pb + n * 0.5); // petal body
+        } else {
+          set(cx + dx, cy + dy, cr + n * 0.5, cg + n * 0.5, cb + n * 0.5); // core
+        }
+      }
+    }
   };
 }
 

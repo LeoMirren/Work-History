@@ -95,6 +95,10 @@ function make(kind: 'opaque' | 'cutout' | 'water'): ChunkMaterial {
     material.transparent = true;
     material.depthWrite = false;
     material.side = THREE.DoubleSide;
+  } else if (kind === 'cutout') {
+    // Double-sided so plant cross-quads show from behind (and leaf/glass
+    // interiors read correctly when peered into).
+    material.side = THREE.DoubleSide;
   }
   return material;
 }

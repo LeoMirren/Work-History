@@ -135,6 +135,13 @@ export const BREAK_TIME = new Float32Array(256);
 /** Block-light emission 0-15 (lighting engine sources). */
 export const LIGHT_EMIT = new Uint8Array(256);
 export const FACE_TILES = new Int32Array(256 * 6);
+/**
+ * Plant billboards: walk-through cutout flora (crops, grass, flowers, moss,
+ * mushrooms, seagrass) render as two crossed quads instead of a cube shell,
+ * so they read as plants — not painted boxes. Exactly the cutout non-solid
+ * blocks; leaves and glass are cutout but SOLID (full cubes), so excluded.
+ */
+export const PLANT = new Uint8Array(256);
 
 for (const def of BLOCK_DEFS) {
   SOLID[def.id] = def.solid ? 1 : 0;
@@ -142,6 +149,7 @@ for (const def of BLOCK_DEFS) {
   PASS[def.id] = def.pass;
   BREAKABLE[def.id] = def.breakable ? 1 : 0;
   BREAK_TIME[def.id] = def.breakTime;
+  PLANT[def.id] = !def.solid && def.pass === PASS_CUTOUT ? 1 : 0;
   for (let f = 0; f < 6; f++) FACE_TILES[def.id * 6 + f] = def.tiles[f] ?? 0;
 }
 LIGHT_EMIT[Block.lantern] = 14;

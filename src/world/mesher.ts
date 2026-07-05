@@ -12,7 +12,7 @@
  *    at the vertex (the same cells AO samples). The shader combines them with
  *    the day/night brightness so lanterns keep glowing at night.
  */
-import { Block, FACE_TILES, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE } from './blocks';
+import { Block, FACE_TILES, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE, PLANT } from './blocks';
 import { CHUNK_HEIGHT, CHUNK_SIZE } from './chunk';
 import { computeLight, MAX_LIGHT, snapIndex } from './lighting';
 import { hash2 } from './noise';
@@ -314,6 +314,49 @@ class QuadSink {
     }
   }
 
+  /**
+   * One full-tile billboard quad from four explicit corners (plant cross),
+   * flat-lit by the plant's own cell — no AO, no face shade. UVs map the
+   * whole tile upright: bottom edge (corners 0,1) at v=0, top (2,3) at v=1.
+   * The cutout material is double-sided so a single quad shows from behind.
+   */
+  pushBillboard(
+    c0: readonly [number, number, number],
+    c1: readonly [number, number, number],
+    c2: readonly [number, number, number],
+    c3: readonly [number, number, number],
+    tile: number,
+    sky: number,
+    blk: number,
+  ): void {
+    const base = this.positions.length / 3;
+    const tu = (tile % ATLAS_TILES) / ATLAS_TILES;
+    const tv = (ATLAS_TILES - 1 - Math.floor(tile / ATLAS_TILES)) / ATLAS_TILES;
+    const step = 1 / ATLAS_TILES;
+    const corners = [c0, c1, c2, c3];
+    const cuv = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ] as const;
+    for (let c = 0; c < 4; c++) {
+      const p = corners[c] ?? c0;
+      const uv = cuv[c] ?? [0, 0];
+      this.positions.push(p[0], p[1], p[2]);
+      this.uvs.push(tu + (uv[0] ?? 0) * step, tv + (uv[1] ?? 0) * step);
+      this.colors.push(1, 1, 1);
+      this.lights.push(sky, blk);
+      if (p[0] < this.minX) this.minX = p[0];
+      if (p[1] < this.minY) this.minY = p[1];
+      if (p[2] < this.minZ) this.minZ = p[2];
+      if (p[0] > this.maxX) this.maxX = p[0];
+      if (p[1] > this.maxY) this.maxY = p[1];
+      if (p[2] > this.maxZ) this.maxZ = p[2];
+    }
+    this.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+
   toArrays(): MeshArrays | null {
     if (this.indices.length === 0) return null;
     return {
@@ -385,6 +428,25 @@ export function meshChunk(
         const sink = pass === PASS_OPAQUE ? opaque : pass === PASS_CUTOUT ? cutout : water;
         const wx = cx * CHUNK_SIZE + x;
         const wz = cz * CHUNK_SIZE + z;
+        // Plants render as two crossed billboards lit by their own cell.
+        if (PLANT[id] === 1) {
+          const li = snapIndex(sx, y, sz);
+          const sky = (light.sky[li] ?? 0) / MAX_LIGHT;
+          const blk = (light.block[li] ?? 0) / MAX_LIGHT;
+          const t = FACE_TILES[id * 6] ?? 0;
+          const lo = 0.15;
+          const hi = 0.85;
+          // Diagonal A: (lo,z=lo)→(hi,z=hi); Diagonal B: (lo,z=hi)→(hi,z=lo).
+          cutout.pushBillboard(
+            [x + lo, y, z + lo], [x + hi, y, z + hi], [x + hi, y + 1, z + hi], [x + lo, y + 1, z + lo],
+            t, sky, blk,
+          );
+          cutout.pushBillboard(
+            [x + lo, y, z + hi], [x + hi, y, z + lo], [x + hi, y + 1, z + lo], [x + lo, y + 1, z + hi],
+            t, sky, blk,
+          );
+          continue;
+        }
         for (let f = 0; f < 6; f++) {
           const face = FACES[f];
           if (!face) continue;
