@@ -41,6 +41,12 @@ export const Block = {
   coralTeal: 33,
   seagrass: 34,
   glowmoss: 35,
+  mossstone: 36,
+  glowbloom: 37,
+  cindercap: 38,
+  wildgrass: 39,
+  sunwisp: 40,
+  duskbell: 41,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -109,6 +115,15 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.seagrass, name: 'seagrass', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.seagrass) },
   // Underworld flora: walk-through cave-floor moss that glows soft teal.
   { id: Block.glowmoss, name: 'glowmoss', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.glowmoss) },
+  // Cave-biome décor: moss-veined stone floors plus walk-through glowing
+  // flora for the mossy hollows and cinder deeps underground zones.
+  { id: Block.mossstone, name: 'mossstone', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 2.0, tiles: tiles(T.mossstone) },
+  { id: Block.glowbloom, name: 'glowbloom', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.glowbloom) },
+  { id: Block.cindercap, name: 'cindercap', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.cindercap) },
+  // Surface flora: walk-through meadow tufts and two wildflower species.
+  { id: Block.wildgrass, name: 'wildgrass', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.wildgrass) },
+  { id: Block.sunwisp, name: 'sunwisp', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.sunwisp) },
+  { id: Block.duskbell, name: 'duskbell', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.duskbell) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -135,6 +150,8 @@ LIGHT_EMIT[Block.emberrock] = 10;
 LIGHT_EMIT[Block.crystal] = 7;
 LIGHT_EMIT[Block.coralTeal] = 4; // faint glow so shallow reefs shimmer at night
 LIGHT_EMIT[Block.glowmoss] = 8; // soft teal light for underworld cavern floors
+LIGHT_EMIT[Block.glowbloom] = 6; // warm chartreuse glow in the mossy hollows
+LIGHT_EMIT[Block.cindercap] = 4; // dim orange mushroom light in the cinder deeps
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

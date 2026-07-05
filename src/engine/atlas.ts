@@ -84,6 +84,13 @@ export const Tiles = {
   coralTeal: 67,
   seagrass: 68,
   glowmoss: 69,
+  // Cave-biome décor (mossy hollows / cinder deeps), then surface flora.
+  mossstone: 70,
+  glowbloom: 71,
+  cindercap: 72,
+  wildgrass: 73,
+  sunwisp: 74,
+  duskbell: 75,
 } as const;
 
 type Rng = () => number;
@@ -1017,6 +1024,139 @@ const paintGlowmoss: TilePainter = (set, rng) => {
   }
 };
 
+/**
+ * Mossstone: plain cave stone shot through with creeping green moss veins.
+ * Every pixel stays fully opaque, so the directional shading post-pass bakes
+ * its bevel into this tile exactly as it does for ordinary stone.
+ */
+const paintMossstone: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      let l = 118 + jitter(rng, 22);
+      if (rng() < 0.08) l -= 26;
+      set(x, y, l - 4, l, l - 2);
+    }
+  }
+  // Creeping moss veins wandering across the face.
+  for (let v = 0; v < 5; v++) {
+    let cx = 1 + Math.floor(rng() * 14);
+    let cy = 1 + Math.floor(rng() * 14);
+    const steps = 5 + Math.floor(rng() * 6);
+    for (let i = 0; i < steps; i++) {
+      const n = jitter(rng, 18);
+      set(cx, cy, 66 + n * 0.5, 142 + n, 60 + n * 0.5);
+      if (rng() < 0.4) set(Math.min(15, cx + 1), cy, 58 + n * 0.5, 126 + n, 54 + n * 0.5);
+      cx = Math.max(0, Math.min(15, cx + (rng() < 0.5 ? 1 : -1)));
+      cy = Math.max(0, Math.min(15, cy + (rng() < 0.5 ? 1 : -1)));
+    }
+  }
+};
+
+/**
+ * Glowbloom: a cave flower on a transparent tile — a slim stem rising from
+ * the tile base into a ring of warm chartreuse petals around a bright core,
+ * matching the block's soft light emission.
+ */
+const paintGlowbloom: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 7; y <= 15; y++) {
+    const n = jitter(rng, 12);
+    set(7, y, 74 + n * 0.5, 128 + n, 52 + n * 0.5); // stem
+    if (rng() < 0.35) set(8, y, 64 + n * 0.5, 112 + n, 46 + n * 0.5);
+  }
+  // Petal ring: warm chartreuse (green-leaning yellow) around the head.
+  for (const [px, py] of [
+    [6, 3], [7, 3], [8, 3],
+    [5, 4], [9, 4],
+    [5, 5], [9, 5],
+    [6, 6], [7, 6], [8, 6],
+  ] as const) {
+    const n = jitter(rng, 20);
+    set(px, py, 188 + n * 0.8, 232 + n, 72 + n * 0.4);
+  }
+  set(7, 4, 244, 255, 168); // glowing core
+  set(8, 4, 236, 252, 150);
+  set(7, 5, 236, 252, 150);
+};
+
+/**
+ * Cindercap: a squat cave mushroom on a transparent tile — a dark ashen
+ * stalk under a dim orange cap with faint ember flecks, matching the
+ * block's low light emission.
+ */
+const paintCindercap: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 9; y <= 15; y++) {
+    const n = jitter(rng, 12);
+    set(7, y, 56 + n * 0.5, 48 + n * 0.5, 46 + n * 0.5); // dark stalk
+    set(8, y, 48 + n * 0.5, 42 + n * 0.5, 40 + n * 0.5);
+  }
+  // Dim orange cap dome, widest just above the stalk.
+  for (let y = 5; y <= 8; y++) {
+    const half = y === 5 ? 2 : y === 6 ? 3 : 4;
+    for (let x = 8 - half; x <= 7 + half; x++) {
+      const n = jitter(rng, 16);
+      set(x, y, 176 + n, 92 + n * 0.6, 34 + n * 0.3);
+    }
+  }
+  set(6, 6, 232, 148, 62); // ember flecks on the cap
+  set(9, 7, 224, 138, 56);
+};
+
+/**
+ * Wildgrass: a meadow tuft on a transparent tile — several kinked green
+ * blades fanning up from the tile base, sparser and straighter than the
+ * swaying underwater seagrass so the two read differently.
+ */
+const paintWildgrass: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (const bx of [2, 4, 7, 9, 12, 14] as const) {
+    const top = 3 + Math.floor(rng() * 5);
+    const kinkY = 6 + Math.floor(rng() * 5);
+    const lean = rng() < 0.5 ? -1 : 1;
+    for (let y = TILE_PX - 1; y >= top; y--) {
+      const x = Math.max(0, Math.min(15, y < kinkY ? bx + lean : bx));
+      const n = jitter(rng, 18);
+      set(x, y, 84 + n * 0.7, 152 + n, 54 + n * 0.5);
+    }
+  }
+};
+
+/**
+ * A single wildflower on a transparent tile: a stem with a leaf nub and a
+ * plus-shaped petal head around a contrasting core. Shared silhouette for
+ * both meadow flower species; only the petal/core palette differs.
+ */
+function paintFlower(pr: number, pg: number, pb: number, cr: number, cg: number, cb: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    for (let y = 8; y <= 15; y++) {
+      const n = jitter(rng, 12);
+      set(7, y, 70 + n * 0.5, 124 + n, 50 + n * 0.5); // stem
+    }
+    set(5, 11, 82, 138, 56); // leaf nub
+    set(6, 11, 90, 148, 60);
+    // Plus-shaped petal head.
+    for (const [px, py] of [
+      [7, 3], [6, 4], [8, 4], [5, 5], [9, 5], [6, 6], [8, 6], [7, 7],
+    ] as const) {
+      const n = jitter(rng, 22);
+      set(px, py, pr + n, pg + n * 0.8, pb + n * 0.5);
+    }
+    set(7, 5, cr, cg, cb); // core
+    set(7, 4, pr, pg, pb);
+    set(7, 6, pr, pg, pb);
+  };
+}
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -1088,6 +1228,12 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.coralTeal, 'coralTeal', paintCoral(56, 204, 194)],
   [Tiles.seagrass, 'seagrass', paintSeagrass],
   [Tiles.glowmoss, 'glowmoss', paintGlowmoss],
+  [Tiles.mossstone, 'mossstone', paintMossstone],
+  [Tiles.glowbloom, 'glowbloom', paintGlowbloom],
+  [Tiles.cindercap, 'cindercap', paintCindercap],
+  [Tiles.wildgrass, 'wildgrass', paintWildgrass],
+  [Tiles.sunwisp, 'sunwisp', paintFlower(238, 206, 64, 178, 118, 32)],
+  [Tiles.duskbell, 'duskbell', paintFlower(104, 92, 208, 226, 232, 255)],
 ];
 
 /**
