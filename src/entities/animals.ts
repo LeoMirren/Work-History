@@ -1,12 +1,18 @@
 /**
- * Passive animals ("trundlers"): blocky critters that wander the grass near
- * the player, hop over obstacles, float in water, and can be hunted for meat.
- * Physics reuses the AABB sweep with entity dimensions; rendering is a small
- * per-species rig of Lambert boxes (torso/head/legs plus character details
- * like tails, ears, fleece, necks and horns). Not persisted — they respawn
- * around the player like ambient wildlife, in small same-species herds with
- * per-individual visual size variety. Slain animals play a brief shrinking
- * "death pop" before leaving the scene.
+ * Passive animals: blocky critters that wander the grass near the player,
+ * hop over obstacles, float in water, and can be hunted for meat. Physics
+ * reuses the AABB sweep with entity dimensions; rendering is a per-species
+ * rig of Lambert boxes (torso/head/legs plus character details like tails,
+ * ears, horns, antler racks, fleece and necks), finished with 2-4 patch
+ * markings rolled per individual so herd-mates aren't clones. Six species
+ * cover the biomes: trundlers and woollies share temperate ground, striders
+ * roam deserts, hoppers the jungles, bramblehorn stags the forests and
+ * dustpuffs the savanna. Idle animals sometimes graze head-down, tails wag
+ * on the move, legs pace with actual ground speed, and hurting one panics
+ * its nearby herd into a brief bolt. Not persisted — ambient wildlife
+ * respawns around the player in small same-species herds with per-individual
+ * size variety; slain animals play a brief shrinking "death pop" before
+ * leaving the scene.
  */
 import * as THREE from 'three';
 import { Block } from '../world/blocks';
@@ -50,9 +56,32 @@ const DYING_MIN_SCALE = 0.05; // the pop never shrinks below this
 const IDLE_BOB_RATE = Math.PI * 1.6; // idle phase advance (rad/s) — ~0.8 Hz head bob
 const IDLE_BOB_TILT = 0.06; // idle head tilt/bob amplitude (radians)
 const WALK_ROLL = 0.03; // torso roll amplitude while walking (radians)
+const GAIT_BASE = 3; // leg-swing phase rate floor while moving (rad/s)…
+const GAIT_PER_SPEED = 2.4; // …plus this much per block/s of ground speed
+const GAIT_MIN_SPEED = 0.2; // slides slower than this read as standing
+const TAIL_WAG = 0.3; // lateral tail swing amplitude while moving (radians)
+const HEAD_EASE = 8; // per-second easing rate of the head toward its pose
+const GRAZE_CHANCE = 0.35; // per idle decision, odds of dropping into a graze
+const GRAZE_MIN_S = 2; // graze duration range (seconds)
+const GRAZE_MAX_S = 4;
+const GRAZE_PITCH = 0.5; // head-down pitch toward the grass (radians)
+const GRAZE_NIBBLE = 0.06; // nibble oscillation riding the graze pitch
+const GRAZE_NIBBLE_RATE = 2.2; // nibble frequency multiplier on the idle phase
+const PANIC_RADIUS = 8; // a hurt animal spooks same-species mates within this
+const PANIC_KB = 0.6; // herd-mates receive this fraction of the knockback
+const PANIC_S = 2; // spooked animals bolt away for this long
+/** Patch markings are this thick, centred on the torso face: 0.02 proud. */
+const PATCH_T = 0.04;
 
 /** Passive species — biome-flavoured visual variety; all drop meat. */
-export const Species = { trundler: 0, woolly: 1, strider: 2, hopper: 3 } as const;
+export const Species = {
+  trundler: 0,
+  woolly: 1,
+  strider: 2,
+  hopper: 3,
+  bramblehorn: 4,
+  dustpuff: 5,
+} as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 interface SpeciesDef {
@@ -64,6 +93,10 @@ interface SpeciesDef {
   readonly legW: number;
   readonly bodyColor: number;
   readonly headColor: number;
+  /** Secondary hue for the per-individual patch markings. */
+  readonly patchColor: number;
+  /** Leg-swing frequency multiplier — scurriers cycle faster at any speed. */
+  readonly gait: number;
 }
 
 // Bodies stand on four hip-pivoted legs; torso/head heights derive from legLen.
@@ -76,6 +109,8 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     legW: 0.16,
     bodyColor: 0xb08a5a,
     headColor: 0x7a5c39,
+    patchColor: 0x8a6a42,
+    gait: 1,
   },
   [Species.woolly]: {
     torso: [0.62, 0.5, 0.66],
@@ -85,6 +120,8 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     legW: 0.15,
     bodyColor: 0xddd6c4,
     headColor: 0xc8bfa8,
+    patchColor: 0xb9ae94,
+    gait: 1,
   },
   // Desert strider: tall, lean, sandy.
   [Species.strider]: {
@@ -95,6 +132,8 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     legW: 0.1,
     bodyColor: 0xd8b873,
     headColor: 0xb89a5c,
+    patchColor: 0xb3924e,
+    gait: 1,
   },
   // Jungle hopper: small, squat, mossy green.
   [Species.hopper]: {
@@ -105,14 +144,52 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     legW: 0.14,
     bodyColor: 0x6f9a4c,
     headColor: 0x567b3a,
+    patchColor: 0x4f7134,
+    gait: 1,
+  },
+  // Forest bramblehorn: deer-like — tall slim legs, raised neck, antler rack.
+  [Species.bramblehorn]: {
+    torso: [0.46, 0.34, 0.72],
+    head: [0.24, 0.22, 0.26],
+    headZ: -0.42,
+    legLen: 0.5,
+    legW: 0.09,
+    bodyColor: 0x8f5a34,
+    headColor: 0x7c4d2c,
+    patchColor: 0xd9c49b,
+    gait: 1,
+  },
+  // Savanna dustpuff: tiny round scurrier — ball torso, big ears, no neck.
+  [Species.dustpuff]: {
+    torso: [0.4, 0.38, 0.42],
+    head: [0.26, 0.24, 0.24],
+    headZ: -0.26,
+    legLen: 0.14,
+    legW: 0.1,
+    bodyColor: 0xdcb968,
+    headColor: 0xcfa956,
+    patchColor: 0xa8823c,
+    gait: 1.9,
   },
 };
 
-/** Which species belongs in a biome (pure; deserts/jungles now populated). */
+/**
+ * Which species belongs in a biome (pure). Deserts breed striders, jungles
+ * hoppers and snowfields woollies; forests mix bramblehorn stags (60%) with
+ * trundlers (40%); savannas mix dustpuffs (50%), woollies (30%) and
+ * trundlers (20%); temperate ground keeps the classic trundler/woolly blend.
+ */
 export function speciesForBiome(biome: number, random: () => number): SpeciesId {
   if (biome === Biome.desert) return Species.strider;
   if (biome === Biome.jungle) return Species.hopper;
   if (biome === Biome.snowy) return Species.woolly;
+  if (biome === Biome.forest) {
+    return random() < 0.6 ? Species.bramblehorn : Species.trundler;
+  }
+  if (biome === Biome.savanna) {
+    const roll = random();
+    return roll < 0.5 ? Species.dustpuff : roll < 0.8 ? Species.woolly : Species.trundler;
+  }
   return random() < 0.7 ? Species.trundler : Species.woolly;
 }
 
@@ -125,6 +202,8 @@ export interface Animal {
   timer: number;
   /** Walk-cycle phase driving the leg swing (creeps on while idle for the head bob). */
   phase: number;
+  /** Graze seconds remaining; > 0 while idle-grazing (head down, nibbling). */
+  graze: number;
   /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
   dying: number;
   /** Hurt-flash seconds remaining (materials glow red while > 0). */
@@ -136,8 +215,10 @@ export interface Animal {
   readonly legs: readonly THREE.Mesh[];
   /** Torso mesh — rolls gently with the gait while walking. */
   readonly torso: THREE.Mesh;
-  /** Head mesh — tilts/bobs while idle (eyes and face details ride along). */
+  /** Head mesh — tilts/bobs while idle, dips to graze (face details ride along). */
   readonly head: THREE.Mesh;
+  /** Tail mesh — wags laterally while moving; null for tailless species. */
+  readonly tail: THREE.Mesh | null;
   /** Per-animal material clones, so the hurt flash never tints the herd. */
   readonly mats: readonly THREE.MeshLambertMaterial[];
 }
@@ -147,10 +228,18 @@ const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
 /** Shared eye geometry — identical across every species. */
 const eyeGeometry = new THREE.BoxGeometry(0.07, 0.07, 0.03);
 
-function makeAnimalMesh(species: SpeciesId): {
+/**
+ * Build a species rig. `random` seeds the per-individual patch markings
+ * (count, faces and jitter), so identical rng tapes rebuild identical coats.
+ */
+function makeAnimalMesh(
+  species: SpeciesId,
+  random: () => number,
+): {
   group: THREE.Group;
   torso: THREE.Mesh;
   head: THREE.Mesh;
+  tail: THREE.Mesh | null;
   legs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
@@ -185,9 +274,11 @@ function makeAnimalMesh(species: SpeciesId): {
   torso.position.set(0, torsoY, 0);
 
   const [hw, hh, hd] = def.head;
-  // Striders carry the head on a long neck; every other species keeps it snug.
-  const headLift = species === Species.strider ? 0.34 : 0;
-  const headY = torsoY + th / 2 - hh / 2 + 0.12 + headLift;
+  // Striders and bramblehorns carry the head on a raised neck; the dustpuff
+  // ball tucks its head straight into the torso front; others keep it snug.
+  const headLift = species === Species.strider ? 0.34 : species === Species.bramblehorn ? 0.3 : 0;
+  const headNudge = species === Species.dustpuff ? 0.02 : 0.12;
+  const headY = torsoY + th / 2 - hh / 2 + headNudge + headLift;
   const headMesh = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), head);
   headMesh.name = 'entity';
   headMesh.position.set(0, headY, def.headZ);
@@ -198,9 +289,10 @@ function makeAnimalMesh(species: SpeciesId): {
     detail(eyeGeometry, eyeMaterial, headMesh).position.set(ex, 0.03, -hd / 2 - 0.01);
   }
 
+  let tail: THREE.Mesh | null = null;
   if (species === Species.trundler) {
     // Stubby up-angled tail plus two small rounded ear nubs.
-    const tail = detail(new THREE.BoxGeometry(0.14, 0.12, 0.22), body, group);
+    tail = detail(new THREE.BoxGeometry(0.14, 0.12, 0.22), body, group);
     tail.position.set(0, torsoY + th * 0.25, td / 2 + 0.06);
     tail.rotation.x = -0.55; // rear tip angled upward
     for (const ex of [-1, 1]) {
@@ -211,8 +303,8 @@ function makeAnimalMesh(species: SpeciesId): {
     // Fleece cap overhanging the head top, and a tiny tail puff.
     const cap = detail(new THREE.BoxGeometry(hw + 0.06, 0.12, hd + 0.06), body, headMesh);
     cap.position.set(0, hh / 2 + 0.03, 0.01);
-    const puff = detail(new THREE.BoxGeometry(0.16, 0.16, 0.12), body, group);
-    puff.position.set(0, torsoY + th * 0.2, td / 2 + 0.04);
+    tail = detail(new THREE.BoxGeometry(0.16, 0.16, 0.12), body, group);
+    tail.position.set(0, torsoY + th * 0.2, td / 2 + 0.04);
   } else if (species === Species.strider) {
     // Long neck up to the raised head, crowned with back-swept horn nubs.
     const neck = detail(new THREE.BoxGeometry(0.14, headLift + 0.24, 0.16), body, group);
@@ -224,7 +316,7 @@ function makeAnimalMesh(species: SpeciesId): {
       horn.position.set(ex * 0.08, hh / 2 - 0.02, 0.05);
       horn.rotation.x = 0.7; // swept back over the neck
     }
-  } else {
+  } else if (species === Species.hopper) {
     // Hopper: lighter throat patch on the head front, ears folded back flat.
     const patch = detail(
       new THREE.BoxGeometry(0.18, 0.14, 0.05),
@@ -238,6 +330,67 @@ function makeAnimalMesh(species: SpeciesId): {
       const ear = detail(earGeo, head, headMesh);
       ear.position.set(ex * (hw / 2 - 0.06), hh / 2 - 0.01, 0);
       ear.rotation.x = 1.35; // folded flat toward the back
+    }
+  } else if (species === Species.bramblehorn) {
+    // Slim neck to the raised head, a pale chest patch, a flag tail, and a
+    // rack of antlers: per side one back-swept beam branching into 3 tines.
+    const pale = mat(0xe8dcc4);
+    const neck = detail(new THREE.BoxGeometry(0.12, headLift + 0.26, 0.14), body, group);
+    neck.position.set(0, torsoY + th / 2 + headLift / 2 - 0.02, def.headZ + 0.1);
+    const chest = detail(new THREE.BoxGeometry(0.24, 0.18, PATCH_T), pale, torso);
+    chest.position.set(0, -th * 0.15, -td / 2);
+    tail = detail(new THREE.BoxGeometry(0.08, 0.16, 0.07), pale, group);
+    tail.position.set(0, torsoY + th * 0.3, td / 2 + 0.03);
+    tail.rotation.x = -0.5; // little raised flag
+    const antler = mat(0xcbb287);
+    const beamGeo = new THREE.BoxGeometry(0.035, 0.34, 0.035);
+    beamGeo.translate(0, 0.17, 0); // pivot at the base
+    const tineGeo = new THREE.BoxGeometry(0.03, 0.15, 0.03);
+    tineGeo.translate(0, 0.075, 0);
+    for (const ex of [-1, 1]) {
+      const beam = detail(beamGeo, antler, headMesh);
+      beam.position.set(ex * (hw / 2 - 0.03), hh / 2 - 0.02, 0.04);
+      beam.rotation.set(0.55, 0, ex * 0.3); // swept back, splayed outward
+      for (let t = 0; t < 3; t++) {
+        const tine = detail(tineGeo, antler, beam);
+        tine.position.set(0, 0.1 + t * 0.09, 0);
+        tine.rotation.set(-0.8, 0, ex * (0.25 + t * 0.1)); // branch forward
+      }
+    }
+  } else {
+    // Dustpuff: big upright ears with dark tips and a tiny tail puff on the
+    // ball torso — the head has no neck at all, tucked into the body front.
+    const tipMat = mat(0x584428);
+    const earGeo = new THREE.BoxGeometry(0.12, 0.2, 0.045);
+    earGeo.translate(0, 0.1, 0); // pivot at the base
+    for (const ex of [-1, 1]) {
+      const ear = detail(earGeo, head, headMesh);
+      ear.position.set(ex * (hw / 2 - 0.04), hh / 2 - 0.02, 0.02);
+      ear.rotation.z = ex * -0.15; // splayed slightly outward
+      const tip = detail(new THREE.BoxGeometry(0.125, 0.06, 0.05), tipMat, ear);
+      tip.position.set(0, 0.18, 0);
+    }
+    tail = detail(new THREE.BoxGeometry(0.09, 0.09, 0.08), body, group);
+    tail.position.set(0, torsoY + th * 0.15, td / 2 + 0.03);
+  }
+
+  // Patterning: 2-4 thin patches (spots/saddle/stripe) in a secondary hue,
+  // scattered over the torso surface (centred on the face, so 0.02 proud)
+  // with per-individual jitter — herd-mates never share the same coat.
+  const patchMat = mat(def.patchColor);
+  const patchCount = 2 + Math.floor(random() * 3);
+  for (let i = 0; i < patchCount; i++) {
+    const face = Math.floor(random() * 3); // 0 = back, 1 = left, 2 = right
+    const w = 0.08 + random() * 0.08;
+    const d = 0.1 + random() * 0.12;
+    const jitterA = random() - 0.5;
+    const jitterB = random() - 0.5;
+    if (face === 0) {
+      const patch = detail(new THREE.BoxGeometry(w, PATCH_T, d), patchMat, torso);
+      patch.position.set(jitterA * (tw - w - 0.04), th / 2, jitterB * (td - d - 0.04));
+    } else {
+      const patch = detail(new THREE.BoxGeometry(PATCH_T, w, d), patchMat, torso);
+      patch.position.set((face === 1 ? -1 : 1) * (tw / 2), jitterA * (th - w - 0.04), jitterB * (td - d - 0.04));
     }
   }
 
@@ -260,7 +413,7 @@ function makeAnimalMesh(species: SpeciesId): {
     group.add(mesh);
     legs.push(mesh);
   }
-  return { group, torso, head: headMesh, legs, mats };
+  return { group, torso, head: headMesh, tail, legs, mats };
 }
 
 export class AnimalSystem {
@@ -302,10 +455,13 @@ export class AnimalSystem {
     return this.animals.length;
   }
 
-  /** Place an animal directly (also the test seam). */
+  /**
+   * Place an animal directly (also the test seam). Rolls the individual's
+   * patch markings and visual size from this system's rng.
+   */
   spawnAt(x: number, y: number, z: number, species?: SpeciesId): Animal {
     const sp = species ?? (this.random() < 0.5 ? Species.trundler : Species.woolly);
-    const parts = makeAnimalMesh(sp);
+    const parts = makeAnimalMesh(sp, this.random);
     // Per-individual size variety — purely visual: the collision AABB stays
     // ANIMAL_HALF_WIDTH × ANIMAL_HEIGHT for every animal.
     const size = SIZE_MIN + this.random() * (SIZE_MAX - SIZE_MIN);
@@ -318,6 +474,7 @@ export class AnimalSystem {
       moving: false,
       timer: 0.5 + this.random() * 2,
       phase: 0,
+      graze: 0,
       dying: 0,
       flash: 0,
       kbX: 0,
@@ -326,6 +483,7 @@ export class AnimalSystem {
       legs: parts.legs,
       torso: parts.torso,
       head: parts.head,
+      tail: parts.tail,
       mats: parts.mats,
     };
     this.scene.add(animal.group);
@@ -355,8 +513,9 @@ export class AnimalSystem {
 
   /**
    * Try to spawn a small herd (2-4, all one species) on grass or snow near
-   * the player. Species follows the biome: woollies in the snowy cold,
-   * trundlers in temperate green, striders in deserts, hoppers in jungles.
+   * the player. Species follows the biome via speciesForBiome: woollies in
+   * the snowy cold, trundlers in temperate green, striders in deserts,
+   * hoppers in jungles, bramblehorns in forests, dustpuffs on the savanna.
    * Herd-mates scatter ±1..3 blocks around the lead animal, each dropped onto
    * its own column's surface; unspawnable columns are skipped, and the herd
    * is truncated at MAX_ANIMALS.
@@ -424,11 +583,18 @@ export class AnimalSystem {
     void py;
   }
 
-  /** Leg gait + torso roll while walking, idle head bob, and the hurt flash. */
+  /**
+   * Leg gait paced by actual horizontal speed (so knockback slides and flee
+   * bolts read correctly), torso roll and tail wag while moving, idle head
+   * bob or graze nibble at rest, and the hurt flash.
+   */
   private animate(animal: Animal, dt: number): void {
     const settle = Math.max(0, 1 - dt * 10);
-    if (animal.moving && animal.body.onGround) {
-      animal.phase += dt * 7;
+    const ease = Math.min(1, dt * HEAD_EASE);
+    const speed = Math.hypot(animal.body.vx, animal.body.vz);
+    if (speed > GAIT_MIN_SPEED && animal.body.onGround) {
+      // Swing frequency tracks ground speed; scurriers pace it up further.
+      animal.phase += dt * (GAIT_BASE + speed * GAIT_PER_SPEED) * SPECIES[animal.species].gait;
       const swing = Math.sin(animal.phase) * 0.7;
       for (let l = 0; l < animal.legs.length; l++) {
         // Diagonal pairs move together (0,3 vs 1,2), like a real gait.
@@ -437,12 +603,19 @@ export class AnimalSystem {
       // Slight body roll synced to the gait; the head steadies while trotting.
       animal.torso.rotation.z = Math.sin(animal.phase) * WALK_ROLL;
       animal.head.rotation.x *= settle;
+      if (animal.tail) animal.tail.rotation.y = Math.sin(animal.phase * 0.9) * TAIL_WAG;
     } else {
-      // Idle life: the phase creeps on, gently tilting/bobbing the head.
+      // Idle life: the phase creeps on, bobbing the head — or, mid-graze,
+      // easing it down toward the grass with a small nibble oscillation.
       for (const leg of animal.legs) leg.rotation.x *= settle;
       animal.phase += dt * IDLE_BOB_RATE;
-      animal.head.rotation.x = Math.sin(animal.phase) * IDLE_BOB_TILT;
+      const target =
+        animal.graze > 0
+          ? -GRAZE_PITCH + Math.sin(animal.phase * GRAZE_NIBBLE_RATE) * GRAZE_NIBBLE
+          : Math.sin(animal.phase) * IDLE_BOB_TILT;
+      animal.head.rotation.x += (target - animal.head.rotation.x) * ease;
       animal.torso.rotation.z *= settle;
+      if (animal.tail) animal.tail.rotation.y *= settle;
     }
     if (animal.flash > 0) {
       animal.flash -= dt;
@@ -483,7 +656,13 @@ export class AnimalSystem {
         animal.yaw = this.random() * Math.PI * 2;
       }
       animal.timer = 1 + this.random() * 3;
+      // Some idle decisions settle into a leisurely head-down graze.
+      if (!animal.moving && this.random() < GRAZE_CHANCE) {
+        animal.graze = GRAZE_MIN_S + this.random() * (GRAZE_MAX_S - GRAZE_MIN_S);
+      }
     }
+    if (animal.moving) animal.graze = 0; // moving always cancels a graze
+    else if (animal.graze > 0) animal.graze = Math.max(0, animal.graze - dt);
     const speed = animal.moving ? WALK_SPEED : 0;
     body.vx = -Math.sin(animal.yaw) * speed + animal.kbX;
     body.vz = -Math.cos(animal.yaw) * speed + animal.kbZ;
@@ -544,6 +723,9 @@ export class AnimalSystem {
   /**
    * Punch an animal; returns its drops when it dies, else null. (kx, kz) is
    * the attack direction for knockback (defaults keep old callers working).
+   * A non-lethal directional hit panics the victim into a PANIC_S bolt away
+   * from the attacker and spreads the impulse — at PANIC_KB strength — to
+   * same-species herd-mates within PANIC_RADIUS, so the whole herd scatters.
    * Drops are yielded on the lethal hit itself; the body then plays a brief
    * shrinking death pop before fixedUpdate removes it from scene and array.
    */
@@ -558,6 +740,26 @@ export class AnimalSystem {
     animal.flash = 0.22;
     animal.kbX = kx * 7;
     animal.kbZ = kz * 7;
+    if (kx !== 0 || kz !== 0) {
+      // Herd panic: everyone bolts along the push, away from the attacker.
+      const away = Math.atan2(-kx, -kz);
+      animal.yaw = away;
+      animal.moving = true;
+      animal.timer = PANIC_S;
+      animal.graze = 0;
+      for (const other of this.animals) {
+        if (other === animal || other.species !== animal.species || other.dying > 0) continue;
+        const dx = other.body.x - animal.body.x;
+        const dz = other.body.z - animal.body.z;
+        if (dx * dx + dz * dz > PANIC_RADIUS * PANIC_RADIUS) continue;
+        other.kbX = kx * 7 * PANIC_KB;
+        other.kbZ = kz * 7 * PANIC_KB;
+        other.yaw = away;
+        other.moving = true;
+        other.timer = PANIC_S;
+        other.graze = 0;
+      }
+    }
     return null;
   }
 }

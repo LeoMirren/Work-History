@@ -16,7 +16,16 @@ describe('speciesForBiome', () => {
   it('keeps woollies in the snow and trundlers in temperate land', () => {
     expect(speciesForBiome(Biome.snowy, always)).toBe(Species.woolly);
     expect(speciesForBiome(Biome.plains, () => 0.1)).toBe(Species.trundler);
-    expect(speciesForBiome(Biome.forest, () => 0.9)).toBe(Species.woolly); // 30% woolly mix
+  });
+
+  it('stocks forests with bramblehorn stags and savannas with dustpuffs', () => {
+    // Forest: bramblehorn 60% / trundler 40%.
+    expect(speciesForBiome(Biome.forest, () => 0.1)).toBe(Species.bramblehorn);
+    expect(speciesForBiome(Biome.forest, () => 0.9)).toBe(Species.trundler);
+    // Savanna: dustpuff 50% / woolly 30% / trundler 20%.
+    expect(speciesForBiome(Biome.savanna, () => 0.1)).toBe(Species.dustpuff);
+    expect(speciesForBiome(Biome.savanna, () => 0.6)).toBe(Species.woolly);
+    expect(speciesForBiome(Biome.savanna, () => 0.9)).toBe(Species.trundler);
   });
 
   it('is total over the biome set', () => {

@@ -27,6 +27,31 @@ const COPPER_MAX_Y = 46;
 const GOLD_THRESHOLD = 0.84; // rare, deep
 const GOLD_MAX_Y = 28;
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
+// Cave biomes: three underground zone themes, each chosen by its own
+// low-frequency 3D noise so a zone spans many chunks. Zones only DECORATE
+// already-carved caves (moss-veined floors, glowing flora, crystal growth);
+// they never add or remove cave air, so cave shapes are untouched.
+const ZONE_SCALE = 180; // horizontal zone wavelength: ~11 chunks across
+const ZONE_Y_SCALE = 110; // gentle vertical drift through the cave band
+const ZONE_THRESHOLD = 0.35; // zone noise above this -> the theme applies
+const MOSSY_MIN_Y = 25; // mossy hollows: the shallow cave band
+const MOSSY_MAX_Y = 55;
+const MOSSY_FLOOR_DIV = 8; // ~1/8 stone cave floors turn to mossstone
+const GLOWBLOOM_DIV = 30; // ~1/30 cave floors sprout a glowbloom
+const GROTTO_MIN_Y = 8; // crystal grottoes: the deep cave band
+const GROTTO_MAX_Y = 30;
+const GROTTO_WALL_DIV = 24; // ~1/24 air-adjacent stone cells crystallize
+const GROTTO_KNOB_DIV = 6; // ~1 crystallized cell in 6 is a geodeshell knob
+const GROTTO_STUB_DIV = 40; // ~1/40 cave floors grow a crystal stub
+const CINDER_MIN_Y = 5; // cinder deeps: the deepest cave band
+const CINDER_MAX_Y = 22;
+const CINDER_FLOOR_DIV = 10; // ~1/10 stone cave floors turn to emberrock
+const CINDERCAP_DIV = 26; // ~1/26 cave floors sprout a cindercap
+// Surface flora: per-column hash rolls dress grass with tufts and flowers.
+const FLORA_GRASS_DIV_OPEN = 9; // plains/savanna: ~1/9 columns get wildgrass
+const FLORA_FLOWER_DIV_OPEN = 38; // ...and ~1/38 a wildflower
+const FLORA_GRASS_DIV_WOOD = 14; // forest/jungle: ~1/14 wildgrass
+const FLORA_FLOWER_DIV_WOOD = 50; // ...and ~1/50 a wildflower
 const GEODE_CHANCE = 16; // ~1 chunk in 16 hosts a geode
 const GEODE_R = 4; // sphere radius; kept inside the chunk
 const GEODE_MIN_Y = 8;
@@ -351,11 +376,16 @@ function createOverworld(seed: string): Generator {
   const cave: NoiseFunction3D = seededNoise3D(seed, 'cave');
   const tunnelA: NoiseFunction3D = seededNoise3D(seed, 'tunnelA');
   const tunnelB: NoiseFunction3D = seededNoise3D(seed, 'tunnelB');
+  const zoneMossy: NoiseFunction3D = seededNoise3D(seed, 'zone:mossy');
+  const zoneCrystal: NoiseFunction3D = seededNoise3D(seed, 'zone:crystal');
+  const zoneCinder: NoiseFunction3D = seededNoise3D(seed, 'zone:cinder');
   const ore: NoiseFunction3D = seededNoise3D(seed, 'ore');
   const coalN: NoiseFunction3D = seededNoise3D(seed, 'coal');
   const copperN: NoiseFunction3D = seededNoise3D(seed, 'copper');
   const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
   const treeSeed = cyrb128(`${seed} trees`)[0];
+  const caveDecorSeed = cyrb128(`${seed} cavebiomes`)[0];
+  const floraSeed = cyrb128(`${seed} flora`)[0];
   const geodeSeed = cyrb128(`${seed} geodes`)[0];
   const hutSeed = cyrb128(`${seed} huts`)[0];
   const structSeed = cyrb128(`${seed} structures`)[0];
@@ -470,6 +500,77 @@ function createOverworld(seed: string): Generator {
       }
     }
 
+    // Cave biomes: a decoration-only post-pass over the freshly carved caves,
+    // run before any structure carving so it only ever reads natural cave air
+    // and stone. Three zone themes, each gated by its own low-frequency 3D
+    // noise (zones span many chunks) and a per-cell roll from the cavebiomes
+    // hash stream: mossy hollows convert shallow stone cave floors to
+    // mossstone and sprout glowblooms; crystal grottoes crystallize deep
+    // air-adjacent stone (with rare geodeshell knobs) and grow floor stubs;
+    // cinder deeps lay emberrock floor accents and sprout cindercaps. Cave
+    // air is only ever filled with walk-through flora or a crystal stub and
+    // stone is only recolored in place — never carved — so cave shapes (and
+    // every column's surface) are exactly what the carver produced. All
+    // reads and writes stay inside this chunk.
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const h = heights[z * CHUNK_SIZE + x] ?? 0;
+        if (h < SEA_LEVEL + 2) continue; // these columns carved no caves
+        const wx = cx * CHUNK_SIZE + x;
+        const wz = cz * CHUNK_SIZE + z;
+        const colHash = hash2(caveDecorSeed, wx, wz);
+        const yTop = Math.min(h - 6, MOSSY_MAX_Y);
+        for (let y = CINDER_MIN_Y; y <= yTop; y++) {
+          const i = blockIndex(x, y, z);
+          const id = data[i];
+          if (id === Block.air) {
+            // Floor decoration: a cave air cell seated on plain stone.
+            if (data[blockIndex(x, y - 1, z)] !== Block.stone) continue;
+            const cellHash = hash2(colHash, y, 0);
+            if (
+              y >= MOSSY_MIN_Y &&
+              zoneMossy(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
+            ) {
+              if (cellHash % MOSSY_FLOOR_DIV === 0) data[blockIndex(x, y - 1, z)] = Block.mossstone;
+              if ((cellHash >>> 8) % GLOWBLOOM_DIV === 0) data[i] = Block.glowbloom;
+            } else if (
+              y >= GROTTO_MIN_Y &&
+              y <= GROTTO_MAX_Y &&
+              zoneCrystal(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
+            ) {
+              if (cellHash % GROTTO_STUB_DIV === 0) data[i] = Block.crystal;
+            } else if (
+              y <= CINDER_MAX_Y &&
+              zoneCinder(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
+            ) {
+              if (cellHash % CINDER_FLOOR_DIV === 0) data[blockIndex(x, y - 1, z)] = Block.emberrock;
+              if ((cellHash >>> 8) % CINDERCAP_DIV === 0) data[i] = Block.cindercap;
+            }
+          } else if (id === Block.stone && y >= GROTTO_MIN_Y && y <= GROTTO_MAX_Y) {
+            // Grotto walls/ceilings: stone touching cave air grows crystal
+            // clusters. The roll keys on the stone cell's own coordinates,
+            // so multiple adjacent air cells can never re-roll it.
+            const cellHash = hash2(colHash, y, 1);
+            if (cellHash % GROTTO_WALL_DIV !== 0) continue;
+            let touchesAir = false;
+            if (
+              data[blockIndex(x, y - 1, z)] === Block.air ||
+              data[blockIndex(x, y + 1, z)] === Block.air ||
+              (x > 0 && data[blockIndex(x - 1, y, z)] === Block.air) ||
+              (x < CHUNK_SIZE - 1 && data[blockIndex(x + 1, y, z)] === Block.air) ||
+              (z > 0 && data[blockIndex(x, y, z - 1)] === Block.air) ||
+              (z < CHUNK_SIZE - 1 && data[blockIndex(x, y, z + 1)] === Block.air)
+            ) {
+              touchesAir = true;
+            }
+            if (!touchesAir) continue;
+            if (zoneCrystal(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) <= ZONE_THRESHOLD) continue;
+            data[i] = (cellHash >>> 8) % GROTTO_KNOB_DIV === 0 ? Block.geodeshell : Block.crystal;
+          }
+        }
+      }
+    }
+
     // Trees: per-column hash so placement is independent of iteration order.
     for (let z = TREE_MARGIN; z < CHUNK_SIZE - TREE_MARGIN; z++) {
       for (let x = TREE_MARGIN; x < CHUNK_SIZE - TREE_MARGIN; x++) {
@@ -485,6 +586,29 @@ function createOverworld(seed: string): Generator {
         const jungle = (biomes[z * CHUNK_SIZE + x] ?? Biome.plains) === Biome.jungle;
         const trunk = jungle ? 7 + ((hsh >>> 8) % 4) : 4 + ((hsh >>> 8) % 3);
         plantTree(data, x, z, h, trunk);
+      }
+    }
+
+    // Surface flora: meadow tufts and wildflowers dressed onto grass columns.
+    // Placed last so it only fills the air cell above an untouched grass
+    // surface (never a tree trunk, structure floor or path) — a cheap
+    // per-column hash roll, gated by biome so plains/savanna are grassiest.
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const h = heights[z * CHUNK_SIZE + x] ?? 0;
+        if (h < SEA_LEVEL + 2) continue;
+        if (data[blockIndex(x, h, z)] !== Block.grass) continue;
+        if (data[blockIndex(x, h + 1, z)] !== Block.air) continue;
+        const biome = biomes[z * CHUNK_SIZE + x] ?? Biome.plains;
+        const wooded = biome === Biome.forest || biome === Biome.jungle;
+        const grassDiv = wooded ? FLORA_GRASS_DIV_WOOD : FLORA_GRASS_DIV_OPEN;
+        const flowerDiv = wooded ? FLORA_FLOWER_DIV_WOOD : FLORA_FLOWER_DIV_OPEN;
+        const fh = hash2(floraSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+        if (fh % flowerDiv === 0) {
+          data[blockIndex(x, h + 1, z)] = (fh >>> 8) & 1 ? Block.sunwisp : Block.duskbell;
+        } else if (fh % grassDiv === 0) {
+          data[blockIndex(x, h + 1, z)] = Block.wildgrass;
+        }
       }
     }
 

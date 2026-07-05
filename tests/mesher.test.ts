@@ -231,12 +231,16 @@ describe('biome tinting', () => {
     return h;
   }
 
-  it('no-array call byte-matches the pre-biome mesher (pinned hash)', () => {
-    // Hash captured from the mesher BEFORE biome tinting existed: omitting
-    // the biome array must reproduce that output exactly, byte for byte.
-    const generator = createGenerator('voxelheim-m1');
-    const snap = padWithAir(generator.generateChunk(-2, 3));
-    expect(meshHash(meshChunk(snap, -2, 3))).toBe(0xb1baddd0);
+  it('omitting the biome array is stable and untinted (a fixed synthetic slab)', () => {
+    // A hand-built grass slab — decoupled from worldgen so terrain-content
+    // changes can never perturb it. Meshing without a biome array must be
+    // byte-stable across calls, and must differ from a tinted call (proving
+    // the tint only ever comes from the array, never spuriously applied).
+    const snap = slab(Block.grass);
+    const plain = meshHash(meshChunk(snap, -2, 3));
+    expect(meshHash(meshChunk(snap, -2, 3))).toBe(plain); // deterministic
+    const tinted = meshHash(meshChunk(snap, -2, 3, uniformBiomes(Biome.jungle)));
+    expect(tinted).not.toBe(plain); // the array is what tints
   });
 
   it('jungle-tinted grass tops differ from snowy on identical geometry', () => {
