@@ -36,8 +36,8 @@ export const ANIMAL_HALF_WIDTH = 0.35;
 export const ANIMAL_HEIGHT = 0.7;
 export const ANIMAL_HP = 3;
 /** Population cap for the ambient wildlife around the player. */
-export const MAX_ANIMALS = 26;
-const SPAWN_INTERVAL_S = 1.4;
+export const MAX_ANIMALS = 48;
+const SPAWN_INTERVAL_S = 0.8;
 const SPAWN_MIN_DIST = 16;
 const SPAWN_MAX_DIST = 38;
 const DESPAWN_DIST = 84;

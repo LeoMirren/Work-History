@@ -355,8 +355,11 @@ async function boot(): Promise<void> {
   function applyMode(mode: GameMode, world: World, atlasCanvas: HTMLCanvasElement): void {
     player.setMode(mode);
     interaction.mode = mode;
-    hostiles.setWorld(mode === 'survival' ? { isSolid: world.isSolid, getBlock: world.blockAt } : null);
-    guardians.setWorld(mode === 'survival' ? { isSolid: world.isSolid, getBlock: world.blockAt } : null);
+    // Hostiles and guardians roam in BOTH modes now (chaos on demand) — in
+    // creative they simply can't hurt you (player.hurt is a survival no-op).
+    const ew = { isSolid: world.isSolid, getBlock: world.blockAt };
+    hostiles.setWorld(ew);
+    guardians.setWorld(ew);
     if (hud) {
       hud.setSurvivalVisible(mode === 'survival');
       hud.bindInventory(mode === 'survival' ? inventory : null, atlasCanvas);
@@ -528,7 +531,7 @@ async function boot(): Promise<void> {
       gr.scene,
       dimension === 'overworld' ? (gcx, gcz) => dungeonFor(dungeonSeedInt, gcx, gcz) : () => null,
     );
-    guardians.setWorld(mode === 'survival' ? entityWorld : null);
+    guardians.setWorld(entityWorld); // guardians haunt vaults in both modes
     interaction.guardians = guardians;
     boss.clear(); // the King never survives a world/dimension switch
     interaction.boss = boss;
@@ -722,30 +725,29 @@ async function boot(): Promise<void> {
       cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
       particles.update(dt);
       itemDrops.fixedUpdate(dt, session.world.isSolid, player.body.x, player.body.y, player.body.z);
-      if (session.mode === 'survival') {
-        // The underworld is always dark and dangerous; the sun never reaches it.
-        const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);
-        hostiles.fixedUpdate(
-          dt,
-          player.body.x,
-          player.body.y,
-          player.body.z,
-          threatBrightness,
-          (dmg) => player.hurt(dmg),
-        );
-        guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
-        // The Sunken King fights in survival: summons stalker adds, showers loot.
-        boss.fixedUpdate(
-          dt,
-          session.world,
-          player.body.x,
-          player.body.y,
-          player.body.z,
-          (dmg) => player.hurt(dmg),
-          (ax, ay, az) => hostiles.spawnAt(ax, ay, az),
-          (id, count, lx, ly, lz) => itemDrops.spawn(id, count, lx, ly, lz),
-        );
-      }
+      // Hostiles, guardians and the boss run in BOTH modes now (creative gets
+      // the chaos too); player.hurt is simply a no-op outside survival.
+      // The underworld is always dark and dangerous; the sun never reaches it.
+      const threatBrightness = session.dimension === 'underworld' ? 0 : brightnessAt(dayNight.time);
+      hostiles.fixedUpdate(
+        dt,
+        player.body.x,
+        player.body.y,
+        player.body.z,
+        threatBrightness,
+        (dmg) => player.hurt(dmg),
+      );
+      guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
+      boss.fixedUpdate(
+        dt,
+        session.world,
+        player.body.x,
+        player.body.y,
+        player.body.z,
+        (dmg) => player.hurt(dmg),
+        (ax, ay, az) => hostiles.spawnAt(ax, ay, az),
+        (id, count, lx, ly, lz) => itemDrops.spawn(id, count, lx, ly, lz),
+      );
     },
     render(alpha, frameDt) {
       if (session?.dimension === 'underworld') {

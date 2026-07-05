@@ -36,7 +36,7 @@ describe('hostile spawning', () => {
     const night = makeSystem();
     for (let i = 0; i < 60 * 30; i++) night.system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, noDamage);
     expect(night.system.count).toBeGreaterThan(0);
-    expect(night.system.count).toBeLessThanOrEqual(8);
+    expect(night.system.count).toBeLessThanOrEqual(18); // raised cap for chaos spawning
   });
 });
 

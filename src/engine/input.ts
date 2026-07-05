@@ -16,8 +16,9 @@ export class Input {
 
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      // Keep browser shortcuts out of game keys (F3 search, Tab focus-walk).
-      if (e.code === 'F3' || (e.code === 'Tab' && this.locked)) e.preventDefault();
+      // Keep browser shortcuts out of game keys (F3 search, Tab focus-walk,
+      // arrow-key scroll while playing).
+      if (e.code === 'F3' || (this.locked && (e.code === 'Tab' || e.code.startsWith('Arrow')))) e.preventDefault();
       if (!e.repeat) this.pressedQueue.add(e.code);
       this.keysDown.add(e.code);
     });

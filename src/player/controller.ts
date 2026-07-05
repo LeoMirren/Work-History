@@ -29,6 +29,8 @@ import {
 } from './physics';
 
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
+/** Arrow-key look speed (rad/s) — the keyboard turn/pitch alternative. */
+const KEY_TURN_RATE = 2.4;
 const DOUBLE_TAP_WINDOW = 0.3; // seconds between W taps to latch sprint
 const RESPAWN_Y = -10;
 
@@ -122,6 +124,16 @@ export class PlayerController {
       this.flying = !this.flying;
       body.vy = 0;
     }
+
+    // Arrow-key turning: a keyboard alternative to mouse-look so trackpad
+    // players can turn (and curve their run) while a movement key is held.
+    // Signs match look(): right/down decrease yaw/pitch.
+    if (input.isDown('ArrowLeft')) this.yaw += KEY_TURN_RATE * dt;
+    if (input.isDown('ArrowRight')) this.yaw -= KEY_TURN_RATE * dt;
+    if (input.isDown('ArrowUp')) this.pitch += KEY_TURN_RATE * dt;
+    if (input.isDown('ArrowDown')) this.pitch -= KEY_TURN_RATE * dt;
+    if (this.pitch > PITCH_LIMIT) this.pitch = PITCH_LIMIT;
+    if (this.pitch < -PITCH_LIMIT) this.pitch = -PITCH_LIMIT;
 
     // Movement intent in the yaw frame, normalized so diagonals aren't faster.
     const forward = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);

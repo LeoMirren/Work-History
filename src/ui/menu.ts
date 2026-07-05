@@ -77,7 +77,7 @@ export class Menus {
     const controls = document.createElement('p');
     controls.className = 'controls-hint';
     controls.textContent =
-      'WASD move · Space jump · Ctrl sprint · F fly · LMB/RMB break · U use/place/talk · 1-9 hotbar · E inventory · Esc menu';
+      'WASD move · Arrow keys turn · Space jump · Ctrl sprint · F fly · LMB/RMB break · U use/place/talk · 1-9 hotbar · E inventory · Esc menu';
     titlePanel.append(h1, tagline, seedRow, modeRow, playButton, controls);
     this.title.appendChild(titlePanel);
     parent.appendChild(this.title);

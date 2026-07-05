@@ -6,6 +6,7 @@ export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Ctrl / 2×W', 'sprint'],
   ['F', 'toggle fly (creative)'],
   ['Mouse', 'look'],
+  ['Arrow keys', 'turn / look (no mouse needed)'],
   ['LMB / RMB', 'break / hunt (either button)'],
   ['U', 'use: place · talk · open · eat · throw'],
   ['1-9, wheel', 'hotbar select'],
