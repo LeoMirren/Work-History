@@ -754,6 +754,9 @@ class Enemy {
       ctx.beginPath();
       ctx.ellipse(0, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = 'rgba(8,10,16,0.65)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
     };
     const glowEye = (ex, ey, r, color) => {
       ctx.save();
@@ -1146,8 +1149,8 @@ class Boss {
     if (!stagger) { ctx.shadowColor = '#ff3a10'; ctx.shadowBlur = 12; }
     ctx.fillStyle = stagger ? '#8a8a8a' : '#ff3a10';
     ctx.beginPath();
-    ctx.moveTo(this.dir * 2 + crouch * 0, -26 + crouch);
     ctx.ellipse(this.dir * 3, -24 + crouch, 2.8, 5, this.dir * 0.2, 0, Math.PI * 2);
+    ctx.moveTo(this.dir * 13 + 2.8, -24 + crouch);
     ctx.ellipse(this.dir * 13, -24 + crouch, 2.8, 5, -this.dir * 0.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();

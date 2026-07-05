@@ -235,9 +235,14 @@ const Player = {
       }
     }
 
-    // ---- gravity ------------------------------------------------------------
+    // ---- gravity: floaty apex while jump is held, heavy fall ----------------
     if (!this.dashing) {
-      this.vy += CFG.gravity * dt;
+      let g = CFG.gravity;
+      if (!this.grounded && !this.sliding) {
+        if (Math.abs(this.vy) < CFG.apexWindow && Input.down.jump) g *= CFG.apexGravityMult;
+        else if (this.vy > 0) g *= CFG.fallGravityMult;
+      }
+      this.vy += g * dt;
       if (this.vy > CFG.maxFall) this.vy = CFG.maxFall;
     }
 
@@ -620,6 +625,9 @@ const Player = {
     ctx.quadraticCurveTo(0, hemY - 3 + w2, -3, hemY + w1);
     ctx.quadraticCurveTo(-6, hemY - 4 + w2, -11 + back * 2, hemY + w1 * 0.4);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(8,10,18,0.6)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
 
     // wind-blown tail when airborne/dashing
     if (!this.grounded || this.dashing) {
@@ -651,6 +659,9 @@ const Player = {
     ctx.beginPath();
     ctx.ellipse(this.facing * 1.5, headY, 11, 10, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(26,32,50,0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
     // cheek shading
     ctx.fillStyle = 'rgba(150,165,195,0.35)';
     ctx.beginPath();
@@ -708,48 +719,42 @@ const Player = {
 
     ctx.restore();
 
-    // ---- the nail: an actual blade swinging through an arc
+    // ---- the nail: Hollow Knight's big white crescent
     if (this.slashT > 0) {
       const p = 1 - this.slashT / 0.14; // 0 -> 1 through the swing
       const cy = this.cy;
-      let baseA, sweep;
-      if (this.slashDir === 'up') { baseA = -Math.PI / 2; sweep = 2.4; }
-      else if (this.slashDir === 'down') { baseA = Math.PI / 2; sweep = 2.4; }
-      else { baseA = this.facing > 0 ? 0 : Math.PI; sweep = 2.6; }
+      let baseA;
+      if (this.slashDir === 'up') baseA = -Math.PI / 2;
+      else if (this.slashDir === 'down') baseA = Math.PI / 2;
+      else baseA = this.facing > 0 ? 0 : Math.PI;
       const dirSign = this.slashDir === 'side' ? this.facing : 1;
-      const a = baseA + (p - 0.5) * sweep * dirSign;
-      const len = CFG.nailRange + 8;
 
       ctx.save();
       ctx.translate(cx, cy);
-      // trail arcs
-      for (let i = 1; i <= 3; i++) {
-        const ta = baseA + (Math.max(0, p - i * 0.13) - 0.5) * sweep * dirSign;
-        ctx.strokeStyle = `rgba(220,232,252,${0.3 - i * 0.08})`;
-        ctx.lineWidth = 7 - i * 1.6;
-        ctx.lineCap = 'round';
+      ctx.rotate(baseA + (p - 0.45) * 0.7 * dirSign);
+      const grow = 0.75 + p * 0.45;      // crescent expands through the swing
+      const alpha = p < 0.25 ? p / 0.25 : Math.max(0, 1 - (p - 0.25) / 0.75);
+      ctx.scale(grow, grow);
+
+      const R = CFG.nailRange + 16; // outer reach
+      const span = 1.25;
+      // filled crescent: outer arc, back along an inner arc pulled toward us
+      const cres = (rOut, pull, a) => {
+        ctx.fillStyle = a;
         ctx.beginPath();
-        ctx.arc(0, 0, len * 0.8, Math.min(ta, a), Math.max(ta, a));
-        ctx.stroke();
-      }
-      // blade
-      ctx.rotate(a);
-      const bg = ctx.createLinearGradient(10, 0, len, 0);
-      bg.addColorStop(0, '#c8d2e6');
-      bg.addColorStop(0.65, '#f2f6fd');
-      bg.addColorStop(1, '#ffffff');
-      ctx.fillStyle = bg;
+        ctx.arc(0, 0, rOut, -span, span);
+        ctx.arc(-pull, 0, rOut - 16, span * 0.92, -span * 0.92, true);
+        ctx.closePath();
+        ctx.fill();
+      };
+      cres(R, 14, `rgba(235,243,255,${0.85 * alpha})`);
+      cres(R - 5, 17, `rgba(255,255,255,${0.9 * alpha})`);
+      // crisp leading edge
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(8, -1);
-      ctx.quadraticCurveTo(len * 0.55, -5.5, len, 0);
-      ctx.quadraticCurveTo(len * 0.55, 5.5, 8, 1);
-      ctx.closePath();
-      ctx.fill();
-      // hilt nub
-      ctx.fillStyle = '#4a5578';
-      ctx.beginPath();
-      ctx.arc(8, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 0, R - 1, -span, span);
+      ctx.stroke();
       ctx.restore();
     }
   },

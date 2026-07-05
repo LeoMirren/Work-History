@@ -5,7 +5,14 @@
 
 const TILE = 32;
 const VIEW_W = 960;
-const VIEW_H = 544; // exactly 17 tiles
+const VIEW_H = 544; // canvas pixels
+
+// Hollow Knight frames tight: the camera sees a small slice of the world and
+// the knight reads BIG. All world rendering is scaled by ZOOM; the camera's
+// world-space viewport is VIEW_TW x VIEW_TH.
+const ZOOM = 1.7;
+const VIEW_TW = VIEW_W / ZOOM;
+const VIEW_TH = VIEW_H / ZOOM;
 
 const CFG = {
   // --- Locomotion ---
@@ -16,6 +23,9 @@ const CFG = {
   airFriction: 400,
 
   gravity: 2500,
+  apexGravityMult: 0.55, // floaty at the top of a held jump, like the real thing
+  fallGravityMult: 1.18, // and a heavier, snappier fall
+  apexWindow: 140,       // |vy| below this counts as the apex
   maxFall: 920,
 
   jumpVel: -815, // clears a 4-tile ledge (v²/2g ≈ 133px) with a little grace

@@ -8,14 +8,15 @@ const UI = {
   // ------------------------------------------------------------- world-space
   worldPrompt(ctx, x, y, text) {
     ctx.save();
-    ctx.font = this.font(13, 700);
+    ctx.font = this.font(10, 700);
     ctx.textAlign = 'center';
     const bob = Math.sin(performance.now() / 280) * 2;
     ctx.fillStyle = 'rgba(10,14,24,0.75)';
-    const w = ctx.measureText(text).width + 26;
-    ctx.fillRect(x - w / 2, y - 14 + bob, w, 20);
+    const w = ctx.measureText(text).width + 20;
+    ctx.fillRect(x - w / 2, y - 11 + bob, w, 15);
     ctx.strokeStyle = 'rgba(220,230,245,0.5)';
-    ctx.strokeRect(x - w / 2, y - 14 + bob, w, 20);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - w / 2, y - 11 + bob, w, 15);
     ctx.fillStyle = '#e8eef8';
     ctx.fillText('▲ ' + text, x, y + bob);
     ctx.restore();

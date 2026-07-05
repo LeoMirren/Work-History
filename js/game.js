@@ -220,10 +220,10 @@ const Game = {
       this.areaCardT = 3.4;
     }
 
-    this.cam.x = Math.max(0, Math.min(Player.cx - VIEW_W / 2, World.pxW - VIEW_W));
-    this.cam.y = Math.max(0, Math.min(Player.cy - VIEW_H / 2, World.pxH - VIEW_H));
-    if (World.pxW <= VIEW_W) this.cam.x = (World.pxW - VIEW_W) / 2;
-    if (World.pxH <= VIEW_H) this.cam.y = (World.pxH - VIEW_H) / 2;
+    this.cam.x = Math.max(0, Math.min(Player.cx - VIEW_TW / 2, World.pxW - VIEW_TW));
+    this.cam.y = Math.max(0, Math.min(Player.cy - VIEW_TH / 2, World.pxH - VIEW_TH));
+    if (World.pxW <= VIEW_TW) this.cam.x = (World.pxW - VIEW_TW) / 2;
+    if (World.pxH <= VIEW_TH) this.cam.y = (World.pxH - VIEW_TH) / 2;
   },
 
   // ------------------------------------------------------------- helpers
@@ -669,32 +669,32 @@ const Game = {
     // ambient atmosphere, tuned per area
     const area = World.areaId;
     if (area === 'archives') {
-      if (Math.random() < 0.14) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y - 10,
+      if (Math.random() < 0.14) Particles.spawn(this.cam.x + Math.random() * VIEW_TW, this.cam.y - 10,
         (Math.random() - 0.5) * 18, 18 + Math.random() * 22, 4, 2, 'rgba(140,220,160,0.3)');
     } else if (area === 'foundry') {
-      if (Math.random() < 0.2) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + VIEW_H + 8,
+      if (Math.random() < 0.2) Particles.spawn(this.cam.x + Math.random() * VIEW_TW, this.cam.y + VIEW_TH + 8,
         (Math.random() - 0.5) * 24, -30 - Math.random() * 50, 3, 1.8, 'rgba(255,150,60,0.35)');
     } else if (area === 'overclock') {
-      if (Math.random() < 0.3) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + VIEW_H + 8,
+      if (Math.random() < 0.3) Particles.spawn(this.cam.x + Math.random() * VIEW_TW, this.cam.y + VIEW_TH + 8,
         (Math.random() - 0.5) * 40, -60 - Math.random() * 90, 2.2, 2, 'rgba(255,90,40,0.4)');
     } else if (area === 'stacks') {
-      if (Math.random() < 0.1) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + Math.random() * VIEW_H,
+      if (Math.random() < 0.1) Particles.spawn(this.cam.x + Math.random() * VIEW_TW, this.cam.y + Math.random() * VIEW_TH,
         (Math.random() - 0.5) * 8, -4 - Math.random() * 8, 4, 1.6, 'rgba(150,140,220,0.25)');
     } else {
-      if (Math.random() < 0.12) Particles.spawn(this.cam.x + Math.random() * VIEW_W, this.cam.y + Math.random() * VIEW_H,
+      if (Math.random() < 0.12) Particles.spawn(this.cam.x + Math.random() * VIEW_TW, this.cam.y + Math.random() * VIEW_TH,
         (Math.random() - 0.5) * 12, -8 - Math.random() * 14, 2.5, 1.6, 'rgba(190,205,230,0.28)');
     }
 
     // camera
-    const targetX = Player.cx + Player.facing * CFG.camLookahead - VIEW_W / 2;
-    const targetY = Player.cy + CFG.camVertOffset - VIEW_H / 2;
+    const targetX = Player.cx + Player.facing * CFG.camLookahead - VIEW_TW / 2;
+    const targetY = Player.cy + CFG.camVertOffset - VIEW_TH / 2;
     const k = 1 - Math.exp(-CFG.camLerp * dt);
     this.cam.x += (targetX - this.cam.x) * k;
     this.cam.y += (targetY - this.cam.y) * k;
-    this.cam.x = Math.max(0, Math.min(this.cam.x, World.pxW - VIEW_W));
-    this.cam.y = Math.max(0, Math.min(this.cam.y, World.pxH - VIEW_H));
-    if (World.pxW <= VIEW_W) this.cam.x = (World.pxW - VIEW_W) / 2;
-    if (World.pxH <= VIEW_H) this.cam.y = (World.pxH - VIEW_H) / 2;
+    this.cam.x = Math.max(0, Math.min(this.cam.x, World.pxW - VIEW_TW));
+    this.cam.y = Math.max(0, Math.min(this.cam.y, World.pxH - VIEW_TH));
+    if (World.pxW <= VIEW_TW) this.cam.x = (World.pxW - VIEW_TW) / 2;
+    if (World.pxH <= VIEW_TH) this.cam.y = (World.pxH - VIEW_TH) / 2;
 
     this.shakeMag = Math.max(0, this.shakeMag - dt * 26);
   },
@@ -713,6 +713,7 @@ const Game = {
     World.drawBackground(ctx, this.cam);
 
     ctx.save();
+    ctx.scale(ZOOM, ZOOM);
     const sx = (Math.random() - 0.5) * this.shakeMag;
     const sy = (Math.random() - 0.5) * this.shakeMag;
     ctx.translate(-Math.round(this.cam.x + sx), -Math.round(this.cam.y + sy));
@@ -836,13 +837,14 @@ const Game = {
 
     lc.globalCompositeOperation = 'destination-out';
     for (const l of lights) {
-      const sx = l.x - this.cam.x, sy = l.y - this.cam.y;
-      if (sx < -l.r || sx > VIEW_W + l.r || sy < -l.r || sy > VIEW_H + l.r) continue;
-      const g = lc.createRadialGradient(sx, sy, l.r * 0.12, sx, sy, l.r);
+      const sx = (l.x - this.cam.x) * ZOOM, sy = (l.y - this.cam.y) * ZOOM;
+      const r = l.r * ZOOM * 0.8;
+      if (sx < -r || sx > VIEW_W + r || sy < -r || sy > VIEW_H + r) continue;
+      const g = lc.createRadialGradient(sx, sy, r * 0.12, sx, sy, r);
       g.addColorStop(0, `rgba(0,0,0,${l.a})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
       lc.fillStyle = g;
-      lc.fillRect(sx - l.r, sy - l.r, l.r * 2, l.r * 2);
+      lc.fillRect(sx - r, sy - r, r * 2, r * 2);
     }
     ctx.drawImage(this._lightCanvas, 0, 0);
   },

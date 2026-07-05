@@ -1088,7 +1088,7 @@ const World = {
   renderBackgroundLayers() {
     const p = this.palette;
     const mk = (speed) => {
-      const w = Math.ceil(Math.max(VIEW_W, (this.pxW - VIEW_W) * speed + VIEW_W)) + 40;
+      const w = Math.ceil(Math.max(VIEW_W, Math.max(0, this.pxW - VIEW_TW) * speed * ZOOM + VIEW_W)) + 40;
       const h = VIEW_H + 160;
       const cv = document.createElement('canvas');
       cv.width = w; cv.height = h;
@@ -1162,7 +1162,7 @@ const World = {
       // hanging vines from the top of the frame
       for (let i = 0; i < L2.w / 90; i++) {
         const vx = i * 90 + rand() * 60;
-        this._vine(ctx, vx, -6, 40 + rand() * 110, col, i * 37 + 11);
+        this._vine(ctx, vx, L2.h - VIEW_H - 4, 40 + rand() * 110, col, i * 37 + 11);
       }
     }
 
@@ -1181,7 +1181,7 @@ const World = {
         else if (this.areaId !== 'overclock') this._bulbPlant(ctx, px, base, 1.5, col, this._mix(p.glow, col, 0.45), i * 59);
       }
       for (let i = 0; i < L3.w / 150; i++) {
-        this._vine(ctx, i * 150 + rand() * 100, -8, 60 + rand() * 130, col, i * 43 + 29);
+        this._vine(ctx, i * 150 + rand() * 100, L3.h - VIEW_H - 6, 60 + rand() * 130, col, i * 43 + 29);
       }
     }
 
@@ -1202,7 +1202,7 @@ const World = {
       }
       // a few hanging fronds from the top
       for (let i = 0; i < FG.w / 260; i++) {
-        this._vine(ctx, i * 260 + rand() * 160, -10, 50 + rand() * 90, col, i * 83 + 41);
+        this._vine(ctx, i * 260 + rand() * 160, FG.h - VIEW_H - 8, 50 + rand() * 90, col, i * 83 + 41);
       }
     }
     this._fgLayer = FG;
@@ -1229,9 +1229,10 @@ const World = {
     ctx.fillStyle = hb;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
+    const maxCamY = Math.max(0, this.pxH - VIEW_TH);
     const blit = (L, alpha) => {
-      const ox = Math.max(0, Math.min(cam.x * L.speed, L.w - VIEW_W));
-      const oy = Math.max(-160, Math.min(0, -160 + cam.y * L.speed * 0.35));
+      const ox = Math.max(0, Math.min(cam.x * L.speed * ZOOM, L.w - VIEW_W));
+      const oy = (VIEW_H - L.h) + Math.min(160, (maxCamY - cam.y) * L.speed * 0.5);
       ctx.globalAlpha = alpha;
       ctx.drawImage(L.cv, ox, 0, VIEW_W, L.h, 0, oy, VIEW_W, L.h);
       ctx.globalAlpha = 1;
@@ -1305,8 +1306,9 @@ const World = {
   drawForeground(ctx, cam) {
     if (!this._fgLayer) return;
     const L = this._fgLayer;
-    const ox = Math.max(0, Math.min(cam.x * L.speed, L.w - VIEW_W));
-    const oy = Math.max(-160, Math.min(0, -160 + cam.y * L.speed * 0.2));
+    const maxCamY = Math.max(0, this.pxH - VIEW_TH);
+    const ox = Math.max(0, Math.min(cam.x * L.speed * ZOOM, L.w - VIEW_W));
+    const oy = (VIEW_H - L.h) + Math.min(360, (maxCamY - cam.y) * 0.6);
     ctx.globalAlpha = 0.92;
     ctx.drawImage(L.cv, ox, 0, VIEW_W, L.h, 0, oy, VIEW_W, L.h);
     ctx.globalAlpha = 1;
