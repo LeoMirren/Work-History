@@ -746,6 +746,9 @@ const Game = {
     Particles.draw(ctx);
     ctx.restore();
 
+    // foreground flora slides in front of the action
+    World.drawForeground(ctx, this.cam);
+
     // lighting: darkness with punched lights, then a soft vignette
     this.drawLighting(ctx);
     UI.vignette(ctx, 0.28);

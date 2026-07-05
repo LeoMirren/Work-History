@@ -644,6 +644,11 @@ const World = {
       }
     }
     this._silhouettes = sil;
+
+    // invalidate all baked art for the new room
+    this._tileDirty = true;
+    this._bgLayers = null;
+    this._fgLayer = null;
   },
 
   tile(tx, ty) {
@@ -678,20 +683,154 @@ const World = {
 
   // ---------------------------------------------------------------- drawing
   //
-  // The tile layer is expensive (rounded rock, texture, moss, roots), so it
-  // renders once into an offscreen canvas per room and re-renders only when
-  // tiles change (boss/arena doors). Everything else is cheap per-frame.
+  // Everything static is baked once per room: the terrain layer (organic
+  // boulder-edged rock, moss caps, grass, vines) and each parallax plane
+  // (dense vegetation silhouettes with atmospheric depth). Per-frame work is
+  // just blits + a few dynamic glows.
 
   _tileCanvas: null,
   _tileDirty: true,
+  _bgLayers: null,
+  _fgLayer: null,
+
   _hash(x, y) {
     let h = (x * 374761393 + y * 668265263) ^ (hashStr(this.roomId || '') | 0);
     h = (h ^ (h >> 13)) * 1274126177;
     return ((h ^ (h >> 16)) >>> 0) / 4294967296;
   },
-
   markDirty() { this._tileDirty = true; },
 
+  // hex color lerp for atmospheric tints
+  _mix(a, b, t) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const r = Math.round(((pa >> 16) & 255) * (1 - t) + ((pb >> 16) & 255) * t);
+    const g = Math.round(((pa >> 8) & 255) * (1 - t) + ((pb >> 8) & 255) * t);
+    const bl = Math.round((pa & 255) * (1 - t) + (pb & 255) * t);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1);
+  },
+
+  // ================================================================ FLORA
+  // Small procedural plant painters. Everything silhouette-first, like the
+  // real thing: shape carries the read, color carries the depth.
+  _grass(ctx, x, y, s, color, seed) {
+    const rand = mulberry32(seed);
+    const n = 4 + Math.floor(rand() * 4);
+    ctx.strokeStyle = color;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const bx = x + (rand() - 0.5) * 14 * s;
+      const h = (7 + rand() * 12) * s;
+      const lean = (rand() - 0.5) * 10 * s;
+      ctx.lineWidth = (1 + rand()) * s;
+      ctx.beginPath();
+      ctx.moveTo(bx, y);
+      ctx.quadraticCurveTo(bx + lean * 0.3, y - h * 0.6, bx + lean, y - h);
+      ctx.stroke();
+    }
+  },
+
+  _fern(ctx, x, y, s, color, seed) {
+    const rand = mulberry32(seed);
+    const lean = (rand() - 0.5) * 0.9;
+    const h = (30 + rand() * 26) * s;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineCap = 'round';
+    // stem
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + lean * h * 0.4, y - h * 0.6, x + lean * h, y - h);
+    ctx.stroke();
+    // leaflets along the stem
+    const steps = 7;
+    for (let i = 2; i <= steps; i++) {
+      const t = i / steps;
+      const px = x + lean * h * (t * t * 0.9);
+      const py = y - h * t * 0.95;
+      const ll = (1 - t) * 16 * s + 3;
+      for (const side of [-1, 1]) {
+        ctx.lineWidth = 1.6 * s;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.quadraticCurveTo(px + side * ll * 0.6, py - ll * 0.15, px + side * ll, py - ll * 0.45);
+        ctx.stroke();
+      }
+    }
+  },
+
+  _mushroom(ctx, x, y, s, stemC, capC, seed) {
+    const rand = mulberry32(seed);
+    const h = (10 + rand() * 16) * s;
+    const cw = (7 + rand() * 8) * s;
+    const lean = (rand() - 0.5) * 6 * s;
+    ctx.strokeStyle = stemC;
+    ctx.lineWidth = 2.4 * s;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + lean * 0.5, y - h * 0.6, x + lean, y - h);
+    ctx.stroke();
+    ctx.fillStyle = capC;
+    ctx.beginPath();
+    ctx.ellipse(x + lean, y - h, cw, cw * 0.55, 0, Math.PI, 0);
+    ctx.quadraticCurveTo(x + lean, y - h + cw * 0.28, x + lean - cw, y - h);
+    ctx.fill();
+  },
+
+  _bulbPlant(ctx, x, y, s, stemC, glowC, seed) {
+    const rand = mulberry32(seed);
+    const h = (24 + rand() * 22) * s;
+    const lean = (rand() - 0.5) * 20 * s;
+    ctx.strokeStyle = stemC;
+    ctx.lineWidth = 2 * s;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + lean * 0.2, y - h, x + lean, y - h * 0.92);
+    ctx.stroke();
+    // drooping lantern bulb
+    const bx = x + lean, by = y - h * 0.92 + 4 * s;
+    const g = ctx.createRadialGradient(bx, by, 1, bx, by, 10 * s);
+    g.addColorStop(0, glowC);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = g;
+    ctx.fillRect(bx - 10 * s, by - 10 * s, 20 * s, 20 * s);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = glowC;
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 2.6 * s, 3.6 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  _vine(ctx, x, y, len, color, seed) {
+    const rand = mulberry32(seed);
+    const sway = (rand() - 0.5) * 26;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + sway, y + len * 0.55, x + sway * 0.5, y + len);
+    ctx.stroke();
+    // leaf pairs
+    const leaves = Math.floor(len / 14);
+    ctx.fillStyle = color;
+    for (let i = 1; i <= leaves; i++) {
+      const t = i / (leaves + 1);
+      const lx = x + sway * (t * 1.1 - t * t * 0.55);
+      const ly = y + len * t;
+      const ls = 4.5 * (1 - t * 0.4);
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(lx + side * ls * 0.8, ly, ls, ls * 0.4, side * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  },
+
+  // ======================================================== TERRAIN LAYER
   renderTileLayer() {
     const p = this.palette;
     if (!this._tileCanvas) this._tileCanvas = document.createElement('canvas');
@@ -701,8 +840,12 @@ const World = {
     ctx.clearRect(0, 0, c.width, c.height);
     const T = TILE;
     const solid = (x, y) => this.tile(x, y) === T_SOLID;
+    const rockLite = this._mix(p.fg, p.edge, 0.55);
+    const mossC = this._mix(p.fg, p.accent, 0.4);
+    const mossBright = this._mix(p.fg, p.accent, 0.62);
+    const deepC = this._mix(p.fg, '#000000', 0.45);
 
-    // -- pillars first (behind rock) ------------------------------------
+    // -- pillars (behind rock) --------------------------------------------
     for (const d of this.decor) {
       if (d.type !== 'pillar') continue;
       let bottom = d.y;
@@ -713,191 +856,170 @@ const World = {
       g.addColorStop(0, 'rgba(0,0,0,0)');
       g.addColorStop(0.5, p.mid);
       g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.globalAlpha = 0.85;
+      ctx.globalAlpha = 0.8;
       ctx.fillStyle = g;
       ctx.fillRect(px + 4, topY, T - 8, hgt);
-      // capital & base
       ctx.fillStyle = p.mid;
       ctx.fillRect(px + 1, topY, T - 2, 7);
       ctx.fillRect(px + 3, topY + 9, T - 6, 3);
-      // flutes
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 2;
-      for (let i = 1; i < 3; i++) {
-        ctx.beginPath();
-        ctx.moveTo(px + 6 + i * 7, topY + 14);
-        ctx.lineTo(px + 6 + i * 7, topY + hgt - 6);
-        ctx.stroke();
-      }
+      // ivy wrap
+      ctx.globalAlpha = 0.6;
+      this._vine(ctx, px + 8, topY + 10, Math.min(hgt - 20, 90), this._mix(p.mid, p.accent, 0.3), d.x * 31 + 7);
       ctx.globalAlpha = 1;
     }
 
-    // -- base rock fill ---------------------------------------------------
+    // -- base rock fill with depth gradient --------------------------------
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
         if (!solid(x, y)) continue;
-        ctx.fillStyle = p.fg;
+        // depth: cells far from any exposed edge get darker
+        let exposed = 0;
+        for (let r = 1; r <= 2; r++) {
+          if (!solid(x, y - r) || !solid(x, y + r) || !solid(x - r, y) || !solid(x + r, y)) { exposed = r; break; }
+        }
+        ctx.fillStyle = exposed === 1 ? p.fg : (exposed === 2 ? this._mix(p.fg, deepC, 0.5) : deepC);
         ctx.fillRect(x * T - 0.5, y * T - 0.5, T + 1, T + 1);
       }
     }
 
-    // -- round the exposed corners with punch-outs ------------------------
-    ctx.globalCompositeOperation = 'destination-out';
-    const R = 9;
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
-        if (!solid(x, y)) continue;
-        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
-        const px = x * T, py = y * T;
-        const corner = (cx, cy, sx, sy) => {
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.lineTo(cx + sx * R, cy);
-          ctx.arcTo(cx, cy, cx, cy + sy * R, R);
-          ctx.lineTo(cx, cy + sy * R);
-          ctx.closePath();
-          ctx.fill();
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.lineTo(cx + sx * R, cy);
-          ctx.arc(cx + sx * R, cy + sy * R, R, sy > 0 ? -Math.PI / 2 : Math.PI / 2, sx > 0 ? Math.PI : 0, (sx > 0) === (sy > 0));
-          ctx.closePath();
-        };
-        // simpler reliable punch: square minus quarter-disc
-        const punch = (cx, cy, qx, qy) => {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(cx - (qx < 0 ? R : 0), cy - (qy < 0 ? R : 0), R, R);
-          ctx.clip();
-          ctx.beginPath();
-          ctx.rect(cx - (qx < 0 ? R : 0), cy - (qy < 0 ? R : 0), R, R);
-          ctx.arc(cx + qx * R * (qx < 0 ? 0 : 0) + (qx < 0 ? -0 : 0) + (qx > 0 ? R : -R) * 0 + (qx > 0 ? 0 : 0) + (qx > 0 ? 0 : 0), cy, 1, 0, 0); // placeholder
-          ctx.restore();
-        };
-        // Use arc-based punch: remove the corner square, we then re-add a disc below.
-        if (!up && !lf) { ctx.beginPath(); ctx.rect(px, py, R, R); ctx.fill(); }
-        if (!up && !rt) { ctx.beginPath(); ctx.rect(px + T - R, py, R, R); ctx.fill(); }
-        if (!dn && !lf) { ctx.beginPath(); ctx.rect(px, py + T - R, R, R); ctx.fill(); }
-        if (!dn && !rt) { ctx.beginPath(); ctx.rect(px + T - R, py + T - R, R, R); ctx.fill(); }
-      }
-    }
-    ctx.globalCompositeOperation = 'source-over';
-    // re-add quarter discs to make the rounding
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
-        if (!solid(x, y)) continue;
-        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
-        const px = x * T, py = y * T;
-        ctx.fillStyle = p.fg;
-        if (!up && !lf) { ctx.beginPath(); ctx.moveTo(px + R, py); ctx.arc(px + R, py + R, R, -Math.PI / 2, Math.PI, true); ctx.lineTo(px + R, py + R); ctx.closePath(); ctx.fill(); }
-        if (!up && !rt) { ctx.beginPath(); ctx.moveTo(px + T - R, py); ctx.arc(px + T - R, py + R, R, -Math.PI / 2, 0); ctx.lineTo(px + T - R, py + R); ctx.closePath(); ctx.fill(); }
-        if (!dn && !lf) { ctx.beginPath(); ctx.moveTo(px, py + T - R); ctx.arc(px + R, py + T - R, R, Math.PI, Math.PI / 2, true); ctx.lineTo(px + R, py + T - R); ctx.closePath(); ctx.fill(); }
-        if (!dn && !rt) { ctx.beginPath(); ctx.moveTo(px + T, py + T - R); ctx.arc(px + T - R, py + T - R, R, 0, Math.PI / 2); ctx.lineTo(px + T - R, py + T - R); ctx.closePath(); ctx.fill(); }
-      }
-    }
-
-    // -- interior texture: seeded speckle + cracks -------------------------
+    // -- organic boulder bumps along every exposed edge ---------------------
+    // Overlapping ellipses straddling the tile boundary erase the straight
+    // machine line and read as natural rock.
+    const bump = (bx, by, rx, ry, fill) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
         if (!solid(x, y)) continue;
         const px = x * T, py = y * T;
-        const h1 = this._hash(x, y);
-        if (h1 < 0.45) {
-          ctx.fillStyle = 'rgba(0,0,0,0.22)';
-          const sx = px + 4 + h1 * 40 % (T - 10), sy = py + 5 + (h1 * 91) % (T - 10);
-          ctx.beginPath();
-          ctx.ellipse(sx, sy, 2.5 + h1 * 3, 1.5 + h1 * 2, h1 * 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        if (h1 > 0.8 && solid(x, y - 1)) {
-          ctx.strokeStyle = 'rgba(0,0,0,0.28)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(px + 6 + h1 * 10, py + 2);
-          ctx.lineTo(px + 12 + h1 * 8, py + 12 + h1 * 8);
-          ctx.stroke();
-        }
-      }
-    }
-
-    // -- edge lighting ------------------------------------------------------
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
-        if (!solid(x, y)) continue;
-        const up = solid(x, y - 1), dn = solid(x, y + 1), lf = solid(x - 1, y), rt = solid(x + 1, y);
-        const px = x * T, py = y * T;
-        if (!up) {
-          const g = ctx.createLinearGradient(0, py, 0, py + 10);
-          g.addColorStop(0, p.edge);
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.fillRect(px + (lf ? 0 : 3), py, T - (lf ? 0 : 3) - (rt ? 0 : 3), 10);
-          ctx.fillStyle = 'rgba(255,255,255,0.16)';
-          ctx.fillRect(px + (lf ? 0 : 4), py, T - (lf ? 0 : 4) - (rt ? 0 : 4), 2);
-        }
-        if (!lf) {
-          const g = ctx.createLinearGradient(px, 0, px + 6, 0);
-          g.addColorStop(0, p.edge);
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.globalAlpha = 0.4;
-          ctx.fillStyle = g;
-          ctx.fillRect(px, py + (up ? 0 : 4), 6, T - (up ? 0 : 4));
-          ctx.globalAlpha = 1;
-        }
-        if (!rt) {
-          const g = ctx.createLinearGradient(px + T, 0, px + T - 6, 0);
-          g.addColorStop(0, p.edge);
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.globalAlpha = 0.4;
-          ctx.fillStyle = g;
-          ctx.fillRect(px + T - 6, py + (up ? 0 : 4), 6, T - (up ? 0 : 4));
-          ctx.globalAlpha = 1;
-        }
-        if (!dn) {
-          ctx.fillStyle = 'rgba(0,0,0,0.35)';
-          ctx.fillRect(px, py + T - 5, T, 5);
-        }
-      }
-    }
-
-    // -- moss tufts on top edges, roots under bottoms ------------------------
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
-        if (!solid(x, y)) continue;
-        const px = x * T, py = y * T;
-        if (!solid(x, y - 1)) {
-          const n = 2 + Math.floor(this._hash(x, y + 71) * 3);
-          for (let i = 0; i < n; i++) {
-            const hx = this._hash(x * 7 + i, y);
-            const bx = px + 3 + hx * (T - 6);
-            const bh = 3 + hx * 6;
-            ctx.strokeStyle = p.accent;
-            ctx.globalAlpha = 0.32;
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.moveTo(bx, py + 1);
-            ctx.quadraticCurveTo(bx + (hx - 0.5) * 5, py - bh * 0.7, bx + (hx - 0.5) * 8, py - bh);
-            ctx.stroke();
-            ctx.globalAlpha = 1;
+        const h0 = this._hash(x, y);
+        if (!solid(x, y - 1)) { // top edge
+          for (let i = 0; i < 3; i++) {
+            const hh = this._hash(x * 3 + i, y * 5 + i);
+            bump(px + 5 + i * 11 + (hh - 0.5) * 6, py + (hh - 0.5) * 5, 7 + hh * 5, 5 + hh * 3, p.fg);
           }
         }
-        if (!solid(x, y + 1) && this._hash(x, y + 13) > 0.55) {
-          const hx = this._hash(x + 3, y * 3);
-          const bx = px + 6 + hx * (T - 12);
-          const bl = 8 + hx * 16;
-          ctx.strokeStyle = p.mid;
-          ctx.globalAlpha = 0.8;
-          ctx.lineWidth = 2;
+        if (!solid(x, y + 1)) { // bottom edge
+          for (let i = 0; i < 3; i++) {
+            const hh = this._hash(x * 7 + i, y * 3 + i);
+            bump(px + 5 + i * 11 + (hh - 0.5) * 6, py + T + (hh - 0.5) * 6, 7 + hh * 5, 5 + hh * 4, deepC);
+          }
+        }
+        if (!solid(x - 1, y)) { // left edge
+          for (let i = 0; i < 3; i++) {
+            const hh = this._hash(x * 5 + i, y * 7 + i);
+            bump(px + (hh - 0.5) * 6, py + 5 + i * 11, 4 + hh * 4, 7 + hh * 5, p.fg);
+          }
+        }
+        if (!solid(x + 1, y)) { // right edge
+          for (let i = 0; i < 3; i++) {
+            const hh = this._hash(x * 11 + i, y * 13 + i);
+            bump(px + T + (hh - 0.5) * 6, py + 5 + i * 11, 4 + hh * 4, 7 + hh * 5, p.fg);
+          }
+        }
+      }
+    }
+
+    // -- interior speckle texture -------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const h1 = this._hash(x, y);
+        if (h1 < 0.4) {
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
           ctx.beginPath();
-          ctx.moveTo(bx, py + T - 2);
-          ctx.quadraticCurveTo(bx + (hx - 0.5) * 8, py + T + bl * 0.6, bx + (hx - 0.5) * 12, py + T + bl);
-          ctx.stroke();
+          ctx.ellipse(x * T + 4 + (h1 * 97) % (T - 8), y * T + 5 + (h1 * 53) % (T - 10),
+            2.5 + h1 * 3.5, 1.6 + h1 * 2, h1 * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // -- moss caps on top surfaces (bumpy, two-tone) --------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y) || solid(x, y - 1)) continue;
+        const px = x * T, py = y * T;
+        // base band
+        ctx.fillStyle = mossC;
+        ctx.fillRect(px - 1, py - 1.5, T + 2, 6.5);
+        // bumpy underside of the moss
+        for (let i = 0; i < 4; i++) {
+          const hh = this._hash(x * 13 + i, y * 17 + i);
+          ctx.beginPath();
+          ctx.ellipse(px + 4 + i * 9 + (hh - 0.5) * 4, py + 4 + hh * 4, 5 + hh * 3, 3.5 + hh * 2.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // bright crest
+        ctx.fillStyle = mossBright;
+        ctx.fillRect(px - 1, py - 1.5, T + 2, 2.4);
+        for (let i = 0; i < 3; i++) {
+          const hh = this._hash(x * 19 + i, y * 7 + i);
+          ctx.beginPath();
+          ctx.ellipse(px + 5 + i * 11 + (hh - 0.5) * 5, py + 0.5, 5 + hh * 3, 2.2 + hh * 1.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // -- side rim light (soft) --------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y)) continue;
+        const px = x * T, py = y * T;
+        if (!solid(x - 1, y) && !(!solid(x, y - 1))) {
+          const g = ctx.createLinearGradient(px, 0, px + 7, 0);
+          g.addColorStop(0, rockLite);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = g;
+          ctx.fillRect(px - 2, py, 9, T);
+          ctx.globalAlpha = 1;
+        }
+        if (!solid(x + 1, y) && !(!solid(x, y - 1))) {
+          const g = ctx.createLinearGradient(px + T, 0, px + T - 7, 0);
+          g.addColorStop(0, rockLite);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = g;
+          ctx.fillRect(px + T - 7, py, 9, T);
           ctx.globalAlpha = 1;
         }
       }
     }
 
-    // -- carved bright blocks ('%') ------------------------------------------
+    // -- vegetation on top surfaces ------------------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y) || solid(x, y - 1)) continue;
+        const px = x * T, py = y * T;
+        const h = this._hash(x * 29, y * 23);
+        // grass everywhere
+        this._grass(ctx, px + T / 2, py + 1, 1, this._mix(mossBright, p.accent, 0.35), x * 977 + y * 31);
+        // occasional feature plant (never on narrow pedestals used for pickups)
+        if (h > 0.82) this._fern(ctx, px + T / 2 + (h - 0.5) * 10, py + 2, 0.8 + h * 0.5, this._mix(p.mid, p.accent, 0.28), x * 131 + y * 7);
+        else if (h > 0.72) this._mushroom(ctx, px + 8 + h * 14, py + 2, 0.8 + h * 0.6, this._mix(p.mid, '#000000', 0.2), this._mix(p.accent, p.glow, 0.4), x * 61 + y * 13);
+        else if (h > 0.66 && this.areaId !== 'overclock') this._bulbPlant(ctx, px + T / 2, py + 2, 0.85, this._mix(p.mid, p.accent, 0.25), p.glow, x * 17 + y * 43);
+      }
+    }
+
+    // -- hanging vines & roots under overhangs ----------------------------------------
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!solid(x, y) || solid(x, y + 1)) continue;
+        const px = x * T, py = y * T;
+        const h = this._hash(x * 41, y * 3);
+        if (h > 0.45) {
+          const len = 14 + h * 46;
+          this._vine(ctx, px + 4 + h * 24, py + T - 2, len, this._mix(p.mid, p.accent, 0.22), x * 7 + y * 19);
+        }
+      }
+    }
+
+    // -- carved bright blocks ('%') --------------------------------------------------
     for (const d of this.decor) {
       if (d.type !== 'bright') continue;
       const px = d.x * T, py = d.y * T;
@@ -910,7 +1032,7 @@ const World = {
       ctx.globalAlpha = 1;
     }
 
-    // -- spikes -----------------------------------------------------------------
+    // -- spikes: bone-pale thorns ---------------------------------------------------------
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
         if (this.tile(x, y) !== T_SPIKE) continue;
@@ -920,129 +1042,223 @@ const World = {
         const n = 3;
         for (let i = 0; i < n; i++) {
           const bx = px + (i * T) / n, bw = T / n;
+          const hh = this._hash(x * 3 + i, y);
           const g = ctx.createLinearGradient(bx, py + T, bx + bw / 2, py + 4);
           g.addColorStop(0, p.mid);
-          g.addColorStop(0.7, p.edge);
-          g.addColorStop(1, '#e8ecf4');
+          g.addColorStop(0.7, this._mix(p.edge, '#c8c4b8', 0.5));
+          g.addColorStop(1, '#efece2');
           ctx.fillStyle = g;
           ctx.beginPath();
           ctx.moveTo(bx + 1, py + T);
-          ctx.lineTo(bx + bw / 2, py + 4 + this._hash(x * 3 + i, y) * 5);
-          ctx.lineTo(bx + bw - 1, py + T);
+          ctx.quadraticCurveTo(bx + bw * 0.28, py + T - 12, bx + bw / 2 + (hh - 0.5) * 5, py + 4 + hh * 5);
+          ctx.quadraticCurveTo(bx + bw * 0.72, py + T - 12, bx + bw - 1, py + T);
           ctx.closePath();
           ctx.fill();
         }
       }
     }
 
-    // -- one-way platforms ---------------------------------------------------------
+    // -- one-way platforms: mossy branch shelves -------------------------------------------
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
         if (this.tile(x, y) !== T_PLAT) continue;
         const px = x * T, py = y * T;
         const lf = this.tile(x - 1, y) === T_PLAT, rt = this.tile(x + 1, y) === T_PLAT;
-        // slab
-        const g = ctx.createLinearGradient(0, py + 2, 0, py + 12);
-        g.addColorStop(0, p.edge);
+        const g = ctx.createLinearGradient(0, py + 2, 0, py + 13);
+        g.addColorStop(0, this._mix(p.edge, p.accent, 0.25));
         g.addColorStop(1, p.fg);
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.roundRect(px - (lf ? 1 : -2), py + 3, T + (lf ? 1 : -2) + (rt ? 1 : -2), 9, lf && rt ? 0 : 4);
         ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.22)';
-        ctx.fillRect(px + (lf ? 0 : 4), py + 3, T - (lf ? 0 : 4) - (rt ? 0 : 4), 1.6);
-        // support bracket at ends
-        if (!lf) {
-          ctx.strokeStyle = p.mid;
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.moveTo(px + 4, py + 12);
-          ctx.quadraticCurveTo(px + 5, py + 22, px + 14, py + 24);
-          ctx.stroke();
-        }
-        if (!rt) {
-          ctx.strokeStyle = p.mid;
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.moveTo(px + T - 4, py + 12);
-          ctx.quadraticCurveTo(px + T - 5, py + 22, px + T - 14, py + 24);
-          ctx.stroke();
-        }
+        // moss crest + grass on the shelf
+        ctx.fillStyle = mossBright;
+        ctx.fillRect(px + (lf ? 0 : 4), py + 3, T - (lf ? 0 : 4) - (rt ? 0 : 4), 2);
+        this._grass(ctx, px + T / 2, py + 4, 0.7, mossBright, x * 53 + y * 11);
+        // drooping tendril at ends
+        if (!lf) this._vine(ctx, px + 6, py + 11, 16, this._mix(p.mid, p.accent, 0.25), x * 3 + y);
+        if (!rt) this._vine(ctx, px + T - 6, py + 11, 16, this._mix(p.mid, p.accent, 0.25), x * 5 + y);
       }
     }
 
     this._tileDirty = false;
   },
 
+  // ==================================================== PARALLAX PLANES
+  renderBackgroundLayers() {
+    const p = this.palette;
+    const mk = (speed) => {
+      const w = Math.ceil(Math.max(VIEW_W, (this.pxW - VIEW_W) * speed + VIEW_W)) + 40;
+      const h = VIEW_H + 160;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      return { cv, ctx: cv.getContext('2d'), w, h, speed };
+    };
+    const rand = mulberry32(hashStr(this.roomId + 'flora'));
+
+    // L1 — far ridge line with spires, heavily atmospheric
+    const L1 = mk(0.12);
+    {
+      const ctx = L1.ctx;
+      const col = this._mix(p.sky2, p.mid, 0.45);
+      ctx.fillStyle = col;
+      const base = L1.h - 120;
+      ctx.beginPath();
+      ctx.moveTo(0, L1.h);
+      ctx.lineTo(0, base);
+      let x = 0;
+      while (x < L1.w) {
+        const seg = 60 + rand() * 120;
+        const peak = base - rand() * 130 - (rand() > 0.75 ? 90 : 0);
+        ctx.quadraticCurveTo(x + seg * 0.5, peak, x + seg, base - rand() * 40);
+        x += seg;
+      }
+      ctx.lineTo(L1.w, L1.h);
+      ctx.closePath();
+      ctx.fill();
+      // faint far spires
+      ctx.globalAlpha = 0.6;
+      for (let i = 0; i < L1.w / 210; i++) {
+        const sx = i * 210 + rand() * 90;
+        const sh = 120 + rand() * 140;
+        ctx.beginPath();
+        ctx.moveTo(sx, base + 10);
+        ctx.lineTo(sx + 13, base - sh);
+        ctx.lineTo(sx + 26, base + 10);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // L2 — mid vegetation band + hanging growth from above
+    const L2 = mk(0.32);
+    {
+      const ctx = L2.ctx;
+      const col = this._mix(p.sky2, p.mid, 0.8);
+      const base = L2.h - 70;
+      // ground mound
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(0, L2.h);
+      ctx.lineTo(0, base + 20);
+      let x = 0;
+      while (x < L2.w) {
+        const seg = 50 + rand() * 90;
+        ctx.quadraticCurveTo(x + seg * 0.5, base - rand() * 26, x + seg, base + rand() * 22);
+        x += seg;
+      }
+      ctx.lineTo(L2.w, L2.h);
+      ctx.closePath();
+      ctx.fill();
+      // plants along it
+      for (let i = 0; i < L2.w / 26; i++) {
+        const px = i * 26 + rand() * 20;
+        const r = rand();
+        if (r > 0.6) this._fern(ctx, px, base + 8, 0.9 + rand() * 0.9, col, i * 7 + 3);
+        else if (r > 0.35) this._grass(ctx, px, base + 10, 1.6, col, i * 13 + 1);
+        else if (r > 0.22) this._mushroom(ctx, px, base + 8, 1.1 + rand(), col, col, i * 29);
+      }
+      // hanging vines from the top of the frame
+      for (let i = 0; i < L2.w / 90; i++) {
+        const vx = i * 90 + rand() * 60;
+        this._vine(ctx, vx, -6, 40 + rand() * 110, col, i * 37 + 11);
+      }
+    }
+
+    // L3 — near-behind large flora, darker
+    const L3 = mk(0.58);
+    {
+      const ctx = L3.ctx;
+      const col = this._mix(p.mid, p.fg, 0.45);
+      const base = L3.h - 34;
+      for (let i = 0; i < L3.w / 46; i++) {
+        const px = i * 46 + rand() * 36;
+        const r = rand();
+        if (r > 0.55) this._fern(ctx, px, base, 1.5 + rand() * 1.3, col, i * 17 + 5);
+        else if (r > 0.3) this._grass(ctx, px, base, 2.4, col, i * 41 + 9);
+        else if (r > 0.18) this._mushroom(ctx, px, base, 1.7 + rand() * 1.2, col, col, i * 53);
+        else if (this.areaId !== 'overclock') this._bulbPlant(ctx, px, base, 1.5, col, this._mix(p.glow, col, 0.45), i * 59);
+      }
+      for (let i = 0; i < L3.w / 150; i++) {
+        this._vine(ctx, i * 150 + rand() * 100, -8, 60 + rand() * 130, col, i * 43 + 29);
+      }
+    }
+
+    this._bgLayers = [L1, L2, L3];
+
+    // FG — dark occluder plants that slide in front of the action
+    const FG = mk(1.22);
+    {
+      const ctx = FG.ctx;
+      const col = this._mix(p.fg, '#000000', 0.55);
+      const base = FG.h;
+      for (let i = 0; i < FG.w / 34; i++) {
+        const px = i * 34 + rand() * 26;
+        const r = rand();
+        if (r > 0.5) this._fern(ctx, px, base + 10, 2.0 + rand() * 1.6, col, i * 23 + 3);
+        else if (r > 0.25) this._grass(ctx, px, base + 6, 3.2, col, i * 31 + 15);
+        else this._mushroom(ctx, px, base + 6, 2.2 + rand() * 1.4, col, col, i * 71);
+      }
+      // a few hanging fronds from the top
+      for (let i = 0; i < FG.w / 260; i++) {
+        this._vine(ctx, i * 260 + rand() * 160, -10, 50 + rand() * 90, col, i * 83 + 41);
+      }
+    }
+    this._fgLayer = FG;
+  },
+
   // ------------------------------------------------------------- background
   drawBackground(ctx, cam) {
     const p = this.palette;
     const t = performance.now() / 1000;
+    if (!this._bgLayers) this.renderBackgroundLayers();
+
+    // sky
     const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
     g.addColorStop(0, p.sky1);
     g.addColorStop(0.72, p.sky2);
-    g.addColorStop(1, p.sky1);
+    g.addColorStop(1, this._mix(p.sky2, p.sky1, 0.5));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    // horizon bloom
+    const hb = ctx.createRadialGradient(VIEW_W / 2, VIEW_H * 0.62, 40, VIEW_W / 2, VIEW_H * 0.62, VIEW_W * 0.55);
+    hb.addColorStop(0, 'rgba(255,255,255,0.05)');
+    hb.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+    hb.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hb;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    // far arch colonnade
-    const rand = mulberry32(hashStr(this.roomId + 'bg'));
-    ctx.save();
-    for (let layer = 0; layer < 3; layer++) {
-      const speed = 0.15 + layer * 0.18;
-      const alpha = 0.25 + layer * 0.2;
-      const off = cam.x * speed;
-      const offY = cam.y * speed * 0.4;
+    const blit = (L, alpha) => {
+      const ox = Math.max(0, Math.min(cam.x * L.speed, L.w - VIEW_W));
+      const oy = Math.max(-160, Math.min(0, -160 + cam.y * L.speed * 0.35));
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = p.mid;
-      for (const s of this._silhouettes[Math.min(layer, 1)]) {
-        let sx = ((s.x - off) % (this.pxW + VIEW_W));
-        if (sx < -s.w) sx += this.pxW + VIEW_W;
-        sx -= 120;
-        const base = VIEW_H + 60 - offY;
-        const top = base - s.hgt - layer * 60;
-        if (s.spire) {
-          // gothic spire with a shoulder
-          ctx.beginPath();
-          ctx.moveTo(sx, base);
-          ctx.lineTo(sx + s.w * 0.18, top + s.hgt * 0.35);
-          ctx.lineTo(sx + s.w * 0.5, top);
-          ctx.lineTo(sx + s.w * 0.82, top + s.hgt * 0.35);
-          ctx.lineTo(sx + s.w, base);
-          ctx.closePath();
-          ctx.fill();
-        } else {
-          // arch block with a punched arch window
-          ctx.beginPath();
-          ctx.rect(sx, top, s.w, s.hgt + 80);
-          ctx.moveTo(sx + s.w / 2, top);
-          ctx.arc(sx + s.w / 2, top + 4, s.w * 0.42, Math.PI, 0);
-          ctx.fill();
-          ctx.save();
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.globalAlpha = 0.55;
-          const ww = s.w * 0.2;
-          ctx.beginPath();
-          ctx.rect(sx + s.w / 2 - ww / 2, top + s.hgt * 0.32, ww, s.hgt * 0.5);
-          ctx.arc(sx + s.w / 2, top + s.hgt * 0.32, ww / 2, Math.PI, 0);
-          ctx.fill();
-          ctx.restore();
-        }
-      }
-    }
-    ctx.restore();
+      ctx.drawImage(L.cv, ox, 0, VIEW_W, L.h, 0, oy, VIEW_W, L.h);
+      ctx.globalAlpha = 1;
+    };
 
-    // drifting fog bands
-    for (let i = 0; i < 2; i++) {
-      const fy = VIEW_H * (0.45 + i * 0.3) + Math.sin(t * 0.13 + i * 2.4) * 26 - cam.y * 0.12;
-      const fg2 = ctx.createLinearGradient(0, fy - 60, 0, fy + 60);
-      fg2.addColorStop(0, 'rgba(0,0,0,0)');
-      const mist = p.accent;
-      fg2.addColorStop(0.5, this._fogColor || 'rgba(160,180,210,0.05)');
-      fg2.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = fg2;
-      ctx.fillRect(0, fy - 60, VIEW_W, 120);
-    }
+    blit(this._bgLayers[0], 0.9);
+    // fog between far and mid
+    const f1 = ctx.createLinearGradient(0, VIEW_H * 0.5, 0, VIEW_H);
+    f1.addColorStop(0, 'rgba(0,0,0,0)');
+    f1.addColorStop(1, this._hexA(this._mix(p.sky2, '#ffffff', 0.12), 0.16));
+    ctx.fillStyle = f1;
+    ctx.fillRect(0, VIEW_H * 0.5, VIEW_W, VIEW_H * 0.5);
+    blit(this._bgLayers[1], 0.95);
+    // drifting fog band
+    const fy = VIEW_H * 0.62 + Math.sin(t * 0.14) * 24 - cam.y * 0.1;
+    const f2 = ctx.createLinearGradient(0, fy - 70, 0, fy + 70);
+    f2.addColorStop(0, 'rgba(0,0,0,0)');
+    f2.addColorStop(0.5, this._hexA(this._mix(p.sky2, '#ffffff', 0.2), 0.1));
+    f2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = f2;
+    ctx.fillRect(0, fy - 70, VIEW_W, 140);
+    blit(this._bgLayers[2], 1);
+  },
+
+  _hexA(hex, a) {
+    const v = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')';
   },
 
   // ------------------------------------------------------- dynamic tile pass
@@ -1050,7 +1266,7 @@ const World = {
     if (this._tileDirty || !this._tileCanvas) this.renderTileLayer();
     ctx.drawImage(this._tileCanvas, 0, 0);
 
-    // lamps: chain + bulb pulse (light punch happens in the lighting pass)
+    // lamps: chain + caged bulb pulse
     const p = this.palette;
     const t = performance.now() / 1000;
     for (const d of this.decor) {
@@ -1062,7 +1278,6 @@ const World = {
       ctx.moveTo(px, py - TILE * 2);
       ctx.lineTo(px, py - 10);
       ctx.stroke();
-      // cage
       ctx.strokeStyle = p.edge;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -1086,7 +1301,18 @@ const World = {
     }
   },
 
-  // list of light sources for the lighting overlay (world coords)
+  // -------------------------------------------------- foreground occluders
+  drawForeground(ctx, cam) {
+    if (!this._fgLayer) return;
+    const L = this._fgLayer;
+    const ox = Math.max(0, Math.min(cam.x * L.speed, L.w - VIEW_W));
+    const oy = Math.max(-160, Math.min(0, -160 + cam.y * L.speed * 0.2));
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(L.cv, ox, 0, VIEW_W, L.h, 0, oy, VIEW_W, L.h);
+    ctx.globalAlpha = 1;
+  },
+
+  // light sources for the lighting overlay (world coords)
   lightSources() {
     const out = [];
     for (const d of this.decor) {
