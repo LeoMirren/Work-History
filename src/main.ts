@@ -238,6 +238,8 @@ async function boot(): Promise<void> {
   };
   interaction.onDrop = (id, count, x, y, z) => itemDrops.spawn(id, count, x, y, z);
   // Slain elite stalkers shower a loot burst of world drops.
+  // Venom bolts shed a green wake as they fly.
+  hostiles.onProjectileTrail = (tx, ty, tz) => particles.puff(tx, ty, tz, 0.45, 0.85, 0.3);
   hostiles.onEliteLoot = (x, y, z, drops) => {
     for (const d of drops) itemDrops.spawn(d.id, d.count, x, y, z);
   };
@@ -726,7 +728,9 @@ async function boot(): Promise<void> {
       fish.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
       villagers.setNight(isNightTime(dayNight.time));
       villagers.fixedUpdate(dt, player.body.x, player.body.y, player.body.z);
-      projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob);
+      projectiles.fixedUpdate(dt, session.world.isSolid, strikeMob, (tx, ty, tz) =>
+        particles.puff(tx, ty, tz, 0.62, 0.62, 0.66),
+      );
       cropGrowth.fixedUpdate(dt, session.world, player.body.x, player.body.z);
       particles.update(dt);
       itemDrops.fixedUpdate(dt, session.world.isSolid, player.body.x, player.body.y, player.body.z);

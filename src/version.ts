@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.9 CHAOS — elites · firelight · weird wildlife · the Sunken King';
+export const BUILD_TAG = 'v0.10 FACES — expressive mobs · coat variants · living projectiles';

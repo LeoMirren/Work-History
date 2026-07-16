@@ -30,7 +30,7 @@ import {
 
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 /** Arrow-key look speed (rad/s) — the keyboard turn/pitch alternative. */
-const KEY_TURN_RATE = 2.4;
+const KEY_TURN_RATE = 3.0;
 const DOUBLE_TAP_WINDOW = 0.3; // seconds between W taps to latch sprint
 const RESPAWN_Y = -10;
 

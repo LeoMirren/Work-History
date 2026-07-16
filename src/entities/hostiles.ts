@@ -118,11 +118,18 @@ interface Projectile {
   vy: number;
   vz: number;
   life: number;
+  trailAt: number;
   readonly mesh: THREE.Mesh;
 }
 
-const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0x9bd24a });
-const projectileGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+// Venom bolt: a bright core inside a darker translucent shell, spinning in
+// flight and shedding a green wake (see onProjectileTrail).
+const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xd6f06a });
+const projectileShellMaterial = new THREE.MeshBasicMaterial({ color: 0x4a7a22, transparent: true, opacity: 0.55 });
+const projectileGeometry = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+const projectileShellGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+const PROJECTILE_TRAIL_S = 0.08;
+const PROJECTILE_SPIN = 8;
 // Eyes glow via unlit materials — visible in the dark, which is the point.
 const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
 const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
@@ -230,6 +237,8 @@ export class HostileSystem {
   private world: WorldView | null = null;
   private spawnTimer = 0;
   private eliteTimer = ELITE_DAY_INTERVAL_S;
+  /** Venom bolts shed a wake here (main routes to the particle pool). */
+  onProjectileTrail: ((x: number, y: number, z: number) => void) | null = null;
   /** A slain elite showers this loot burst (main routes to world drops). */
   onEliteLoot: ((x: number, y: number, z: number, drops: ReadonlyArray<{ id: number; count: number }>) => void) | null = null;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
@@ -497,6 +506,9 @@ export class HostileSystem {
     const len = Math.max(0.001, Math.hypot(tx - ox, ty - oy, tz - oz));
     const mesh = new THREE.Mesh(projectileGeometry, projectileMaterial);
     mesh.name = 'entity';
+    const shell = new THREE.Mesh(projectileShellGeometry, projectileShellMaterial);
+    shell.name = 'entity';
+    mesh.add(shell);
     mesh.position.set(ox, oy, oz);
     this.scene.add(mesh);
     this.projectiles.push({
@@ -507,6 +519,7 @@ export class HostileSystem {
       vy: ((ty - oy) / len) * PROJECTILE_SPEED,
       vz: ((tz - oz) / len) * PROJECTILE_SPEED,
       life: PROJECTILE_LIFE_S,
+      trailAt: PROJECTILE_TRAIL_S,
       mesh,
     });
   }
@@ -551,6 +564,13 @@ export class HostileSystem {
         this.projectiles.splice(i, 1);
       } else {
         p.mesh.position.set(p.x, p.y, p.z);
+        p.mesh.rotation.x += PROJECTILE_SPIN * dt;
+        p.mesh.rotation.y += PROJECTILE_SPIN * 0.7 * dt;
+        p.trailAt -= dt;
+        if (this.onProjectileTrail && p.trailAt <= 0) {
+          p.trailAt = PROJECTILE_TRAIL_S;
+          this.onProjectileTrail(p.x, p.y, p.z);
+        }
       }
     }
   }

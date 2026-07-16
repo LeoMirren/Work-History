@@ -37,6 +37,30 @@ export class BreakParticles {
     return this.liveCount;
   }
 
+  /**
+   * A small puff of `n` motes (projectile trails, footsteps): same pool as
+   * bursts, gentler velocities so the motes hang as a wake.
+   */
+  puff(x: number, y: number, z: number, r: number, g: number, b: number, n = 2): void {
+    for (let k = 0; k < n; k++) {
+      const i = this.cursor;
+      this.cursor = (this.cursor + 1) % MAX;
+      if ((this.life[i] ?? 0) <= 0) this.liveCount++;
+      this.positions[i * 3] = x + (this.random() - 0.5) * 0.2;
+      this.positions[i * 3 + 1] = y + (this.random() - 0.5) * 0.2;
+      this.positions[i * 3 + 2] = z + (this.random() - 0.5) * 0.2;
+      this.velocities[i * 3] = (this.random() - 0.5) * 0.6;
+      this.velocities[i * 3 + 1] = 0.4 + this.random() * 0.6;
+      this.velocities[i * 3 + 2] = (this.random() - 0.5) * 0.6;
+      this.colors[i * 3] = r;
+      this.colors[i * 3 + 1] = g;
+      this.colors[i * 3 + 2] = b;
+      this.life[i] = 0.3 + this.random() * 0.2;
+    }
+    this.geometry.getAttribute('color').needsUpdate = true;
+    this.geometry.getAttribute('position').needsUpdate = true;
+  }
+
   /** Burst at a block centre in (r, g, b) 0..1 colour. */
   burst(x: number, y: number, z: number, r: number, g: number, b: number): void {
     for (let n = 0; n < PER_BURST; n++) {

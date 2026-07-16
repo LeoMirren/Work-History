@@ -270,10 +270,16 @@ export interface Animal {
   readonly mats: readonly THREE.MeshLambertMaterial[];
 }
 
-/** Shared per-eye material — eyes never flash, so one instance serves all. */
+/** Shared face materials/geometry — never flash, so one instance serves all. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
+const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf2efe6 });
+const noseMaterial = new THREE.MeshBasicMaterial({ color: 0x241d18 });
+const eyeWhiteGeometry = new THREE.BoxGeometry(0.11, 0.1, 0.03);
+const pupilGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.025);
+const mouthGeometry = new THREE.BoxGeometry(0.14, 0.03, 0.02);
+/** Rare coat variants: ghost-pale or shadow-dark individuals. */
+const VARIANT_CHANCE = 0.05;
 /** Shared eye geometry — identical across every species. */
-const eyeGeometry = new THREE.BoxGeometry(0.07, 0.07, 0.03);
 
 /**
  * Build a species rig. `random` seeds the per-individual patch markings
@@ -305,12 +311,22 @@ function makeAnimalMesh(
     parent.add(m);
     return m;
   };
-  const head = mat(def.headColor);
-  const leg = mat(new THREE.Color(def.bodyColor).multiplyScalar(0.72));
+  // Per-individual coat tint: every animal rolls its own shade around the
+  // species colour, and ~5% are rare ghost-pale or shadow-dark variants — no
+  // two herd-mates look alike.
+  const variantRoll = random();
+  const shade =
+    variantRoll < VARIANT_CHANCE
+      ? random() < 0.5
+        ? 0.55
+        : 1.45
+      : 0.85 + random() * 0.3;
+  const tinted = (color: number, extra = 1): THREE.Color =>
+    new THREE.Color(color).multiplyScalar(shade * extra);
+  const head = mat(tinted(def.headColor));
+  const leg = mat(tinted(def.bodyColor, 0.72));
   // Woollies wear their fleece as a second, slightly lighter torso material.
-  const body = mat(
-    species === Species.woolly ? new THREE.Color(def.bodyColor).multiplyScalar(1.12) : def.bodyColor,
-  );
+  const body = mat(tinted(def.bodyColor, species === Species.woolly ? 1.12 : 1));
   const group = new THREE.Group();
   group.name = 'entity';
 
@@ -338,9 +354,31 @@ function makeAnimalMesh(
   headMesh.position.set(0, headY, def.headZ);
   group.add(torso, headMesh);
 
-  // Two beady eyes — children of the head, so idle tilts carry the face.
-  for (const ex of [-0.08, 0.08]) {
-    detail(eyeGeometry, eyeMaterial, headMesh).position.set(ex, 0.03, -hd / 2 - 0.01);
+  // FACE: two-layer eyes (white + pupil) that actually read at distance, a
+  // species-toned muzzle with a dark nose tip, and a thin mouth line — all
+  // children of the head so idle tilts and grazes carry the whole face.
+  // (Puffles wear their face on the torso instead; see their branch.)
+  if (species !== Species.puffle) {
+    const eyeScale = species === Species.stiltback ? 0.6 : 1;
+    for (const ex of [-1, 1]) {
+      const white = detail(eyeWhiteGeometry, eyeWhiteMaterial, headMesh);
+      white.position.set(ex * (hw / 2 - 0.04), 0.04, -hd / 2 - 0.012);
+      white.scale.set(eyeScale, eyeScale, 1);
+      const pupil = detail(pupilGeometry, eyeMaterial, headMesh);
+      pupil.position.set(ex * (hw / 2 - 0.04) - ex * 0.012, 0.035, -hd / 2 - 0.026);
+      pupil.scale.set(eyeScale, eyeScale, 1);
+    }
+    // Muzzle: a slightly darker snout box low on the face, nose tip + mouth.
+    const muzzle = detail(
+      new THREE.BoxGeometry(hw * 0.55, hh * 0.42, 0.08),
+      mat(tinted(def.headColor, 0.82)),
+      headMesh,
+    );
+    muzzle.position.set(0, -hh * 0.22, -hd / 2 - 0.03);
+    const nose = detail(new THREE.BoxGeometry(0.07, 0.05, 0.02), noseMaterial, muzzle);
+    nose.position.set(0, hh * 0.1, -0.05);
+    const mouth = detail(mouthGeometry, noseMaterial, muzzle);
+    mouth.position.set(0, -hh * 0.13, -0.045);
   }
 
   let tail: THREE.Mesh | null = null;
@@ -447,15 +485,20 @@ function makeAnimalMesh(
       seg = nseg;
     }
   } else if (species === Species.puffle) {
-    // A fuzzy round body: a fluff cap over the top, two oversized eyes on the
-    // torso front (the "head" box is nearly hidden), and stubby feet.
+    // A fuzzy round body: a fluff cap over the top and a big expressive face
+    // right on the torso front — oversized two-layer eyes and a tiny mouth.
     const fluff = detail(new THREE.BoxGeometry(tw + 0.08, 0.16, td + 0.08), body, torso);
     fluff.position.set(0, th / 2 + 0.02, 0);
-    const bigEye = new THREE.BoxGeometry(0.13, 0.15, 0.04);
-    for (const ex of [-0.16, 0.16]) {
-      const eye = detail(bigEye, eyeMaterial, torso);
-      eye.position.set(ex, 0.05, -td / 2 - 0.01);
+    for (const ex of [-0.17, 0.17]) {
+      const white = detail(eyeWhiteGeometry, eyeWhiteMaterial, torso);
+      white.position.set(ex, 0.08, -td / 2 - 0.012);
+      white.scale.set(1.5, 1.5, 1);
+      const pupil = detail(pupilGeometry, eyeMaterial, torso);
+      pupil.position.set(ex - Math.sign(ex) * 0.02, 0.07, -td / 2 - 0.028);
+      pupil.scale.set(1.4, 1.4, 1);
     }
+    const mouth = detail(mouthGeometry, noseMaterial, torso);
+    mouth.position.set(0, -0.12, -td / 2 - 0.015);
   } else if (species === Species.stiltback) {
     // A twiggy neck lifts a small head; long thin legs come from the rig.
     const neck = detail(new THREE.BoxGeometry(0.06, 0.3, 0.06), body, group);

@@ -353,3 +353,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Massive loot: worldgen chests now roll 3-6 stacks (was 2-4)
 - [x] Warm firelight: the chunk shader tints block-lit areas toward golden torchlight where they beat the sky light — caves and nights get glowing amber pools instead of flat grey
 - [x] 482 tests green, clean build
+
+## Post-spec: v0.10 FACES — expressive mobs, coat variants, living projectiles
+
+- [x] Face pass: every animal gets two-layer eyes (white + pupil), a species-toned muzzle with nose tip and a mouth line — children of the head so grazing/tilting carries the whole face; puffles wear an oversized face right on the torso
+- [x] Individual disparity: every animal rolls its own coat shade (±15%) and ~5% are rare ghost-pale or shadow-dark variants — no two herd-mates look alike (on top of the patch markings and size variety)
+- [x] Living projectiles: thrown stones are chipped two-tone rocks that tumble in flight and shed a dust wake; spitter venom bolts spin with a bright core inside a translucent green shell and trail a venom wake (new pooled puff emitter)
+- [x] Snappier keyboard turning (3.0 rad/s)
+- [x] 482 tests, clean build; BUILD_TAG bumped to v0.10 FACES for stale-client verification
