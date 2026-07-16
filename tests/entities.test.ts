@@ -194,23 +194,43 @@ describe('biome-aware spawning', () => {
   }
 
   it('spawns the right species per biome (woollies in snow, striders in desert)', () => {
-    // Snowy: every spawn is a woolly (species 1).
+    // A rare cross-biome roll can drop a weird species (ids >= 6); everything
+    // else must match the biome. So: the biome species dominates, and any
+    // exception is one of the weird oddities — never another biome animal.
+    const isWeird = (s: number): boolean => s >= 6;
+
+    // Snowy: the biome species is woolly (1); non-woollies are only weird.
     const snowyScene = new THREE.Scene();
     const snowy = new AnimalSystem(snowyScene, mulberry32(4));
     snowy.setWorld(biomeWorld(Block.snow));
     snowy.setBiomeFn(() => 4); // Biome.snowy
     for (let i = 0; i < 60 * 40; i++) snowy.fixedUpdate(DT, 0.5, 10, 0.5);
     expect(snowy.count).toBeGreaterThan(0);
-    expect(snowy.animals.every((a) => a.species === 1)).toBe(true);
+    expect(snowy.animals.every((a) => a.species === 1 || isWeird(a.species))).toBe(true);
+    expect(snowy.animals.filter((a) => a.species === 1).length).toBeGreaterThan(snowy.count / 2);
 
-    // Desert: now home to striders (species 2), not barren.
+    // Desert: home to striders (2), plus the occasional weird oddity.
     const desertScene = new THREE.Scene();
     const desert = new AnimalSystem(desertScene, mulberry32(4));
     desert.setWorld(biomeWorld(Block.grass));
     desert.setBiomeFn(() => 2); // Biome.desert
     for (let i = 0; i < 60 * 40; i++) desert.fixedUpdate(DT, 0.5, 10, 0.5);
     expect(desert.count).toBeGreaterThan(0);
-    expect(desert.animals.every((a) => a.species === 2)).toBe(true);
+    expect(desert.animals.every((a) => a.species === 2 || isWeird(a.species))).toBe(true);
+    expect(desert.animals.filter((a) => a.species === 2).length).toBeGreaterThan(desert.count / 2);
+  });
+
+  it('turns up weird oddities in every biome', () => {
+    const scene = new THREE.Scene();
+    const sys = new AnimalSystem(scene, mulberry32(7));
+    sys.setWorld(biomeWorld(Block.grass));
+    sys.setBiomeFn(() => 0); // plains — weird spawns are biome-independent
+    let sawWeird = false;
+    for (let i = 0; i < 60 * 120 && !sawWeird; i++) {
+      sys.fixedUpdate(DT, 0.5, 10, 0.5);
+      if (sys.animals.some((a) => a.species >= 6)) sawWeird = true;
+    }
+    expect(sawWeird).toBe(true);
   });
 
   it('spawns a mix in temperate grassland', () => {

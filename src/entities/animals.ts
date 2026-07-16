@@ -82,8 +82,16 @@ export const Species = {
   hopper: 3,
   bramblehorn: 4,
   dustpuff: 5,
+  // Weird wildlife — rare cross-biome oddities that turn up anywhere.
+  thornback: 6, // low spiky reptile with a ridge of back plates and a long tail
+  puffle: 7, // an absurd round fuzzball on stubby legs, face on the front
+  stiltback: 8, // a spindly daddy-longlegs: tiny body atop very tall thin legs
 } as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
+
+/** The weird species, spawned rarely regardless of biome ("everywhere"). */
+export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback];
+const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
 
 interface SpeciesDef {
   readonly torso: readonly [number, number, number];
@@ -171,6 +179,44 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     headColor: 0xcfa956,
     patchColor: 0xa8823c,
     gait: 1.9,
+  },
+  // Thornback: a low, wide reptile — flat torso close to the ground, small
+  // sunk head, splayed stubby legs; a back ridge + long tail come from its rig.
+  [Species.thornback]: {
+    torso: [0.62, 0.3, 0.9],
+    head: [0.3, 0.24, 0.3],
+    headZ: -0.5,
+    legLen: 0.2,
+    legW: 0.11,
+    bodyColor: 0x5e6b3a,
+    headColor: 0x4c5730,
+    patchColor: 0x3f4a28,
+    gait: 1.3,
+  },
+  // Puffle: an absurd fuzzball — a big near-cubic torso, a face tucked into
+  // the front, tiny legs. Head box is tiny (the face rides the torso).
+  [Species.puffle]: {
+    torso: [0.7, 0.62, 0.7],
+    head: [0.3, 0.24, 0.14],
+    headZ: -0.36,
+    legLen: 0.12,
+    legW: 0.13,
+    bodyColor: 0xc98bd0,
+    headColor: 0xb06ab8,
+    patchColor: 0xdca8e0,
+    gait: 2.4,
+  },
+  // Stiltback: a spindly strider — a tiny high torso on very long thin legs.
+  [Species.stiltback]: {
+    torso: [0.3, 0.24, 0.44],
+    head: [0.22, 0.2, 0.24],
+    headZ: -0.28,
+    legLen: 0.78,
+    legW: 0.05,
+    bodyColor: 0x6b6f86,
+    headColor: 0x565a72,
+    patchColor: 0x8a8fa8,
+    gait: 1.1,
   },
 };
 
@@ -277,8 +323,15 @@ function makeAnimalMesh(
   const [hw, hh, hd] = def.head;
   // Striders and bramblehorns carry the head on a raised neck; the dustpuff
   // ball tucks its head straight into the torso front; others keep it snug.
-  const headLift = species === Species.strider ? 0.34 : species === Species.bramblehorn ? 0.3 : 0;
-  const headNudge = species === Species.dustpuff ? 0.02 : 0.12;
+  const headLift =
+    species === Species.strider
+      ? 0.34
+      : species === Species.bramblehorn
+        ? 0.3
+        : species === Species.stiltback
+          ? 0.28
+          : 0;
+  const headNudge = species === Species.dustpuff || species === Species.puffle ? 0.02 : 0.12;
   const headY = torsoY + th / 2 - hh / 2 + headNudge + headLift;
   const headMesh = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), head);
   headMesh.name = 'entity';
@@ -358,7 +411,7 @@ function makeAnimalMesh(
         tine.rotation.set(-0.8, 0, ex * (0.25 + t * 0.1)); // branch forward
       }
     }
-  } else {
+  } else if (species === Species.dustpuff) {
     // Dustpuff: big upright ears with dark tips and a tiny tail puff on the
     // ball torso — the head has no neck at all, tucked into the body front.
     const tipMat = mat(0x584428);
@@ -373,6 +426,48 @@ function makeAnimalMesh(
     }
     tail = detail(new THREE.BoxGeometry(0.09, 0.09, 0.08), body, group);
     tail.position.set(0, torsoY + th * 0.15, td / 2 + 0.03);
+  } else if (species === Species.thornback) {
+    // A ridge of five back plates growing along the spine, and a long
+    // tapering tail dragging behind — a spiky low reptile.
+    const spikeMat = mat(0x8a5a2c);
+    for (let i = 0; i < 5; i++) {
+      const s = 0.16 - i * 0.02;
+      const plate = detail(new THREE.BoxGeometry(0.06, s, 0.1), spikeMat, torso);
+      plate.position.set(0, th / 2 + s / 2 - 0.02, td / 2 - 0.18 - i * 0.16);
+      plate.rotation.x = -0.2;
+    }
+    // Segmented tail: three shrinking boxes off the rear.
+    let seg = detail(new THREE.BoxGeometry(0.2, 0.16, 0.24), body, group);
+    seg.position.set(0, torsoY - 0.02, td / 2 + 0.12);
+    for (let i = 0; i < 2; i++) {
+      const nseg = detail(new THREE.BoxGeometry(0.14 - i * 0.04, 0.12 - i * 0.03, 0.22), body, group);
+      nseg.position.set(0, torsoY - 0.04 - i * 0.02, td / 2 + 0.32 + i * 0.2);
+      tail = nseg;
+      void seg;
+      seg = nseg;
+    }
+  } else if (species === Species.puffle) {
+    // A fuzzy round body: a fluff cap over the top, two oversized eyes on the
+    // torso front (the "head" box is nearly hidden), and stubby feet.
+    const fluff = detail(new THREE.BoxGeometry(tw + 0.08, 0.16, td + 0.08), body, torso);
+    fluff.position.set(0, th / 2 + 0.02, 0);
+    const bigEye = new THREE.BoxGeometry(0.13, 0.15, 0.04);
+    for (const ex of [-0.16, 0.16]) {
+      const eye = detail(bigEye, eyeMaterial, torso);
+      eye.position.set(ex, 0.05, -td / 2 - 0.01);
+    }
+  } else if (species === Species.stiltback) {
+    // A twiggy neck lifts a small head; long thin legs come from the rig.
+    const neck = detail(new THREE.BoxGeometry(0.06, 0.3, 0.06), body, group);
+    neck.position.set(0, torsoY + th / 2 + 0.1, def.headZ + 0.14);
+    // Long thin antennae flicking up from the head.
+    const antGeo = new THREE.BoxGeometry(0.02, 0.22, 0.02);
+    antGeo.translate(0, 0.11, 0);
+    for (const ex of [-1, 1]) {
+      const ant = detail(antGeo, head, headMesh);
+      ant.position.set(ex * 0.05, hh / 2, 0.02);
+      ant.rotation.set(-0.3, 0, ex * 0.4);
+    }
   }
 
   // Patterning: 2-4 thin patches (spots/saddle/stripe) in a secondary hue,
@@ -531,7 +626,12 @@ export class AnimalSystem {
     const y = this.surfaceY(world, x, z);
     if (y === null) return;
     const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
-    const species = speciesForBiome(biome, this.random);
+    // Most spawns follow the biome; a rare roll drops a weird oddity instead,
+    // so bizarre wildlife turns up in every biome ("everywhere").
+    const species =
+      this.random() < WEIRD_CHANCE
+        ? WEIRD_SPECIES[Math.floor(this.random() * WEIRD_SPECIES.length)] ?? Species.thornback
+        : speciesForBiome(biome, this.random);
     const herd = HERD_MIN + Math.floor(this.random() * (HERD_MAX - HERD_MIN + 1));
     this.spawnAt(x + 0.5, y, z + 0.5, species);
     for (let i = 1; i < herd && this.animals.length < MAX_ANIMALS; i++) {
