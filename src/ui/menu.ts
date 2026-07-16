@@ -1,3 +1,5 @@
+import { BUILD_TAG } from '../version';
+
 /**
  * Title screen and pause menu (§4.9). Plain DOM; the game wires callbacks.
  */
@@ -50,6 +52,11 @@ export class Menus {
     const tagline = document.createElement('p');
     tagline.className = 'tagline';
     tagline.textContent = 'an infinite procedural voxel sandbox';
+    // The build stamp is the ground truth for stale-client debugging: if this
+    // line doesn't match the latest tag, the browser is serving an old build.
+    const build = document.createElement('p');
+    build.className = 'controls-hint';
+    build.textContent = BUILD_TAG;
     const seedRow = document.createElement('div');
     seedRow.className = 'menu-row';
     const seedLabel = document.createElement('label');
@@ -78,7 +85,7 @@ export class Menus {
     controls.className = 'controls-hint';
     controls.textContent =
       'WASD move · Arrow keys turn · Space jump · Ctrl sprint · F fly · LMB/RMB break · U use/place/talk · 1-9 hotbar · E inventory · Esc menu';
-    titlePanel.append(h1, tagline, seedRow, modeRow, playButton, controls);
+    titlePanel.append(h1, tagline, build, seedRow, modeRow, playButton, controls);
     this.title.appendChild(titlePanel);
     parent.appendChild(this.title);
 

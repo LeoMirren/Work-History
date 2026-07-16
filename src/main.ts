@@ -3,6 +3,7 @@
  * settings, autosave and world persistence (§4.9, §4.11).
  */
 import './style.css';
+import { BUILD_TAG } from './version';
 import * as THREE from 'three';
 import { createAtlasCanvas } from './engine/atlas';
 import { GameRenderer } from './engine/renderer';
@@ -983,7 +984,7 @@ async function boot(): Promise<void> {
         fps: debugInfo.fps,
       });
       hud.setDebugText(
-        `Voxelheim | fps ${debugInfo.fps}\n` +
+        `Voxelheim ${BUILD_TAG} | fps ${debugInfo.fps}\n` +
           `pos ${b.x.toFixed(2)} ${b.y.toFixed(2)} ${b.z.toFixed(2)} | facing ${debugInfo.facing} | chunk ${debugInfo.chunkX},${debugInfo.chunkZ} | ${mode}\n` +
           `chunks ${stats.chunksLoaded} loaded / ${stats.chunksMeshed} meshed | queue g${stats.genQueued} m${stats.meshQueued} | jobs ${stats.jobsInFlight}\n` +
           `tris ${debugInfo.triangles} | calls ${debugInfo.drawCalls} | geoms ${debugInfo.geometries}`,
