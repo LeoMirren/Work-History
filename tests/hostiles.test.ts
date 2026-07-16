@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { HostileSystem, NIGHT_BRIGHTNESS, STALKER_HP } from '../src/entities/hostiles';
+import { ELITE_HP, ELITE_SCALE, eliteLoot, HostileSystem, NIGHT_BRIGHTNESS, STALKER_HP } from '../src/entities/hostiles';
 import { mulberry32 } from '../src/world/noise';
 import { Block } from '../src/world/blocks';
 import { PlayerController, type WorldView } from '../src/player/controller';
@@ -28,15 +28,62 @@ function makeSystem(seed = 5): { system: HostileSystem; scene: THREE.Scene } {
 }
 
 describe('hostile spawning', () => {
-  it('spawns at night but never in daylight', () => {
+  it('spawns the full cadence at night; daylight surfaces only rare elites', () => {
+    // Daylight on the SURFACE (player high above the underground band):
+    // only the slow elite prowler cadence runs, and every spawn is elite.
     const day = makeSystem();
-    for (let i = 0; i < 60 * 30; i++) day.system.fixedUpdate(DT, 0.5, 11, 0.5, DAY, noDamage);
-    expect(day.system.count).toBe(0);
+    for (let i = 0; i < 60 * 30; i++) day.system.fixedUpdate(DT, 0.5, 80, 0.5, DAY, noDamage);
+    expect(day.system.count).toBeGreaterThan(0);
+    expect(day.system.count).toBeLessThan(6); // far sparser than night
+    expect(day.system.stalkers.every((s) => s.elite)).toBe(true);
 
     const night = makeSystem();
-    for (let i = 0; i < 60 * 30; i++) night.system.fixedUpdate(DT, 0.5, 11, 0.5, NIGHT, noDamage);
+    for (let i = 0; i < 60 * 30; i++) night.system.fixedUpdate(DT, 0.5, 80, 0.5, NIGHT, noDamage);
     expect(night.system.count).toBeGreaterThan(0);
     expect(night.system.count).toBeLessThanOrEqual(18); // raised cap for chaos spawning
+  });
+
+  it('spawns underground at any hour (caves are never safe)', () => {
+    const caves = makeSystem();
+    // Player deep below UNDERGROUND_SPAWN_Y in broad daylight: full cadence.
+    for (let i = 0; i < 60 * 30; i++) caves.system.fixedUpdate(DT, 0.5, 11, 0.5, DAY, noDamage);
+    expect(caves.system.count).toBeGreaterThan(3);
+  });
+});
+
+describe('elite stalkers (walking bosses)', () => {
+  it('are bigger, tougher, sunproof and hit harder', () => {
+    const { system } = makeSystem();
+    const e = system.spawnAt(1.4, 11, 0.5, false, true);
+    expect(e.elite).toBe(true);
+    expect(e.hp).toBe(ELITE_HP);
+    expect(e.group.scale.x).toBeCloseTo(ELITE_SCALE);
+    // Sunproof: broad daylight for far longer than the burn timer.
+    let hits = 0;
+    for (let i = 0; i < 60 * 10; i++) system.fixedUpdate(DT, 0.5, 11, 0.5, DAY, () => hits++);
+    expect(system.stalkers.includes(e)).toBe(true); // never burned
+    expect(hits).toBeGreaterThan(0); // and it fights in daylight
+    // Scaled hitbox: standing on ground at y=10, a normal stalker tops out
+    // at 11.8 — a ray at 12.6 only finds the 1.7x giant (tops ~13.1).
+    expect(system.raycastNearest(-2, 12.6, 0.5, 1, 0, 0, 8)).not.toBeNull();
+  });
+
+  it('shower a loot burst on death', () => {
+    const { system } = makeSystem();
+    const e = system.spawnAt(3.5, 11, 0.5, false, true);
+    const bursts: Array<ReadonlyArray<{ id: number; count: number }>> = [];
+    system.onEliteLoot = (_x, _y, _z, drops) => void bursts.push(drops);
+    let dead = false;
+    for (let i = 0; i < ELITE_HP / 2; i++) dead = system.hurt(e);
+    expect(dead).toBe(true);
+    expect(bursts.length).toBe(1);
+    expect(bursts[0]!.length).toBeGreaterThanOrEqual(4); // gems/gold/ingots/torches
+  });
+
+  it('eliteLoot is a rich, bounded burst', () => {
+    const drops = eliteLoot(() => 0.5);
+    expect(drops.length).toBeGreaterThanOrEqual(4);
+    for (const d of drops) expect(d.count).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -60,11 +107,12 @@ describe('hostile behaviour', () => {
     expect(hits).toBeLessThanOrEqual(4); // ~1s cooldown over 3s
   });
 
-  it('burns away after sustained daylight', () => {
+  it('burns away after sustained daylight (surface player, normal stalker)', () => {
     const { system } = makeSystem();
     system.spawnAt(3.5, 11, 0.5);
     expect(system.count).toBe(1);
-    for (let i = 0; i < 60 * 6; i++) system.fixedUpdate(DT, 0.5, 11, 0.5, DAY, noDamage);
+    // Player on the surface: the elite prowler cadence (9s) hasn't fired yet.
+    for (let i = 0; i < 60 * 6; i++) system.fixedUpdate(DT, 0.5, 80, 0.5, DAY, noDamage);
     expect(system.count).toBe(0);
   });
 
@@ -79,7 +127,7 @@ describe('hostile behaviour', () => {
     expect(scene.children.length).toBe(before);
     expect(system.hurt(s)).toBe(false);
     expect(system.raycastNearest(0.5, 12.6, 0.5, 1, 0, 0, 8)).toBeNull();
-    system.fixedUpdate(0.2, 0.5, 11, 0.5, DAY, noDamage); // pop elapses -> removal
+    system.fixedUpdate(0.2, 0.5, 80, 0.5, DAY, noDamage); // pop elapses -> removal (surface: no refill)
     expect(system.count).toBe(0);
     expect(scene.children.length).toBe(before - 1);
   });

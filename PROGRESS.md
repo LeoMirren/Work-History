@@ -345,3 +345,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Loot fountain on death: the sunken crown trophy + the kingsplitter apex greataxe (tier-7 mining) + a burst of 6-10 gems and 8-13 gold
 - [x] Original tiles for totem/greataxe/crown; recipe; usage hints; unstackable specials; pure phase/loot logic unit-tested
 - [x] Round verified: 477 tests, strict tsc, clean build, boots error-free in survival
+
+## Post-spec: CHAOS update — walking bosses, cave pressure, loot bursts, firelight
+
+- [x] Elite stalkers ("walking bosses"): ~10% of night spawns and a lone daylight prowler every ~9s are 1.7x giants with a gold brow band — 24 HP, damage 4, sunproof, knockback-resistant, see-what-you-hit scaled hitboxes; death showers a loot burst (gems, gold, ingots, torches, rare iron vest)
+- [x] Caves are never safe: below y=50 the full hostile spawn cadence runs at any hour (cave-band floor scan around the player's depth)
+- [x] Massive loot: worldgen chests now roll 3-6 stacks (was 2-4)
+- [x] Warm firelight: the chunk shader tints block-lit areas toward golden torchlight where they beat the sky light — caves and nights get glowing amber pools instead of flat grey
+- [x] 482 tests green, clean build

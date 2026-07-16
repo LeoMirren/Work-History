@@ -21,11 +21,11 @@ describe('rollLoot', () => {
     expect(rollLoot('world-1', 5, 60, 5)).not.toEqual(rollLoot('world-2', 5, 60, 5));
   });
 
-  it('rolls 2-4 stacks with sane counts', () => {
+  it('rolls 3-6 stacks with sane counts', () => {
     for (let i = 0; i < 50; i++) {
       const stacks = rollLoot('bounds', i, 60, -i);
-      expect(stacks.length).toBeGreaterThanOrEqual(2);
-      expect(stacks.length).toBeLessThanOrEqual(4);
+      expect(stacks.length).toBeGreaterThanOrEqual(3);
+      expect(stacks.length).toBeLessThanOrEqual(6);
       for (const s of stacks) {
         expect(s.count).toBeGreaterThanOrEqual(1);
         expect(s.count).toBeLessThanOrEqual(8);

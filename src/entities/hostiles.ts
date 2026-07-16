@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import { Block, SOLID } from '../world/blocks';
+import { Item } from '../world/items';
 import { rayAABB } from '../world/raycast';
 import {
   createBody,
@@ -37,6 +38,16 @@ const ATTACK_RANGE = 1.6;
 const ATTACK_DAMAGE = 2;
 const ATTACK_COOLDOWN_S = 1.0;
 const SUNBURN_S = 4;
+
+// Elites: rare oversized "walking boss" stalkers that roam day AND night,
+// never sunburn, hit harder, soak more, and burst loot on death.
+const ELITE_CHANCE = 0.1; // fraction of night spawns upgraded to elite
+const ELITE_DAY_INTERVAL_S = 9; // a lone elite prowls even in daylight
+export const ELITE_SCALE = 1.7;
+export const ELITE_HP = 24;
+const ELITE_DAMAGE = 4;
+/** Below this y the world counts as "underground": hostiles spawn any hour. */
+export const UNDERGROUND_SPAWN_Y = 50;
 /** Melee tell: the torso tips this far forward on a hit, decaying upright. */
 const LUNGE_TIP = 0.25;
 const LUNGE_S = 0.3; // seconds the lunge tell takes to decay
@@ -56,9 +67,26 @@ const PROJECTILE_LIFE_S = 3;
 const PLAYER_HALF_WIDTH = 0.3;
 const PLAYER_HEIGHT = 1.8;
 
+/**
+ * Loot burst an elite showers on death (pure): a handful of valuables and
+ * supplies, with a rare armor find — unmistakably worth the fight.
+ */
+export function eliteLoot(random: () => number): Array<{ id: number; count: number }> {
+  const drops: Array<{ id: number; count: number }> = [
+    { id: Item.gem, count: 1 + Math.floor(random() * 3) },
+    { id: Item.goldIngot, count: 1 + Math.floor(random() * 3) },
+    { id: Item.ingot, count: 2 + Math.floor(random() * 3) },
+    { id: Block.torch, count: 3 + Math.floor(random() * 4) },
+  ];
+  if (random() < 0.25) drops.push({ id: Item.ironVest, count: 1 });
+  return drops;
+}
+
 export interface Stalker {
   readonly body: Body;
   readonly ranged: boolean;
+  /** Oversized roaming mini-boss: day-proof, harder-hitting, loot-bursting. */
+  readonly elite: boolean;
   yaw: number;
   hp: number;
   attackCd: number;
@@ -98,6 +126,8 @@ const projectileGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
 // Eyes glow via unlit materials — visible in the dark, which is the point.
 const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
 const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
+// Elites wear an unlit gold brow band — readable at range, day or night.
+const eliteBandMaterial = new THREE.MeshBasicMaterial({ color: 0xe6be4a });
 
 const LEG_LEN = 0.72;
 const ARM_LEN = 0.66;
@@ -199,6 +229,9 @@ export class HostileSystem {
   private readonly projectiles: Projectile[] = [];
   private world: WorldView | null = null;
   private spawnTimer = 0;
+  private eliteTimer = ELITE_DAY_INTERVAL_S;
+  /** A slain elite showers this loot burst (main routes to world drops). */
+  onEliteLoot: ((x: number, y: number, z: number, drops: ReadonlyArray<{ id: number; count: number }>) => void) | null = null;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
 
   constructor(
@@ -227,14 +260,23 @@ export class HostileSystem {
     return this.projectiles.length;
   }
 
-  spawnAt(x: number, y: number, z: number, ranged?: boolean): Stalker {
+  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false): Stalker {
     const isRanged = ranged ?? this.random() < RANGED_CHANCE;
     const parts = makeStalkerMesh(isRanged);
+    if (elite) {
+      parts.group.scale.set(ELITE_SCALE, ELITE_SCALE, ELITE_SCALE);
+      // A gold brow band marks the walking boss from across a field.
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.46), eliteBandMaterial);
+      band.name = 'entity';
+      band.position.set(0, 1.86, 0);
+      parts.group.add(band);
+    }
     const stalker: Stalker = {
       body: createBody(x, y, z),
       ranged: isRanged,
+      elite,
       yaw: this.random() * Math.PI * 2,
-      hp: STALKER_HP,
+      hp: elite ? ELITE_HP : STALKER_HP,
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
@@ -254,18 +296,24 @@ export class HostileSystem {
     return stalker;
   }
 
-  private trySpawn(px: number, pz: number): void {
+  private trySpawn(px: number, py: number, pz: number, forceElite = false): void {
     const world = this.world;
     if (!world || this.stalkers.length >= MAX_STALKERS) return;
     const angle = this.random() * Math.PI * 2;
     const dist = SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
     const x = Math.floor(px + Math.cos(angle) * dist);
     const z = Math.floor(pz + Math.sin(angle) * dist);
-    for (let y = 120; y >= 1; y--) {
+    const elite = forceElite || this.random() < ELITE_CHANCE;
+    // Underground: scan the cave band around the player's depth for a floor;
+    // on the surface: classic top-down scan for the first standable column.
+    const underground = py < UNDERGROUND_SPAWN_Y;
+    const yTop = underground ? Math.min(120, Math.floor(py) + 10) : 120;
+    const yBottom = underground ? Math.max(1, Math.floor(py) - 14) : 1;
+    for (let y = yTop; y >= yBottom; y--) {
       const id = world.getBlock(x, y, z);
       if (id === Block.air || id === Block.water) continue;
-      if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air) {
-        this.spawnAt(x + 0.5, y + 1, z + 0.5);
+      if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
+        this.spawnAt(x + 0.5, y + 1, z + 0.5, undefined, elite);
       }
       return;
     }
@@ -286,11 +334,19 @@ export class HostileSystem {
   ): void {
     const world = this.world;
     if (!world) return;
-    if (brightness < NIGHT_BRIGHTNESS) {
+    // Night — or anywhere underground — runs the full spawn cadence; broad
+    // daylight still prowls a rare elite so the surface is never quite safe.
+    if (brightness < NIGHT_BRIGHTNESS || py < UNDERGROUND_SPAWN_Y) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
         this.spawnTimer = SPAWN_INTERVAL_S;
-        this.trySpawn(px, pz);
+        this.trySpawn(px, py, pz);
+      }
+    } else {
+      this.eliteTimer -= dt;
+      if (this.eliteTimer <= 0) {
+        this.eliteTimer = ELITE_DAY_INTERVAL_S;
+        this.trySpawn(px, py, pz, true);
       }
     }
     for (let i = this.stalkers.length - 1; i >= 0; i--) {
@@ -313,7 +369,7 @@ export class HostileSystem {
       const distSq = dx * dx + dz * dz;
       // Burn in daylight, despawn when far.
       if (brightness > DAY_BRIGHTNESS) {
-        s.sunTimer += dt;
+        if (!s.elite) s.sunTimer += dt; // elites never burn
       } else {
         s.sunTimer = 0;
       }
@@ -424,7 +480,7 @@ export class HostileSystem {
     // Melee (non-ranged only): in range including vertical, off cooldown.
     const dyEye = Math.abs(body.y - py);
     if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
-      hitPlayer(ATTACK_DAMAGE);
+      hitPlayer(s.elite ? ELITE_DAMAGE : ATTACK_DAMAGE);
       s.attackCd = ATTACK_COOLDOWN_S;
       s.lunge = LUNGE_S; // visible tell: the torso tips forward, then decays
     }
@@ -513,10 +569,13 @@ export class HostileSystem {
     for (const s of this.stalkers) {
       if (s.dying > 0) continue; // corpses mid-pop can't be targeted
       const b = s.body;
+      // Elites are visually 1.7x: the hitbox matches what you see.
+      const hw = s.elite ? STALKER_HALF_WIDTH * ELITE_SCALE : STALKER_HALF_WIDTH;
+      const hh = s.elite ? STALKER_HEIGHT * ELITE_SCALE : STALKER_HEIGHT;
       const t = rayAABB(
         ox, oy, oz, dx, dy, dz,
-        b.x - STALKER_HALF_WIDTH, b.y, b.z - STALKER_HALF_WIDTH,
-        b.x + STALKER_HALF_WIDTH, b.y + STALKER_HEIGHT, b.z + STALKER_HALF_WIDTH,
+        b.x - hw, b.y, b.z - hw,
+        b.x + hw, b.y + hh, b.z + hw,
       );
       if (t !== null && t <= bestT) {
         best = s;
@@ -538,11 +597,16 @@ export class HostileSystem {
     stalker.body.vy = 4; // knock-up
     if (stalker.hp <= 0) {
       stalker.dying = DYING_S;
+      if (stalker.elite) {
+        // Walking-boss reward: shower a loot burst where it fell.
+        const b = stalker.body;
+        this.onEliteLoot?.(b.x, b.y + 1, b.z, eliteLoot(this.random));
+      }
       return true;
     }
     stalker.flash = 0.22;
-    stalker.kbX = kx * 6;
-    stalker.kbZ = kz * 6;
+    stalker.kbX = kx * (stalker.elite ? 2 : 6); // elites barely budge
+    stalker.kbZ = kz * (stalker.elite ? 2 : 6);
     return false;
   }
 }

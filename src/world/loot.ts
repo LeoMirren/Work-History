@@ -29,11 +29,11 @@ const POOL: ReadonlyArray<{ id: number; min: number; max: number; weight: number
 
 const TOTAL_WEIGHT = POOL.reduce((sum, entry) => sum + entry.weight, 0);
 
-/** Roll 2-4 stacks for the chest at (x, y, z) in the world with this seed. */
+/** Roll 3-6 stacks for the chest at (x, y, z) in the world with this seed. */
 export function rollLoot(seed: string, x: number, y: number, z: number): LootStack[] {
   const rng = rngFromSeed(seed, `loot:${x},${y},${z}`);
   const stacks: LootStack[] = [];
-  const n = 2 + Math.floor(rng() * 3);
+  const n = 3 + Math.floor(rng() * 4);
   for (let i = 0; i < n; i++) {
     let pick = rng() * TOTAL_WEIGHT;
     for (const entry of POOL) {

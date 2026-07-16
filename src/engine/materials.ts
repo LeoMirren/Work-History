@@ -48,6 +48,10 @@ ${kind === 'cutout' ? '  if (tex.a < 0.5) discard;' : ''}
   lit = max(lit, 0.04);
 ${kind === 'water' ? '  // Moving diagonal shimmer bands make still water read as liquid.\n  lit *= 0.93 + 0.07 * sin(uTime * 2.1 + (vUv.x + vUv.y) * 900.0);' : ''}
   vec3 col = tex.rgb * vColor * lit;
+  // Warm torch/lantern glow: where block light beats the (dimmed) sky light,
+  // shift the palette toward firelight — caves and nights get golden pools.
+  float warm = clamp(vLight.y - vLight.x * uBrightness, 0.0, 1.0);
+  col *= mix(vec3(1.0), vec3(1.16, 1.02, 0.82), warm);
   // Cheap gamma encode (the texture sampler decodes sRGB to linear).
   col = sqrt(col);
   float f = clamp((vDepth - fogNear) / (fogFar - fogNear), 0.0, 1.0);

@@ -236,6 +236,10 @@ async function boot(): Promise<void> {
     audio.play('place', id);
   };
   interaction.onDrop = (id, count, x, y, z) => itemDrops.spawn(id, count, x, y, z);
+  // Slain elite stalkers shower a loot burst of world drops.
+  hostiles.onEliteLoot = (x, y, z, drops) => {
+    for (const d of drops) itemDrops.spawn(d.id, d.count, x, y, z);
+  };
 
   // Average tile colour per block id for break particles, sampled lazily from
   // the session's atlas canvas (reset on session start — atlases are per-seed).
