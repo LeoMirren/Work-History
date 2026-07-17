@@ -723,7 +723,32 @@ async function boot(): Promise<void> {
           startSession(seed, mode, savedMeta, keys, dim);
         } else {
           await storage.clearAll();
-          startSession(seed, mode, null, new Set());
+          // Warp codes: open the game with ?dim=underworld to arrive at the
+          // Monarch's citadel, or ?goto=deephold|altar|titan to start beside
+          // that structure — the fast path to SEE the world's content.
+          const params = new URLSearchParams(location.search);
+          const warpDim: Dimension = params.get('dim') === 'underworld' ? 'underworld' : 'overworld';
+          const goto = params.get('goto');
+          let warpSpawn: { x: number; y: number; z: number } | undefined;
+          if (warpDim === 'overworld' && goto) {
+            const structSeed = (stream: string): number => cyrb128(`${seed} ${stream}`)[0] ?? 0;
+            let at: { x: number; z: number } | null = null;
+            for (let r = 0; r <= 40 && !at; r++) {
+              for (let dz = -r; dz <= r && !at; dz++) {
+                for (let dx = -r; dx <= r && !at; dx++) {
+                  if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+                  if (goto === 'deephold') at = deepholdFor(structSeed('deepholds'), dx, dz);
+                  else if (goto === 'altar') at = altarFor(structSeed('altars'), dx, dz);
+                  else if (goto === 'titan') at = titanAnchorFor(structSeed('titans'), dx, dz);
+                }
+              }
+            }
+            if (at) {
+              const gen = createGenerator(seed, 'overworld');
+              warpSpawn = { x: at.x + 0.5, y: gen.heightAt(at.x, at.z) + 2, z: at.z + 0.5 };
+            }
+          }
+          startSession(seed, mode, null, new Set(), warpDim, warpSpawn);
         }
         menus.hideTitle();
         input.requestLock();
