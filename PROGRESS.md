@@ -434,3 +434,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Economy threads: the silversmith trades silver<->gems, ember curios and dusk-metal-for-gemVest offers; chests can hold silver ingots and ember shards; hearty stew (14) and golden loaf (16) top the food chain
 - [x] Boss ledger: King Slayer, Titan Feller, Tyrant Ender and Realm Sovereign goals — 18 goals total, each great boss now counts
 - [x] 519 tests green, strict tsc, clean build, headless boot verified; BUILD_TAG bumped to v0.18 SHARPENED
+
+## Post-spec: v0.19 WILD FACES — unmissable faces, a wilder world
+
+- [x] FACES v2 on every creature: eyes ~45% bigger with dark outline sockets behind the sclera (readable on pale AND dark coats at real gameplay distance), eyes scale with head size per species, bigger muzzles/noses/mouths; hostiles get eye sockets + thicker scowl brows + wider jaws and fangs; guardians get socketed burning slits and a heavier brow; villagers get trade-distance faces
+- [x] Wildlife surge: cap raised 48 -> 64, spawn cadence 0.8s -> 0.65s
+- [x] Three new species: TUSKBEAST (a hulking shaggy bruiser with bone tusks and a shoulder hump — plains/savanna, drops a 3-4 meat feast), MOSSHARE (a quick long-eared bounder with a puff tail — forest/jungle, skittish), GLIMMERBACK (weird: dusk-grey with a glittering crystal saddle you spot from afar, 50% gem drop)
+- [x] 13 species total; richer biome mixes (savanna herds now 4 species deep)
+- [x] 519 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.19 WILD FACES

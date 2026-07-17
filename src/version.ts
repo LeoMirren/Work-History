@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.18 SHARPENED — weapons matter · species drops · living light';
+export const BUILD_TAG = 'v0.19 WILD FACES — outlined eyes on everything · 64 wildlife · tuskbeasts';

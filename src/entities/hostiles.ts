@@ -169,25 +169,29 @@ function makeStalkerMesh(ranged: boolean): {
   // FACE: big glowing eyes under a heavy brow, a dark jaw slab and a mouth
   // gash with teeth — a hostile you can read from across a clearing.
   const faceDark = new THREE.MeshBasicMaterial({ color: 0x14161c });
-  for (const ex of [-0.11, 0.11]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.1, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
+  for (const ex of [-0.12, 0.12]) {
+    const socket = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.17, 0.025), faceDark);
+    socket.name = 'entity';
+    socket.position.set(ex, 1.66, -0.215);
+    group.add(socket);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.13, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
     eye.name = 'entity';
-    eye.position.set(ex, 1.66, -0.22);
+    eye.position.set(ex, 1.66, -0.225);
     group.add(eye);
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.04), faceDark);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.06, 0.045), faceDark);
     brow.name = 'entity';
-    brow.position.set(ex, 1.73, -0.225);
-    brow.rotation.z = ex > 0 ? -0.25 : 0.25; // angled scowl
+    brow.position.set(ex, 1.755, -0.23);
+    brow.rotation.z = ex > 0 ? -0.3 : 0.3; // angled scowl
     group.add(brow);
   }
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.04), faceDark);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.13, 0.045), faceDark);
   jaw.name = 'entity';
-  jaw.position.set(0, 1.48, -0.22);
+  jaw.position.set(0, 1.47, -0.22);
   group.add(jaw);
-  for (const tx of [-0.08, 0, 0.08]) {
-    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.03), ranged ? spitterEyeMaterial : fangMaterial);
+  for (const tx of [-0.11, 0, 0.11]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.07, 0.035), ranged ? spitterEyeMaterial : fangMaterial);
     tooth.name = 'entity';
-    tooth.position.set(tx, 1.52, -0.23);
+    tooth.position.set(tx, 1.53, -0.232);
     group.add(tooth);
   }
 

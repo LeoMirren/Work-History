@@ -138,19 +138,23 @@ function makeGuardianMesh(): {
   group.add(head);
   // FACE: wider glowing eye slits under one heavy stone brow, and a grim
   // mouth gash — the brute finally has a face to hate.
-  for (const ex of [-0.08, 0.08]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.045, 0.03), guardianEyeMaterial);
+  for (const ex of [-0.09, 0.09]) {
+    const socket = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.025), guardianMawMaterial);
+    socket.name = 'entity';
+    socket.position.set(ex, 1.22, -0.215);
+    group.add(socket);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.03), guardianEyeMaterial);
     eye.name = 'entity';
-    eye.position.set(ex, 1.22, -0.22);
+    eye.position.set(ex, 1.22, -0.225);
     group.add(eye);
   }
-  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.07, 0.06), limbMat);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.07), limbMat);
   brow.name = 'entity';
-  brow.position.set(0, 1.29, -0.21);
+  brow.position.set(0, 1.31, -0.21);
   group.add(brow);
-  const maw = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.03), guardianMawMaterial);
+  const maw = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.03), guardianMawMaterial);
   maw.name = 'entity';
-  maw.position.set(0, 1.1, -0.22);
+  maw.position.set(0, 1.09, -0.22);
   group.add(maw);
 
   // Limbs pivot at hip/shoulder: [legL, legR, armL, armR].

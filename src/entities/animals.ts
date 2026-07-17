@@ -36,8 +36,8 @@ export const ANIMAL_HALF_WIDTH = 0.35;
 export const ANIMAL_HEIGHT = 0.7;
 export const ANIMAL_HP = 3;
 /** Population cap for the ambient wildlife around the player. */
-export const MAX_ANIMALS = 48;
-const SPAWN_INTERVAL_S = 0.8;
+export const MAX_ANIMALS = 64;
+const SPAWN_INTERVAL_S = 0.65;
 const SPAWN_MIN_DIST = 16;
 const SPAWN_MAX_DIST = 38;
 const DESPAWN_DIST = 84;
@@ -89,18 +89,22 @@ export const Species = {
   // Underworld wildlife — ash-born creatures that only roam the other realm.
   cinderpup: 9, // a soot-dark pup with ember-orange markings
   ashcrawler: 10, // a low, wide, pale crawler hugging the cavern floor
+  // The wildlife surge.
+  tuskbeast: 11, // a hulking shaggy bruiser of the plains and savanna
+  mosshare: 12, // a quick long-eared bounder of forest and jungle floors
+  glimmerback: 13, // weird: a dusk-grey grazer with a crystal-bright saddle
 } as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 /** The weird species, spawned rarely regardless of biome ("everywhere"). */
-export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback];
+export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback, Species.glimmerback];
 const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
 
 /** The ash-born species of the underworld (spawned only in that realm). */
 export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Species.ashcrawler];
 
 /** Skittish species bolt when the player closes within FLEE_RADIUS. */
-const SKITTISH = new Set<SpeciesId>([Species.bramblehorn, Species.dustpuff, Species.stiltback]);
+const SKITTISH = new Set<SpeciesId>([Species.bramblehorn, Species.dustpuff, Species.stiltback, Species.mosshare]);
 const FLEE_RADIUS = 5;
 
 /**
@@ -113,6 +117,8 @@ const SPECIES_DROP: Partial<Record<SpeciesId, (r: () => number) => { id: number;
   [Species.puffle]: (r) => (r() < 0.3 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
   [Species.stiltback]: (r) => (r() < 0.3 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
   [Species.cinderpup]: () => ({ id: Item.emberShard, count: 1 }),
+  [Species.tuskbeast]: (r) => ({ id: Item.meat, count: 3 + (r() < 0.5 ? 1 : 0) }),
+  [Species.glimmerback]: (r) => (r() < 0.5 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
 };
 
 interface SpeciesDef {
@@ -264,6 +270,42 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     patchColor: 0x5c5850,
     gait: 1.4,
   },
+  // Tuskbeast: a hulking shaggy bruiser — the biggest wild animal there is.
+  [Species.tuskbeast]: {
+    torso: [0.95, 0.62, 1.05],
+    head: [0.46, 0.4, 0.4],
+    headZ: -0.62,
+    legLen: 0.34,
+    legW: 0.22,
+    bodyColor: 0x6b4f33,
+    headColor: 0x59402a,
+    patchColor: 0x8a6a45,
+    gait: 0.8,
+  },
+  // Mosshare: a quick long-eared bounder skimming the forest floor.
+  [Species.mosshare]: {
+    torso: [0.34, 0.28, 0.44],
+    head: [0.26, 0.24, 0.24],
+    headZ: -0.3,
+    legLen: 0.18,
+    legW: 0.08,
+    bodyColor: 0x7d8f5a,
+    headColor: 0x6a7b4a,
+    patchColor: 0xa8b784,
+    gait: 2.2,
+  },
+  // Glimmerback: dusk-grey with a crystal-bright saddle — weird, and prized.
+  [Species.glimmerback]: {
+    torso: [0.56, 0.42, 0.62],
+    head: [0.3, 0.26, 0.28],
+    headZ: -0.4,
+    legLen: 0.3,
+    legW: 0.12,
+    bodyColor: 0x4c4a58,
+    headColor: 0x3e3c4a,
+    patchColor: 0xb9e8ec,
+    gait: 1.1,
+  },
 };
 
 /**
@@ -274,16 +316,20 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
  */
 export function speciesForBiome(biome: number, random: () => number): SpeciesId {
   if (biome === Biome.desert) return Species.strider;
-  if (biome === Biome.jungle) return Species.hopper;
+  if (biome === Biome.jungle) {
+    return random() < 0.65 ? Species.hopper : Species.mosshare;
+  }
   if (biome === Biome.snowy) return Species.woolly;
   if (biome === Biome.forest) {
-    return random() < 0.6 ? Species.bramblehorn : Species.trundler;
+    const roll = random();
+    return roll < 0.5 ? Species.bramblehorn : roll < 0.75 ? Species.mosshare : Species.trundler;
   }
   if (biome === Biome.savanna) {
     const roll = random();
-    return roll < 0.5 ? Species.dustpuff : roll < 0.8 ? Species.woolly : Species.trundler;
+    return roll < 0.4 ? Species.dustpuff : roll < 0.6 ? Species.tuskbeast : roll < 0.85 ? Species.woolly : Species.trundler;
   }
-  return random() < 0.7 ? Species.trundler : Species.woolly;
+  const roll = random();
+  return roll < 0.55 ? Species.trundler : roll < 0.8 ? Species.woolly : Species.tuskbeast;
 }
 
 export interface Animal {
@@ -318,11 +364,15 @@ export interface Animal {
 
 /** Shared face materials/geometry — never flash, so one instance serves all. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
-const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf2efe6 });
+const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf6f3ea });
+const eyeRimMaterial = new THREE.MeshBasicMaterial({ color: 0x17151a });
 const noseMaterial = new THREE.MeshBasicMaterial({ color: 0x241d18 });
-const eyeWhiteGeometry = new THREE.BoxGeometry(0.11, 0.1, 0.03);
-const pupilGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.025);
-const mouthGeometry = new THREE.BoxGeometry(0.14, 0.03, 0.02);
+// FACES v2: eyes ~45% bigger with a dark outline ring behind the sclera, so
+// they read unmistakably on pale AND dark coats, at real gameplay distance.
+const eyeRimGeometry = new THREE.BoxGeometry(0.19, 0.17, 0.025);
+const eyeWhiteGeometry = new THREE.BoxGeometry(0.16, 0.14, 0.03);
+const pupilGeometry = new THREE.BoxGeometry(0.075, 0.08, 0.025);
+const mouthGeometry = new THREE.BoxGeometry(0.18, 0.04, 0.02);
 /** Rare coat variants: ghost-pale or shadow-dark individuals. */
 const VARIANT_CHANCE = 0.05;
 /** Shared eye geometry — identical across every species. */
@@ -405,23 +455,28 @@ function makeAnimalMesh(
   // children of the head so idle tilts and grazes carry the whole face.
   // (Puffles wear their face on the torso instead; see their branch.)
   if (species !== Species.puffle) {
-    const eyeScale = species === Species.stiltback ? 0.6 : 1;
+    // Eyes scale with the head so every species — tiny dustpuff to broad
+    // trundler — carries proportionally LARGE, outlined, readable eyes.
+    const eyeScale = Math.min(1.25, Math.max(0.55, hw / 0.3));
     for (const ex of [-1, 1]) {
+      const rim = detail(eyeRimGeometry, eyeRimMaterial, headMesh);
+      rim.position.set(ex * (hw / 2 - 0.04), 0.04, -hd / 2 - 0.008);
+      rim.scale.set(eyeScale, eyeScale, 1);
       const white = detail(eyeWhiteGeometry, eyeWhiteMaterial, headMesh);
-      white.position.set(ex * (hw / 2 - 0.04), 0.04, -hd / 2 - 0.012);
+      white.position.set(ex * (hw / 2 - 0.04), 0.04, -hd / 2 - 0.016);
       white.scale.set(eyeScale, eyeScale, 1);
       const pupil = detail(pupilGeometry, eyeMaterial, headMesh);
-      pupil.position.set(ex * (hw / 2 - 0.04) - ex * 0.012, 0.035, -hd / 2 - 0.026);
+      pupil.position.set(ex * (hw / 2 - 0.04) - ex * 0.014, 0.035, -hd / 2 - 0.03);
       pupil.scale.set(eyeScale, eyeScale, 1);
     }
     // Muzzle: a slightly darker snout box low on the face, nose tip + mouth.
     const muzzle = detail(
-      new THREE.BoxGeometry(hw * 0.55, hh * 0.42, 0.08),
+      new THREE.BoxGeometry(hw * 0.62, hh * 0.46, 0.08),
       mat(tinted(def.headColor, 0.82)),
       headMesh,
     );
     muzzle.position.set(0, -hh * 0.22, -hd / 2 - 0.03);
-    const nose = detail(new THREE.BoxGeometry(0.07, 0.05, 0.02), noseMaterial, muzzle);
+    const nose = detail(new THREE.BoxGeometry(0.09, 0.065, 0.02), noseMaterial, muzzle);
     nose.position.set(0, hh * 0.1, -0.05);
     const mouth = detail(mouthGeometry, noseMaterial, muzzle);
     mouth.position.set(0, -hh * 0.13, -0.045);
@@ -535,12 +590,15 @@ function makeAnimalMesh(
     // right on the torso front — oversized two-layer eyes and a tiny mouth.
     const fluff = detail(new THREE.BoxGeometry(tw + 0.08, 0.16, td + 0.08), body, torso);
     fluff.position.set(0, th / 2 + 0.02, 0);
-    for (const ex of [-0.17, 0.17]) {
+    for (const ex of [-0.18, 0.18]) {
+      const rim = detail(eyeRimGeometry, eyeRimMaterial, torso);
+      rim.position.set(ex, 0.08, -td / 2 - 0.008);
+      rim.scale.set(1.5, 1.5, 1);
       const white = detail(eyeWhiteGeometry, eyeWhiteMaterial, torso);
-      white.position.set(ex, 0.08, -td / 2 - 0.012);
+      white.position.set(ex, 0.08, -td / 2 - 0.016);
       white.scale.set(1.5, 1.5, 1);
       const pupil = detail(pupilGeometry, eyeMaterial, torso);
-      pupil.position.set(ex - Math.sign(ex) * 0.02, 0.07, -td / 2 - 0.028);
+      pupil.position.set(ex - Math.sign(ex) * 0.02, 0.07, -td / 2 - 0.03);
       pupil.scale.set(1.4, 1.4, 1);
     }
     const mouth = detail(mouthGeometry, noseMaterial, torso);
@@ -556,6 +614,36 @@ function makeAnimalMesh(
       const ant = detail(antGeo, head, headMesh);
       ant.position.set(ex * 0.05, hh / 2, 0.02);
       ant.rotation.set(-0.3, 0, ex * 0.4);
+    }
+  } else if (species === Species.tuskbeast) {
+    // Two bone tusks curling up from the jaw, and a shaggy shoulder hump.
+    const tuskMat = mat(0xe8e0cc);
+    for (const ex of [-1, 1]) {
+      const tusk = detail(new THREE.BoxGeometry(0.07, 0.2, 0.07), tuskMat, headMesh);
+      tusk.position.set(ex * (hw / 2 - 0.06), -hh * 0.3, -hd / 2 - 0.06);
+      tusk.rotation.set(-0.35, 0, ex * -0.15);
+    }
+    const hump = detail(new THREE.BoxGeometry(tw * 0.8, 0.22, td * 0.45), mat(tinted(def.bodyColor, 0.85)), torso);
+    hump.position.set(0, th / 2 + 0.08, td * 0.12);
+  } else if (species === Species.mosshare) {
+    // Two tall ears and a puff tail — unmistakably a hare.
+    for (const ex of [-1, 1]) {
+      const ear = detail(new THREE.BoxGeometry(0.07, 0.26, 0.04), head, headMesh);
+      ear.position.set(ex * 0.08, hh / 2 + 0.12, 0.02);
+      ear.rotation.set(-0.12, 0, ex * 0.12);
+    }
+    tail = detail(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat(0xdfe8d2), group);
+    tail.position.set(0, torsoY + th * 0.2, td / 2 + 0.04);
+  } else if (species === Species.glimmerback) {
+    // The crystal saddle: a bright faceted ridge along the spine (unlit, so
+    // it glitters even in dusk light) — the treasure you spot from afar.
+    const glimmerMat = new THREE.MeshBasicMaterial({ color: 0xb9e8ec });
+    for (let i = 0; i < 3; i++) {
+      const shard = new THREE.Mesh(new THREE.BoxGeometry(0.12 - i * 0.02, 0.14 - i * 0.03, 0.1), glimmerMat);
+      shard.name = 'entity';
+      shard.position.set(0, th / 2 + 0.06, (i - 1) * 0.18);
+      shard.rotation.y = 0.78;
+      torso.add(shard);
     }
   }
 

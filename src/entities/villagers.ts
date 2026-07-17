@@ -69,10 +69,11 @@ const APRON_COLOR = 0xded2bd;
 /** Shared face materials/geometry — friendly, readable, never glowing. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x2a2620 });
 const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf2efe6 });
-const eyeWhiteGeometry = new THREE.BoxGeometry(0.1, 0.09, 0.03);
-const pupilGeometry = new THREE.BoxGeometry(0.045, 0.05, 0.025);
-const noseGeometry = new THREE.BoxGeometry(0.06, 0.09, 0.05);
-const mouthGeometry = new THREE.BoxGeometry(0.12, 0.025, 0.02);
+// FACES v2: bigger, higher-contrast features that read at trade distance.
+const eyeWhiteGeometry = new THREE.BoxGeometry(0.14, 0.12, 0.03);
+const pupilGeometry = new THREE.BoxGeometry(0.065, 0.07, 0.025);
+const noseGeometry = new THREE.BoxGeometry(0.08, 0.11, 0.06);
+const mouthGeometry = new THREE.BoxGeometry(0.16, 0.035, 0.02);
 
 /** Pack a village region (rx, rz) into one int key (exact for |r| < 32768). */
 export function packVillageKey(rx: number, rz: number): number {
