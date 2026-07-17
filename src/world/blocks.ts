@@ -52,6 +52,8 @@ export const Block = {
   duskOre: 43,
   emberOre: 44,
   altar: 45, // shrine altar: U wakes the Hollow Tyrant, one summon each
+  emberthrone: 46, // the Monarch's seat: U wakes the end of the game
+  ashbloom: 47, // crimson underworld flower, faintly lit
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -133,6 +135,8 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.duskOre, name: 'duskOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.duskOre) },
   { id: Block.emberOre, name: 'emberOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.emberOre) },
   { id: Block.altar, name: 'altar', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 8, tiles: tiles(T.altar) },
+  { id: Block.emberthrone, name: 'emberthrone', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 10, tiles: tiles(T.emberthrone) },
+  { id: Block.ashbloom, name: 'ashbloom', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.ashbloom) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -170,6 +174,8 @@ LIGHT_EMIT[Block.glowmoss] = 8; // soft teal light for underworld cavern floors
 LIGHT_EMIT[Block.glowbloom] = 6; // warm chartreuse glow in the mossy hollows
 LIGHT_EMIT[Block.cindercap] = 4; // dim orange mushroom light in the cinder deeps
 LIGHT_EMIT[Block.altar] = 10; // rune-lit shrine altar, a beacon in the deep dark
+LIGHT_EMIT[Block.emberthrone] = 12; // the Monarch's seat blazes across its hall
+LIGHT_EMIT[Block.ashbloom] = 5; // crimson pinpricks across the ash
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

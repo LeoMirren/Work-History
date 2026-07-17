@@ -99,7 +99,27 @@ export function tyrantLoot(random: () => number): Array<{ id: number; count: num
   return drops;
 }
 
-export type BossKind = 'sunkenKing' | 'stoneColossus' | 'hollowTyrant';
+/**
+ * The Monarch's hoard (pure): the Nightsever — the strongest weapon in the
+ * game — its cinder crown, and a king's ransom of metal, gems and hearts.
+ */
+export function monarchLoot(random: () => number): Array<{ id: number; count: number }> {
+  const drops: Array<{ id: number; count: number }> = [
+    { id: Item.nightsever, count: 1 },
+    { id: Item.ashcrown, count: 1 },
+    { id: Item.heartstone, count: 1 },
+    { id: Item.heartstone, count: 1 },
+  ];
+  const dusk = 6 + Math.floor(random() * 4); // 6-9 dusksteel
+  const gems = 8 + Math.floor(random() * 5); // 8-12 gems
+  const gold = 6 + Math.floor(random() * 4); // 6-9 gold
+  for (let i = 0; i < dusk; i++) drops.push({ id: Item.duskIngot, count: 1 });
+  for (let i = 0; i < gems; i++) drops.push({ id: Item.gem, count: 1 });
+  for (let i = 0; i < gold; i++) drops.push({ id: Item.goldIngot, count: 1 });
+  return drops;
+}
+
+export type BossKind = 'sunkenKing' | 'stoneColossus' | 'hollowTyrant' | 'ashenMonarch';
 
 /** Everything that makes one great boss distinct — the engine reads only this. */
 export interface BossSpec {
@@ -155,6 +175,20 @@ export const BOSS_SPECS: Record<BossKind, BossSpec> = {
     slamCooldown: 2.0,
     enragedCooldown: 1.2,
     loot: tyrantLoot,
+  },
+  // The end of the game: the underworld's molten emperor.
+  ashenMonarch: {
+    name: 'The Ashen Monarch',
+    hp: 400,
+    halfWidth: 1.4,
+    height: 5.4,
+    speed: 2.2,
+    enragedSpeed: 3.6,
+    slamRange: 4.2,
+    slamDamage: 10,
+    slamCooldown: 2.2,
+    enragedCooldown: 1.1,
+    loot: monarchLoot,
   },
 };
 
@@ -368,10 +402,86 @@ function makeTyrantMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE
   return { group, torso, limbs, mats: [shroud, limbMat, bone] };
 }
 
+const monarchCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xff7a28 });
+const monarchEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffd23e });
+
+/** The Monarch rig: a ~5.4-block obsidian emperor cracked with molten light. */
+function makeMonarchMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] } {
+  const obsidian = hideMaterial(0x1c1a22, 'stone');
+  const limbMat = hideMaterial(0x141218, 'stone');
+  const cinder = hideMaterial(0x5a2c1a, 'stone');
+  const group = new THREE.Group();
+  group.name = 'entity';
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.4, 1.5), obsidian);
+  torso.name = 'entity';
+  torso.position.set(0, 3.1, 0);
+  group.add(torso);
+  // The molten core burning through the chest.
+  const core = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.1), monarchCoreMaterial);
+  core.name = 'entity';
+  core.position.set(0, 3.3, -0.78);
+  group.add(core);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 1.3), obsidian);
+  head.name = 'entity';
+  head.position.set(0, 4.85, -0.05);
+  group.add(head);
+  // Twin swept horns, a cinder crown band, furnace eyes.
+  for (const sx of [-1, 1]) {
+    const horn = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.7, 0.24), limbMat);
+    horn.name = 'entity';
+    horn.position.set(sx * 0.5, 5.6, -0.1);
+    horn.rotation.set(0, 0, sx * -0.35);
+    group.add(horn);
+  }
+  const band = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.18, 1.36), cinder);
+  band.name = 'entity';
+  band.position.set(0, 5.28, -0.05);
+  group.add(band);
+  for (const ex of [-0.3, 0.3]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.06), monarchEyeMaterial);
+    eye.name = 'entity';
+    eye.position.set(ex, 4.9, -0.71);
+    group.add(eye);
+  }
+
+  // [legL, legR, armL, armR] — pillar legs, furnace-gauntlet arms.
+  const limbs: THREE.Mesh[] = [];
+  const legGeo = new THREE.BoxGeometry(0.9, 1.9, 0.95);
+  legGeo.translate(0, -0.95, 0);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, limbMat);
+    leg.name = 'entity';
+    leg.position.set(sx * 0.7, 1.9, 0);
+    group.add(leg);
+    limbs.push(leg);
+  }
+  const armGeo = new THREE.BoxGeometry(0.7, 2.4, 0.75);
+  armGeo.translate(0, -1.2, 0);
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeo, limbMat);
+    arm.name = 'entity';
+    arm.position.set(sx * 1.78, 4.1, 0);
+    group.add(arm);
+    limbs.push(arm);
+    const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.85, 1.0), cinder);
+    gauntlet.name = 'entity';
+    gauntlet.position.set(0, -2.55, 0);
+    arm.add(gauntlet);
+    const emberKnuckle = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.1), monarchCoreMaterial);
+    emberKnuckle.name = 'entity';
+    emberKnuckle.position.set(0, -2.55, -0.56);
+    arm.add(emberKnuckle);
+  }
+  return { group, torso, limbs, mats: [obsidian, limbMat, cinder] };
+}
+
 const BOSS_MESH: Record<BossKind, () => { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] }> = {
   sunkenKing: makeBossMesh,
   stoneColossus: makeColossusMesh,
   hollowTyrant: makeTyrantMesh,
+  ashenMonarch: makeMonarchMesh,
 };
 
 /** Callback: spawn one hostile add near (x, y, z) — main bridges to HostileSystem. */

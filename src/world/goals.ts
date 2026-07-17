@@ -15,7 +15,7 @@ export type GoalEvent =
   | { kind: 'sleep' }
   | { kind: 'depth'; y: number }
   | { kind: 'dimension'; dimension: string }
-  | { kind: 'kill'; what: 'hostile' | 'guardian' }
+  | { kind: 'kill'; what: 'hostile' | 'guardian' | 'monarch' }
   | { kind: 'harvest'; id: number }
   | { kind: 'catch' };
 
@@ -118,6 +118,12 @@ export const GOALS: readonly Goal[] = [
     title: 'Vault Breaker',
     text: 'Defeat a vault guardian.',
     test: (e) => e.kind === 'kill' && e.what === 'guardian',
+  },
+  {
+    id: 'realm-sovereign',
+    title: 'Realm Sovereign',
+    text: 'Fell the Ashen Monarch on its own throne.',
+    test: (e) => e.kind === 'kill' && e.what === 'monarch',
   },
 ];
 

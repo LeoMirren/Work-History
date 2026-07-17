@@ -86,12 +86,18 @@ export const Species = {
   thornback: 6, // low spiky reptile with a ridge of back plates and a long tail
   puffle: 7, // an absurd round fuzzball on stubby legs, face on the front
   stiltback: 8, // a spindly daddy-longlegs: tiny body atop very tall thin legs
+  // Underworld wildlife — ash-born creatures that only roam the other realm.
+  cinderpup: 9, // a soot-dark pup with ember-orange markings
+  ashcrawler: 10, // a low, wide, pale crawler hugging the cavern floor
 } as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 /** The weird species, spawned rarely regardless of biome ("everywhere"). */
 export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback];
 const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
+
+/** The ash-born species of the underworld (spawned only in that realm). */
+export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Species.ashcrawler];
 
 interface SpeciesDef {
   readonly torso: readonly [number, number, number];
@@ -217,6 +223,30 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     headColor: 0x565a72,
     patchColor: 0x8a8fa8,
     gait: 1.1,
+  },
+  // Cinderpup: a soot-dark scamp whose patches glow ember-orange.
+  [Species.cinderpup]: {
+    torso: [0.44, 0.34, 0.5],
+    head: [0.3, 0.28, 0.28],
+    headZ: -0.32,
+    legLen: 0.2,
+    legW: 0.11,
+    bodyColor: 0x3a3038,
+    headColor: 0x2e2a30,
+    patchColor: 0xff8a3a,
+    gait: 1.6,
+  },
+  // Ashcrawler: a low, wide, bone-pale crawler hugging the cavern floor.
+  [Species.ashcrawler]: {
+    torso: [0.66, 0.26, 0.86],
+    head: [0.28, 0.22, 0.28],
+    headZ: -0.5,
+    legLen: 0.16,
+    legW: 0.12,
+    bodyColor: 0x8d8a80,
+    headColor: 0x767268,
+    patchColor: 0x5c5850,
+    gait: 1.4,
   },
 };
 
@@ -559,6 +589,7 @@ export class AnimalSystem {
   readonly animals: Animal[] = [];
   private world: WorldView | null = null;
   private biomeFn: BiomeFn | null = null;
+  private realm: 'overworld' | 'underworld' = 'overworld';
   private spawnEnabled = true;
   private spawnTimer = 0;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
@@ -577,6 +608,11 @@ export class AnimalSystem {
   /** Biome lookup for species selection; null falls back to random species. */
   setBiomeFn(fn: BiomeFn | null): void {
     this.biomeFn = fn;
+  }
+
+  /** Which realm's wildlife to spawn (surfaces + species both follow). */
+  setRealm(realm: 'overworld' | 'underworld'): void {
+    this.realm = realm;
   }
 
   /** Pause/resume ambient spawning (existing animals keep updating). */
@@ -639,6 +675,11 @@ export class AnimalSystem {
     for (let y = 120; y >= 1; y--) {
       const id = world.getBlock(x, y, z);
       if (id === Block.air) continue;
+      // Overworld herds keep to grass and snow; ash-born wildlife stands on
+      // the underworld's ashstone and emberrock floors.
+      if (this.realm === 'underworld') {
+        return id === Block.ashstone || id === Block.emberrock ? y + 1 : null;
+      }
       return id === Block.grass || id === Block.snow ? y + 1 : null;
     }
     return null;
@@ -670,11 +711,16 @@ export class AnimalSystem {
     if (y === null) return;
     const biome = this.biomeFn ? this.biomeFn(x, z) : -1;
     // Most spawns follow the biome; a rare roll drops a weird oddity instead,
-    // so bizarre wildlife turns up in every biome ("everywhere").
+    // so bizarre wildlife turns up in every biome ("everywhere"). The
+    // underworld breeds only its own ash-born species.
     const species =
-      this.random() < WEIRD_CHANCE
-        ? WEIRD_SPECIES[Math.floor(this.random() * WEIRD_SPECIES.length)] ?? Species.thornback
-        : speciesForBiome(biome, this.random);
+      this.realm === 'underworld'
+        ? this.random() < 0.6
+          ? Species.cinderpup
+          : Species.ashcrawler
+        : this.random() < WEIRD_CHANCE
+          ? WEIRD_SPECIES[Math.floor(this.random() * WEIRD_SPECIES.length)] ?? Species.thornback
+          : speciesForBiome(biome, this.random);
     const herd = HERD_MIN + Math.floor(this.random() * (HERD_MAX - HERD_MIN + 1));
     this.spawnAt(x + 0.5, y, z + 0.5, species);
     for (let i = 1; i < herd && this.animals.length < MAX_ANIMALS; i++) {

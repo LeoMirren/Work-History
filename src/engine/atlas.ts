@@ -112,6 +112,11 @@ export const Tiles = {
   altar: 90,
   tyrantEye: 91,
   heartstone: 92,
+  // The underworld endgame: the Monarch's throne and hoard.
+  emberthrone: 93,
+  ashbloom: 94,
+  nightsever: 95,
+  ashcrown: 96,
 } as const;
 
 type Rng = () => number;
@@ -1261,6 +1266,71 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** The Monarch's throne: obsidian shot through with a molten cross of seams. */
+const paintEmberthrone: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 8);
+      set(x, y, 22 + n, 20 + n, 28 + n);
+    }
+  }
+  // Molten seams: a vertical and horizontal fissure with a blazing meeting.
+  for (let y = 1; y <= 14; y++) {
+    const hot = Math.abs(y - 8) < 3;
+    set(7, y, hot ? 255 : 214, hot ? 150 : 96, hot ? 56 : 40);
+    set(8, y, hot ? 236 : 186, hot ? 120 : 76, 44);
+  }
+  for (let x = 2; x <= 13; x++) {
+    const hot = Math.abs(x - 8) < 3;
+    set(x, 8, hot ? 255 : 214, hot ? 150 : 96, hot ? 56 : 40);
+  }
+  set(7, 8, 255, 214, 120);
+  set(8, 8, 255, 214, 120);
+};
+
+/** The Nightsever: a long night-black blade with a burning ember edge. */
+const paintNightsever: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // A long diagonal blade from top-right to the low guard.
+  for (let i = 0; i < 11; i++) {
+    const x = 14 - i;
+    const y = 1 + i;
+    const n = jitter(rng, 8);
+    set(x, y, 24 + n, 20 + n, 32 + n); // night-black body
+    set(x + 1, y, 255, 138 + n, 48); // ember edge
+  }
+  // Guard, grip, ember pommel.
+  set(4, 11, 90, 70, 100);
+  set(3, 12, 90, 70, 100);
+  set(5, 12, 90, 70, 100);
+  set(3, 13, 46, 36, 30);
+  set(2, 14, 46, 36, 30);
+  set(1, 15, 255, 150, 56);
+};
+
+/** The ash crown: a dark circlet with three burning ember points. */
+const paintAshcrown: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let x = 3; x <= 12; x++) {
+    for (let y = 9; y <= 12; y++) {
+      const n = jitter(rng, 10);
+      set(x, y, 44 + n, 38 + n, 50 + n);
+    }
+  }
+  for (const px of [3, 7, 11]) {
+    for (let y = 5; y <= 9; y++) {
+      const n = jitter(rng, 10);
+      set(px, y, 52 + n, 44 + n, 58 + n);
+      set(px + 1, y, 40 + n, 34 + n, 46 + n);
+    }
+    set(px, 4, 255, 150, 56); // burning tips
+  }
+};
+
 /** The shrine altar: near-black stone etched with a glowing violet rune ring. */
 const paintAltar: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -1510,6 +1580,10 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.altar, 'altar', paintAltar],
   [Tiles.tyrantEye, 'tyrantEye', paintTyrantEye],
   [Tiles.heartstone, 'heartstone', paintHeartstone],
+  [Tiles.emberthrone, 'emberthrone', paintEmberthrone],
+  [Tiles.ashbloom, 'ashbloom', paintFlower(224, 62, 58, 255, 176, 64)],
+  [Tiles.nightsever, 'nightsever', paintNightsever],
+  [Tiles.ashcrown, 'ashcrown', paintAshcrown],
 ];
 
 /**

@@ -31,6 +31,8 @@ const SILVER_MAX_Y = 22;
 const DUSK_THRESHOLD = 0.86; // the rarest seam, only in the deepest dark
 const DUSK_MAX_Y = 10;
 const UW_EMBERORE_THRESHOLD = 0.9; // the hottest ember seams crystallize to ore
+const UW_BLOOM_CHANCE = 34; // rarer than moss: crimson pinpricks in the ash
+const UW_THRONE_CHANCE = 140; // ~1 chunk in 140 raises the Monarch's hall
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
 // Cave biomes: three underground zone themes, each chosen by its own
 // low-frequency 3D noise so a zone spans many chunks. Zones only DECORATE
@@ -204,6 +206,7 @@ function createUnderworld(seed: string): Generator {
   const ember: NoiseFunction3D = seededNoise3D(seed, 'uw:ember');
   const roof: NoiseFunction3D = seededNoise3D(seed, 'uw:roof');
   const floraSeed = cyrb128(`${seed} uw:flora`)[0];
+  const throneSeed = cyrb128(`${seed} uw:throne`)[0];
 
   function generateChunk(cx: number, cz: number): Uint8Array {
     const data = createChunkData();
@@ -249,10 +252,22 @@ function createUnderworld(seed: string): Generator {
     for (let z = 0; z < CHUNK_SIZE; z++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
         const fhash = hash2(floraSeed, cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
-        if (fhash % UW_MOSS_CHANCE !== 0) continue;
-        const floorY = cavernFloorY(data, x, z);
-        if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.glowmoss;
+        if (fhash % UW_MOSS_CHANCE === 0) {
+          const floorY = cavernFloorY(data, x, z);
+          if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.glowmoss;
+        } else if ((fhash >>> 4) % UW_BLOOM_CHANCE === 0) {
+          // Ashblooms: rarer crimson pinpricks between the teal moss.
+          const floorY = cavernFloorY(data, x, z);
+          if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.ashbloom;
+        }
       }
+    }
+    // The Monarch's throne hall: ~1 chunk in UW_THRONE_CHANCE raises an
+    // obsidian-and-ember arena around the emberthrone. Use (U) the throne to
+    // wake the Ashen Monarch — the end of the game.
+    if (hash2(throneSeed, cx, cz) % UW_THRONE_CHANCE === 0) {
+      const floorY = cavernFloorY(data, 8, 8);
+      if (floorY !== null && floorY < UW_CEIL - 12) buildThroneHall(data, floorY);
     }
     return data;
   }
@@ -272,6 +287,35 @@ function createUnderworld(seed: string): Generator {
  * null when the column has no such floor (fully solid, or capped by
  * emberrock/bedrock everywhere the cavern opens).
  */
+/**
+ * Raise the Monarch's throne hall around local centre (8, 8): a 9x9 platform
+ * (emberrock rim, ashstone floor) under a cleared 6-tall hall, four ember
+ * pillars, the blazing emberthrone at the centre and glowmoss at its feet.
+ * Everything stays inside the chunk; bedrock is never touched.
+ */
+export function buildThroneHall(data: Uint8Array, floorY: number): void {
+  for (let dz = -4; dz <= 4; dz++) {
+    for (let dx = -4; dx <= 4; dx++) {
+      const x = 8 + dx;
+      const z = 8 + dz;
+      const rim = Math.abs(dx) === 4 || Math.abs(dz) === 4;
+      data[blockIndex(x, floorY, z)] = rim ? Block.emberrock : Block.ashstone;
+      // Clear the hall above the platform.
+      for (let y = floorY + 1; y <= floorY + 6; y++) {
+        const i = blockIndex(x, y, z);
+        if (data[i] !== Block.bedrock) data[i] = Block.air;
+      }
+    }
+  }
+  // Four ember pillars just inside the rim.
+  for (const [px, pz] of [[5, 5], [11, 5], [5, 11], [11, 11]] as const) {
+    for (let y = floorY + 1; y <= floorY + 4; y++) data[blockIndex(px, y, pz)] = Block.emberrock;
+  }
+  data[blockIndex(8, floorY + 1, 8)] = Block.emberthrone;
+  data[blockIndex(7, floorY + 1, 8)] = Block.glowmoss;
+  data[blockIndex(9, floorY + 1, 8)] = Block.glowmoss;
+}
+
 function cavernFloorY(data: Uint8Array, x: number, z: number): number | null {
   for (let y = 2; y <= UW_CEIL - 3; y++) {
     if (

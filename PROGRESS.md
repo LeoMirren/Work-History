@@ -401,3 +401,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Use (U) the altar and the Hollow Tyrant rises on the spot — the fastest great boss (2.6/4.0 speed, 210 HP, 7-damage strikes), a gaunt shade with a bone circlet, pale unblinking eyes and bone claws; the altar goes dark after one summon
 - [x] Boost loot: the tyrant eye trophy + 2-3 HEARTSTONES — U a heartstone to gain +1 max heart PERMANENTLY (stacks to +10 hearts, persisted in the save, HUD/regen/respawn all follow) — plus dusksteel and gems
 - [x] Third entry in the boss spec table; new altar/heartstone/tyrant tests; 504 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.15 SHRINES OF THE TYRANT
+
+## Post-spec: v0.16 THE ASHEN MONARCH — the underworld endgame
+
+- [x] The other realm lives: ash-born wildlife spawns only there — soot-dark CINDERPUPS with ember-orange markings and low bone-pale ASHCRAWLERS roam the ashstone cavern floors (full face/coat-variant treatment like every species)
+- [x] Ashblooms: crimson faintly-glowing flowers scattered between the teal glowmoss — the underworld floor now glitters in two colours
+- [x] THE FINAL BOSS: ~1 chunk in 140 raises the Monarch's throne hall (emberrock-rimmed platform, four pillars, the blazing EMBERTHRONE at light 12) — U the throne and THE ASHEN MONARCH rises: a 5.4-block obsidian emperor with molten core, furnace eyes, swept horns and ember gauntlets; 400 HP, 10-damage slams, the biggest fight in the game
+- [x] The prize: THE NIGHTSEVER — 100 damage, one-shots everything that walks (and mines at the apex tier) — plus the ash crown trophy, 2 heartstones and a king's ransom of dusksteel/gems/gold
+- [x] 15th goal: "Realm Sovereign — fell the Ashen Monarch on its own throne" (fires from the boss's own onSlain hook)
+- [x] 510 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.16 THE ASHEN MONARCH

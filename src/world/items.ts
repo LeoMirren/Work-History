@@ -51,6 +51,9 @@ export const Item = {
   // The Hollow Tyrant's boost hoard.
   tyrantEye: 137, // trophy of the slain Tyrant
   heartstone: 138, // U: +1 heart of max health, permanently
+  // The Ashen Monarch's hoard — the end of the game.
+  nightsever: 139, // THE weapon: 100 damage, one-shots everything that walks
+  ashcrown: 140, // trophy of the fallen Monarch
 } as const;
 
 /**
@@ -132,6 +135,7 @@ const PICKAXES = new Set<number>([
   Item.gemPickaxe,
   Item.kingsplitter, // the king's greataxe also mines at the apex tier
   Item.earthshaker, // the titan's maul: same apex tier, heavier swing
+  Item.nightsever, // the Monarch's blade: apex tier, and THE weapon
 ]);
 
 export function isBlockId(id: number): boolean {
@@ -142,7 +146,7 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
-const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown, Item.titanHeart, Item.tyrantEye]);
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown, Item.titanHeart, Item.tyrantEye, Item.ashcrown]);
 
 export function stackLimit(id: number): number {
   return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
@@ -188,6 +192,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.duskblade]: Tiles.duskblade,
   [Item.tyrantEye]: Tiles.tyrantEye,
   [Item.heartstone]: Tiles.heartstone,
+  [Item.nightsever]: Tiles.nightsever,
+  [Item.ashcrown]: Tiles.ashcrown,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -236,6 +242,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.duskblade]: 'duskblade',
   [Item.tyrantEye]: 'tyrant eye',
   [Item.heartstone]: 'heartstone',
+  [Item.nightsever]: 'the Nightsever',
+  [Item.ashcrown]: 'ash crown',
 };
 
 export function itemName(id: number): string {
@@ -262,6 +270,8 @@ export function usageHintFor(id: number): string {
   if (id === Item.duskblade) return 'hold a mouse button: the sharpest craftable blade (12 damage)';
   if (id === Item.tyrantEye) return 'a trophy pried from the Hollow Tyrant';
   if (id === Item.heartstone) return 'U: bind it to your heart — +1 max heart, forever';
+  if (id === Item.nightsever) return 'hold a mouse button: 100 damage — nothing that walks survives it';
+  if (id === Item.ashcrown) return 'the Monarch is fallen. the realm is yours';
   if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
   if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
@@ -288,6 +298,7 @@ export function pickaxeTier(heldId: number): number {
       return 6;
     case Item.kingsplitter:
     case Item.earthshaker:
+    case Item.nightsever:
       return 7; // apex: mines anything, instantly on soft stone
     default:
       return 0;

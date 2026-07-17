@@ -69,6 +69,7 @@ const FEEDBACK_BLOCKED = "can't place there — aim at a face beside open space"
 const FEEDBACK_EMPTY = 'select a block in the hotbar (1-9)';
 const FEEDBACK_TOTEM_SHALLOW = 'the totem only wakes the King in the deep dark (y<30)';
 const FEEDBACK_ALTAR_WAKES = 'the altar goes dark — something rises';
+const FEEDBACK_THRONE_WAKES = 'the throne cracks open — the MONARCH rises';
 const FEEDBACK_ALTAR_BUSY = 'another great foe still walks — finish it first';
 const FEEDBACK_HEART_BOUND = 'the heartstone melts into you — +1 heart, forever';
 const FEEDBACK_HEART_FULL = 'your heart can hold no more';
@@ -183,6 +184,8 @@ export class Interaction {
   onSummonBoss: ((x: number, y: number, z: number) => boolean) | null = null;
   /** Use a shrine altar: summon the altar boss at the block. Returns true if it summoned. */
   onSummonAltarBoss: ((bx: number, by: number, bz: number) => boolean) | null = null;
+  /** Use the emberthrone: summon the Ashen Monarch. Returns true if it summoned. */
+  onSummonThroneBoss: ((bx: number, by: number, bz: number) => boolean) | null = null;
   /** A hostile or guardian died to the player's melee (goal tracking). */
   onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
   /** A fish was caught by melee (goal tracking). */
@@ -358,7 +361,8 @@ export class Interaction {
     // Weapon-scaled melee: the King's greataxe hits hardest, tools middling.
     const held = this.heldId(hotbar);
     this.currentMeleeDamage =
-      held === Item.earthshaker ? 16
+      held === Item.nightsever ? 100
+      : held === Item.earthshaker ? 16
       : held === Item.kingsplitter ? 14
       : held === Item.duskblade ? 12
       : isToolId(held) ? 6
@@ -434,17 +438,23 @@ export class Interaction {
   }
 
   /**
-   * Use a shrine altar: wake the Hollow Tyrant. The altar goes dark
-   * (becomes mossstone) on a successful summon — one boss per shrine.
+   * Use a shrine altar (wakes the Hollow Tyrant) or the emberthrone (wakes
+   * the Ashen Monarch — the end of the game). The seat goes dark on a
+   * successful summon — one boss per shrine.
    */
   private tryUseAltar(world: World): boolean {
-    if (!this.hasTarget || !this.onSummonAltarBoss) return false;
+    if (!this.hasTarget) return false;
     const { bx, by, bz } = this.hit;
-    if (world.getBlock(bx, by, bz) !== Block.altar) return false;
-    if (this.onSummonAltarBoss(bx, by, bz)) {
-      world.setBlock(bx, by, bz, Block.mossstone);
-      this.onEdit?.('break', Block.altar);
-      this.setFeedback(FEEDBACK_ALTAR_WAKES);
+    const id = world.getBlock(bx, by, bz);
+    const summon =
+      id === Block.altar ? this.onSummonAltarBoss
+      : id === Block.emberthrone ? this.onSummonThroneBoss
+      : null;
+    if (!summon) return false;
+    if (summon(bx, by, bz)) {
+      world.setBlock(bx, by, bz, id === Block.altar ? Block.mossstone : Block.emberrock);
+      this.onEdit?.('break', id);
+      this.setFeedback(id === Block.altar ? FEEDBACK_ALTAR_WAKES : FEEDBACK_THRONE_WAKES);
     } else {
       this.setFeedback(FEEDBACK_ALTAR_BUSY);
     }

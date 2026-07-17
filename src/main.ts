@@ -229,6 +229,8 @@ async function boot(): Promise<void> {
   interaction.onSummonBoss = (x, y, z) => boss.summon(x, y + 0.5, z);
   // Shrine altars wake the Hollow Tyrant right where the altar stands.
   interaction.onSummonAltarBoss = (bx, by, bz) => boss.summon(bx + 0.5, by + 1, bz + 0.5, 'hollowTyrant');
+  // The emberthrone wakes the Ashen Monarch — the end of the game.
+  interaction.onSummonThroneBoss = (bx, by, bz) => boss.summon(bx + 0.5, by + 1, bz + 0.5, 'ashenMonarch');
   // Roaming titans: region-seeded Stone Colossus anchors (overworld surface).
   // Walk within reach of a living titan's anchor and the fight simply begins.
   let titanSeedInt = 0;
@@ -236,6 +238,7 @@ async function boot(): Promise<void> {
   const slainTitans = new Set<string>();
   boss.onSlain = (kind) => {
     if (kind === 'stoneColossus' && currentTitanKey) slainTitans.add(currentTitanKey);
+    if (kind === 'ashenMonarch') signalGoal({ kind: 'kill', what: 'monarch' });
   };
   const TITAN_ENGAGE_DIST = 40;
   function tryEngageTitan(px: number, py: number, pz: number): void {
@@ -558,6 +561,7 @@ async function boot(): Promise<void> {
     const entityWorld = { isSolid: world.isSolid, getBlock: world.blockAt };
     animals.setWorld(entityWorld);
     animals.setBiomeFn(dimension === 'overworld' ? createGenerator(seed, dimension).biomeAt : null);
+    animals.setRealm(dimension); // ash-born wildlife below, herds above
     fish.setWorld(entityWorld);
     // Wardens live in overworld villages only; rebuild the system per seed.
     villagers.clear();

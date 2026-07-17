@@ -22,6 +22,7 @@ const EVENT_FOR: Readonly<Record<string, GoalEvent>> = {
   'rift-walker': { kind: 'dimension', dimension: 'underworld' },
   'first-blood': { kind: 'kill', what: 'hostile' },
   'vault-breaker': { kind: 'kill', what: 'guardian' },
+  'realm-sovereign': { kind: 'kill', what: 'monarch' },
 };
 
 function eventFor(id: string): GoalEvent {
@@ -31,8 +32,8 @@ function eventFor(id: string): GoalEvent {
 }
 
 describe('goal definitions', () => {
-  it('defines 14 goals with unique ids', () => {
-    expect(GOALS.length).toBe(14);
+  it('defines 15 goals with unique ids', () => {
+    expect(GOALS.length).toBe(15);
     expect(new Set(GOALS.map((g) => g.id)).size).toBe(GOALS.length);
     for (const goal of GOALS) {
       expect(goal.title.length).toBeGreaterThan(0);
