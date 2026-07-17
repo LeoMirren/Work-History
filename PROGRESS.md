@@ -370,3 +370,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Auto-run (T): press T to latch hands-free forward movement (S or a second T cancels) — steer freely with mouse/trackpad/arrow keys while moving, the trackpad answer to "can't turn while running"
 - [x] Controls panel documents the new T binding
 - [x] 483 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.11 EVERYONE HAS A FACE
+
+## Post-spec: v0.12 TITANS ROAM — the Stone Colossus walks the wilds
+
+- [x] Boss framework generalized: a spec table (name/hp/hitbox/speed/slam/loot) drives one shared three-phase fight engine, so every future great boss is a data entry plus a mesh
+- [x] The Stone Colossus — a ~4.2-block weathered granite titan with burning amber eyes, moss-capped crown and pauldrons, and boulder fists; 240 HP, 8-damage slams, phase-2 add summons, enrage under a third health
+- [x] Titans roam the surface: ~45% of 320-block regions host a deterministic per-seed anchor (pure titanAnchorFor, same contract as villages) — walk within 40 blocks of a living titan and the fight simply begins, no totem needed; slain titans stay down for the session
+- [x] The hoard: titan heart trophy + the earthshaker maul (heaviest melee in the game at 16, apex tier-7 mining) + a landslide of iron, gems and crystal
+- [x] Boss bar, aim outline and melee scaling all read the live boss's spec (the Colossus' taller hitbox highlights correctly)
+- [x] 490 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.12 TITANS ROAM

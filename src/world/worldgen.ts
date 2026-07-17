@@ -364,6 +364,32 @@ export function villageCenterFor(
   };
 }
 
+/** Blocks per side of the titan-roaming grid (~20 chunks). */
+export const TITAN_REGION_BLOCKS = 320;
+/** Percentage of titan regions that host a roaming Stone Colossus. */
+export const TITAN_CHANCE_PCT = 45;
+
+/**
+ * The roaming anchor of the Stone Colossus hosted by titan-region (rx, rz),
+ * in world-block coordinates, or null if that region rolled none. Pure and
+ * stateless like villageCenterFor: hash2(seedInt, rx, rz) decides everything,
+ * where seedInt is cyrb128(`${seed} titans`)[0]. The anchor keeps a 48-block
+ * margin inside its region so two neighbouring titans never share ground.
+ */
+export function titanAnchorFor(
+  seedInt: number,
+  rx: number,
+  rz: number,
+): { x: number; z: number } | null {
+  const h = hash2(seedInt, rx, rz);
+  if (h % 100 >= TITAN_CHANCE_PCT) return null;
+  const span = TITAN_REGION_BLOCKS - 96;
+  return {
+    x: rx * TITAN_REGION_BLOCKS + 48 + ((h >>> 8) % span),
+    z: rz * TITAN_REGION_BLOCKS + 48 + ((h >>> 16) % span),
+  };
+}
+
 function createOverworld(seed: string): Generator {
   const shape = worldShapeOf(seed);
   const continental: NoiseFunction2D = seededNoise2D(seed, 'continental');

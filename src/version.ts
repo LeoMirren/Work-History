@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.11 EVERYONE HAS A FACE — hostile jaws · warden faces · auto-run (T)';
+export const BUILD_TAG = 'v0.12 TITANS ROAM — the Stone Colossus walks the wilds · earthshaker maul';

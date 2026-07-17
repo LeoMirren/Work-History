@@ -95,6 +95,9 @@ export const Tiles = {
   sovereignTotem: 76,
   kingsplitter: 77,
   crown: 78,
+  // The Stone Colossus' hoard.
+  titanHeart: 79,
+  earthshaker: 80,
 } as const;
 
 type Rng = () => number;
@@ -1244,6 +1247,57 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** A cracked stone heart with a molten amber core burning through the seams. */
+const paintTitanHeart: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Heart silhouette in weathered granite: two lobes tapering to a point.
+  for (let y = 3; y <= 13; y++) {
+    for (let x = 2; x <= 13; x++) {
+      const cx = x - 7.5;
+      const lobe = Math.min(Math.hypot(cx + 2.5, y - 5.5), Math.hypot(cx - 2.5, y - 5.5));
+      const taper = Math.abs(cx) * 1.15 + (y - 5);
+      if (lobe > 3.2 && (y < 6 || taper > 8.6)) continue;
+      const n = jitter(rng, 14);
+      set(x, y, 104 + n, 100 + n, 90 + n);
+    }
+  }
+  // Molten core and glowing cracks.
+  for (const [gx, gy] of [[7, 7], [8, 7], [7, 8], [8, 8], [6, 8], [9, 7]] as const) {
+    set(gx, gy, 255, 176, 64);
+  }
+  set(5, 6, 236, 140, 52);
+  set(10, 9, 236, 140, 52);
+  set(8, 10, 224, 120, 48);
+  set(7, 11, 210, 104, 44);
+};
+
+/** The earthshaker: a colossal granite maul head on a thick mossbound haft. */
+const paintEarthshaker: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Haft from bottom-left toward the head, wrapped in moss at the grip.
+  for (let i = 1; i <= 11; i++) {
+    const n = jitter(rng, 10);
+    const mossy = i <= 4;
+    set(i, 15 - i, mossy ? 70 + n : 96 + n, mossy ? 104 + n : 76 + n * 0.7, mossy ? 52 + n : 48 + n * 0.5);
+    set(i + 1, 15 - i, mossy ? 58 + n : 80 + n, mossy ? 88 + n : 62 + n * 0.7, mossy ? 44 + n : 40 + n * 0.5);
+  }
+  // Massive squared granite head with an amber-lit striking face.
+  for (let y = 0; y <= 6; y++) {
+    for (let x = 8; x <= 15; x++) {
+      const n = jitter(rng, 16);
+      const edge = x >= 14 || y <= 1;
+      set(x, y, (edge ? 128 : 100) + n, (edge ? 124 : 96) + n, (edge ? 112 : 86) + n);
+    }
+  }
+  set(14, 3, 255, 176, 64);
+  set(15, 3, 236, 140, 52);
+  set(14, 4, 236, 140, 52);
+};
+
 const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.stone, 'stone', paintStone],
   [Tiles.dirt, 'dirt', paintDirt],
@@ -1324,6 +1378,8 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.sovereignTotem, 'sovereignTotem', paintSovereignTotem],
   [Tiles.kingsplitter, 'kingsplitter', paintKingsplitter],
   [Tiles.crown, 'crown', paintCrown],
+  [Tiles.titanHeart, 'titanHeart', paintTitanHeart],
+  [Tiles.earthshaker, 'earthshaker', paintEarthshaker],
 ];
 
 /**

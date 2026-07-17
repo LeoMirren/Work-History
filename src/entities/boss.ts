@@ -1,15 +1,19 @@
 /**
- * The Sunken King — Voxelheim's first great boss. A single towering brute
- * summoned deep underground by a Sovereign Totem. It fights in three escalating
- * phases (chase & slam → summon adds → enraged), telegraphs its ground slam,
- * shrugs off knockback, and on death erupts a loot fountain plus its unique
- * reward. Purely one boss at a time; the system tracks the live fight, drives a
- * boss bar, and reuses the entity AABB physics and skin/flash conventions.
+ * The great bosses of Voxelheim. A spec table drives one shared fight engine —
+ * three escalating phases (chase & slam → summon adds → enraged), telegraphed
+ * ground slams, knockback resistance, a dramatic collapse and a loot fountain.
+ * One boss lives at a time; the system drives the boss bar and reuses the
+ * entity AABB physics and skin/flash conventions.
  *
- * Phase math and the loot roll are pure and unit-tested; the mesh/AI live here.
+ *  - The Sunken King: summoned deep underground (y<30) by a Sovereign Totem.
+ *  - The Stone Colossus: roams the surface near ancient region-seeded anchors —
+ *    walk up to one and the fight simply begins.
+ *
+ * Phase math and the loot rolls are pure and unit-tested; mesh/AI live here.
  */
 import * as THREE from 'three';
 import { Item } from '../world/items';
+import { Block } from '../world/blocks';
 import { rayAABB } from '../world/raycast';
 import {
   createBody,
@@ -27,12 +31,6 @@ export const BOSS_HEIGHT = 3.2;
 export const BOSS_HP = 180;
 /** y below which the totem will summon (the deep dark). */
 export const BOSS_SUMMON_MAX_Y = 30;
-const MOVE_SPEED = 2.0;
-const ENRAGED_SPEED = 3.4;
-const SLAM_RANGE = 3.0; // ground-slam reach
-const SLAM_DAMAGE = 6;
-const SLAM_COOLDOWN_S = 2.4;
-const ENRAGED_COOLDOWN_S = 1.4;
 const LEASH_RANGE = 26; // never strays far from the summon arena
 const DESPAWN_DIST = 90; // player this far away ends the fight (boss leaves)
 const HOP_VELOCITY = 8;
@@ -68,7 +66,73 @@ export function bossLoot(random: () => number): Array<{ id: number; count: numbe
   return drops;
 }
 
+/**
+ * The Colossus' hoard (pure): its molten heart and the earthshaker maul,
+ * plus a landslide of iron, gems and crystal shards.
+ */
+export function colossusLoot(random: () => number): Array<{ id: number; count: number }> {
+  const drops: Array<{ id: number; count: number }> = [
+    { id: Item.titanHeart, count: 1 },
+    { id: Item.earthshaker, count: 1 },
+  ];
+  const iron = 8 + Math.floor(random() * 5); // 8-12 iron
+  const gems = 5 + Math.floor(random() * 4); // 5-8 gems
+  const crystal = 3 + Math.floor(random() * 3); // 3-5 crystal
+  for (let i = 0; i < iron; i++) drops.push({ id: Item.ingot, count: 1 });
+  for (let i = 0; i < gems; i++) drops.push({ id: Item.gem, count: 1 });
+  for (let i = 0; i < crystal; i++) drops.push({ id: Block.crystal, count: 1 });
+  return drops;
+}
+
+export type BossKind = 'sunkenKing' | 'stoneColossus';
+
+/** Everything that makes one great boss distinct — the engine reads only this. */
+export interface BossSpec {
+  readonly name: string;
+  readonly hp: number;
+  readonly halfWidth: number;
+  readonly height: number;
+  readonly speed: number;
+  readonly enragedSpeed: number;
+  readonly slamRange: number;
+  readonly slamDamage: number;
+  readonly slamCooldown: number;
+  readonly enragedCooldown: number;
+  readonly loot: (random: () => number) => Array<{ id: number; count: number }>;
+}
+
+export const BOSS_SPECS: Record<BossKind, BossSpec> = {
+  sunkenKing: {
+    name: 'The Sunken King',
+    hp: BOSS_HP,
+    halfWidth: BOSS_HALF_WIDTH,
+    height: BOSS_HEIGHT,
+    speed: 2.0,
+    enragedSpeed: 3.4,
+    slamRange: 3.0,
+    slamDamage: 6,
+    slamCooldown: 2.4,
+    enragedCooldown: 1.4,
+    loot: bossLoot,
+  },
+  stoneColossus: {
+    name: 'The Stone Colossus',
+    hp: 240,
+    halfWidth: 1.1,
+    height: 4.2,
+    speed: 1.7, // ponderous...
+    enragedSpeed: 3.0, // ...until the mountain wakes up
+    slamRange: 3.6,
+    slamDamage: 8,
+    slamCooldown: 2.6,
+    enragedCooldown: 1.5,
+    loot: colossusLoot,
+  },
+};
+
 export interface Boss {
+  readonly kind: BossKind;
+  readonly spec: BossSpec;
   readonly body: Body;
   yaw: number;
   hp: number;
@@ -151,6 +215,78 @@ function makeBossMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.M
   return { group, torso, limbs, mats: [hide, limbMat, crownRim] };
 }
 
+const colossusEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffb340 });
+
+/** The Colossus rig: a ~4.2-block weathered granite titan capped in moss. */
+function makeColossusMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] } {
+  const granite = hideMaterial(0x6d6a5f, 'stone');
+  const limbMat = hideMaterial(0x585549, 'stone');
+  const moss = hideMaterial(0x4e6b3a, 'stone');
+  const group = new THREE.Group();
+  group.name = 'entity';
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.9, 1.3), granite);
+  torso.name = 'entity';
+  torso.position.set(0, 2.5, 0);
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), granite);
+  head.name = 'entity';
+  head.position.set(0, 3.85, -0.05);
+  group.add(head);
+  // Mossy crown slab, a heavy stone brow, and two burning amber eyes.
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.16, 1.08), moss);
+  cap.name = 'entity';
+  cap.position.set(0, 4.36, -0.05);
+  group.add(cap);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.16, 0.2), limbMat);
+  brow.name = 'entity';
+  brow.position.set(0, 4.05, -0.5);
+  group.add(brow);
+  for (const ex of [-0.24, 0.24]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.05), colossusEyeMaterial);
+    eye.name = 'entity';
+    eye.position.set(ex, 3.88, -0.54);
+    group.add(eye);
+  }
+
+  // [legL, legR, armL, armR] — hip/shoulder pivots.
+  const limbs: THREE.Mesh[] = [];
+  const legGeo = new THREE.BoxGeometry(0.75, 1.55, 0.8);
+  legGeo.translate(0, -0.775, 0);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, limbMat);
+    leg.name = 'entity';
+    leg.position.set(sx * 0.55, 1.55, 0);
+    group.add(leg);
+    limbs.push(leg);
+  }
+  const armGeo = new THREE.BoxGeometry(0.55, 2.0, 0.6);
+  armGeo.translate(0, -1.0, 0);
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeo, limbMat);
+    arm.name = 'entity';
+    arm.position.set(sx * 1.4, 3.3, 0);
+    group.add(arm);
+    limbs.push(arm);
+    // Moss-capped pauldrons and boulder fists.
+    const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.22, 0.74), moss);
+    pauldron.name = 'entity';
+    pauldron.position.set(0, 0.12, 0);
+    arm.add(pauldron);
+    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.82), granite);
+    fist.name = 'entity';
+    fist.position.set(0, -2.15, 0);
+    arm.add(fist);
+  }
+  return { group, torso, limbs, mats: [granite, limbMat, moss] };
+}
+
+const BOSS_MESH: Record<BossKind, () => { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] }> = {
+  sunkenKing: makeBossMesh,
+  stoneColossus: makeColossusMesh,
+};
+
 /** Callback: spawn one hostile add near (x, y, z) — main bridges to HostileSystem. */
 export type AddSpawner = (x: number, y: number, z: number) => void;
 /** Callback: drop one loot stack at (x, y, z). */
@@ -159,6 +295,8 @@ export type LootDropper = (id: number, count: number, x: number, y: number, z: n
 export class BossSystem {
   private boss: Boss | null = null;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
+  /** Fired the moment a lethal blow lands (before the collapse finishes). */
+  onSlain: ((kind: BossKind) => void) | null = null;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -171,25 +309,36 @@ export class BossSystem {
 
   /** 0..1 remaining health of the live boss (0 when none). */
   get healthFraction(): number {
-    return this.boss ? Math.max(0, this.boss.hp / BOSS_HP) : 0;
+    return this.boss ? Math.max(0, this.boss.hp / this.boss.spec.hp) : 0;
   }
 
   get name(): string {
-    return 'The Sunken King';
+    return this.boss?.spec.name ?? '';
   }
 
   get phase(): 1 | 2 | 3 {
     return this.boss?.phase ?? 1;
   }
 
-  /** Summon the King at (x, y, z); refuses if one is already alive. */
-  summon(x: number, y: number, z: number): boolean {
+  /** Live boss hitbox dims (king-sized fallback for the aim outline). */
+  get halfWidth(): number {
+    return this.boss?.spec.halfWidth ?? BOSS_HALF_WIDTH;
+  }
+
+  get height(): number {
+    return this.boss?.spec.height ?? BOSS_HEIGHT;
+  }
+
+  /** Summon a great boss at (x, y, z); refuses if one is already alive. */
+  summon(x: number, y: number, z: number, kind: BossKind = 'sunkenKing'): boolean {
     if (this.boss) return false;
-    const parts = makeBossMesh();
+    const parts = BOSS_MESH[kind]();
     this.boss = {
+      kind,
+      spec: BOSS_SPECS[kind],
       body: createBody(x, y, z),
       yaw: 0,
-      hp: BOSS_HP,
+      hp: BOSS_SPECS[kind].hp,
       attackCd: 1.5,
       summonCd: SUMMON_COOLDOWN_S,
       phase: 1,
@@ -230,7 +379,7 @@ export class BossSystem {
       b.group.scale.setScalar(Math.max(DYING_MIN_SCALE, b.group.scale.x - dt * DYING_SHRINK * 0.25));
       if (b.dying <= 0) {
         // Loot fountain, then leave.
-        for (const drop of bossLoot(this.random)) dropLoot(drop.id, drop.count, b.body.x, b.body.y + 1, b.body.z);
+        for (const drop of b.spec.loot(this.random)) dropLoot(drop.id, drop.count, b.body.x, b.body.y + 1, b.body.z);
         this.scene.remove(b.group);
         this.boss = null;
       }
@@ -245,9 +394,9 @@ export class BossSystem {
       return;
     }
 
-    b.phase = bossPhase(b.hp, BOSS_HP);
+    b.phase = bossPhase(b.hp, b.spec.hp);
     const enraged = b.phase === 3;
-    const speed = enraged ? ENRAGED_SPEED : MOVE_SPEED;
+    const speed = enraged ? b.spec.enragedSpeed : b.spec.speed;
     const horiz = Math.max(0.001, Math.hypot(dx, dz));
     b.yaw = Math.atan2(dx, dz);
     b.body.vx = (dx / horiz) * speed + b.kbX;
@@ -258,9 +407,9 @@ export class BossSystem {
 
     // Ground slam when in reach and off cooldown.
     if (b.attackCd > 0) b.attackCd -= dt;
-    if (b.attackCd <= 0 && distSq < SLAM_RANGE * SLAM_RANGE && Math.abs(b.body.y - py) < 3) {
-      hitPlayer(SLAM_DAMAGE);
-      b.attackCd = enraged ? ENRAGED_COOLDOWN_S : SLAM_COOLDOWN_S;
+    if (b.attackCd <= 0 && distSq < b.spec.slamRange * b.spec.slamRange && Math.abs(b.body.y - py) < 3) {
+      hitPlayer(b.spec.slamDamage);
+      b.attackCd = enraged ? b.spec.enragedCooldown : b.spec.slamCooldown;
       b.lunge = LUNGE_S;
     }
 
@@ -283,7 +432,7 @@ export class BossSystem {
 
     b.body.vy -= GRAVITY * dt;
     if (b.body.vy < -TERMINAL_VELOCITY) b.body.vy = -TERMINAL_VELOCITY;
-    moveBody(world.isSolid, b.body, b.body.vx * dt, b.body.vy * dt, b.body.vz * dt, this.moveResult, BOSS_HALF_WIDTH, BOSS_HEIGHT);
+    moveBody(world.isSolid, b.body, b.body.vx * dt, b.body.vy * dt, b.body.vz * dt, this.moveResult, b.spec.halfWidth, b.spec.height);
     if (b.body.onGround && (this.moveResult.hitX || this.moveResult.hitZ)) b.body.vy = HOP_VELOCITY;
 
     b.group.position.set(b.body.x, b.body.y, b.body.z);
@@ -324,13 +473,13 @@ export class BossSystem {
     if (!b || b.dying > 0) return null;
     const t = rayAABB(
       ox, oy, oz, dx, dy, dz,
-      b.body.x - BOSS_HALF_WIDTH, b.body.y, b.body.z - BOSS_HALF_WIDTH,
-      b.body.x + BOSS_HALF_WIDTH, b.body.y + BOSS_HEIGHT, b.body.z + BOSS_HALF_WIDTH,
+      b.body.x - b.spec.halfWidth, b.body.y, b.body.z - b.spec.halfWidth,
+      b.body.x + b.spec.halfWidth, b.body.y + b.spec.height, b.body.z + b.spec.halfWidth,
     );
     return t !== null && t <= maxDist ? { boss: b, distance: t } : null;
   }
 
-  /** Strike the King. Returns true when this blow is lethal (starts the collapse). */
+  /** Strike the boss. Returns true when this blow is lethal (starts the collapse). */
   hurt(boss: Boss, damage: number, kx = 0, kz = 0): boolean {
     if (boss.dying > 0) return false;
     boss.hp -= damage;
@@ -340,6 +489,7 @@ export class BossSystem {
     if (boss.hp <= 0) {
       boss.hp = 0;
       boss.dying = DYING_S;
+      this.onSlain?.(boss.kind);
       return true;
     }
     return false;

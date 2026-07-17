@@ -37,6 +37,9 @@ export const Item = {
   sovereignTotem: 126,
   kingsplitter: 127, // the Sunken King's greataxe: apex melee weapon
   crown: 128, // trophy of the fallen king
+  // The Stone Colossus' hoard.
+  titanHeart: 129, // trophy of the felled titan
+  earthshaker: 130, // the Colossus' maul: heaviest blow in the game, apex mining
 } as const;
 
 /**
@@ -115,6 +118,7 @@ const PICKAXES = new Set<number>([
   Item.goldPickaxe,
   Item.gemPickaxe,
   Item.kingsplitter, // the king's greataxe also mines at the apex tier
+  Item.earthshaker, // the titan's maul: same apex tier, heavier swing
 ]);
 
 export function isBlockId(id: number): boolean {
@@ -125,7 +129,7 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
-const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown]);
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown, Item.titanHeart]);
 
 export function stackLimit(id: number): number {
   return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
@@ -161,6 +165,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.sovereignTotem]: Tiles.sovereignTotem,
   [Item.kingsplitter]: Tiles.kingsplitter,
   [Item.crown]: Tiles.crown,
+  [Item.titanHeart]: Tiles.titanHeart,
+  [Item.earthshaker]: Tiles.earthshaker,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -199,6 +205,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.sovereignTotem]: 'sovereign totem',
   [Item.kingsplitter]: 'kingsplitter greataxe',
   [Item.crown]: 'sunken crown',
+  [Item.titanHeart]: 'titan heart',
+  [Item.earthshaker]: 'earthshaker maul',
 };
 
 export function itemName(id: number): string {
@@ -220,6 +228,8 @@ export function usageHintFor(id: number): string {
   if (isThrowable(id)) return 'right-click: throw';
   if (id === Item.sovereignTotem) return 'U deep underground (y<30): summon the Sunken King';
   if (id === Item.crown) return 'a trophy of the fallen king';
+  if (id === Item.titanHeart) return 'a trophy carved from the fallen Colossus';
+  if (id === Item.earthshaker) return 'hold a mouse button: the heaviest blow in the game — also mines at the apex tier';
   if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
   if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
@@ -245,6 +255,7 @@ export function pickaxeTier(heldId: number): number {
     case Item.gemPickaxe:
       return 6;
     case Item.kingsplitter:
+    case Item.earthshaker:
       return 7; // apex: mines anything, instantly on soft stone
     default:
       return 0;

@@ -54,7 +54,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { Biome, createGenerator, dungeonFor, findSafeSpawnY, SEA_LEVEL, type Dimension } from './world/worldgen';
+import { Biome, createGenerator, dungeonFor, findSafeSpawnY, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -227,6 +227,34 @@ async function boot(): Promise<void> {
   const boss = new BossSystem(gr.scene);
   const bossBar = new BossBar(app);
   interaction.onSummonBoss = (x, y, z) => boss.summon(x, y + 0.5, z);
+  // Roaming titans: region-seeded Stone Colossus anchors (overworld surface).
+  // Walk within reach of a living titan's anchor and the fight simply begins.
+  let titanSeedInt = 0;
+  let currentTitanKey: string | null = null;
+  const slainTitans = new Set<string>();
+  boss.onSlain = (kind) => {
+    if (kind === 'stoneColossus' && currentTitanKey) slainTitans.add(currentTitanKey);
+  };
+  const TITAN_ENGAGE_DIST = 40;
+  function tryEngageTitan(px: number, py: number, pz: number): void {
+    if (!session || session.dimension !== 'overworld' || boss.active || py < 30) return;
+    const rx = Math.floor(px / TITAN_REGION_BLOCKS);
+    const rz = Math.floor(pz / TITAN_REGION_BLOCKS);
+    // Anchors keep a 48-block margin inside their region, so only the
+    // player's own region can ever be within the 40-block engage radius.
+    const key = `${rx},${rz}`;
+    if (slainTitans.has(key)) return;
+    const anchor = titanAnchorFor(titanSeedInt, rx, rz);
+    if (!anchor) return;
+    const dx = anchor.x + 0.5 - px;
+    const dz = anchor.z + 0.5 - pz;
+    if (dx * dx + dz * dz > TITAN_ENGAGE_DIST * TITAN_ENGAGE_DIST) return;
+    for (let y = 100; y > SEA_LEVEL; y--) {
+      if (!session.world.isSolid(anchor.x, y, anchor.z)) continue;
+      if (boss.summon(anchor.x + 0.5, y + 1, anchor.z + 0.5, 'stoneColossus')) currentTitanKey = key;
+      return;
+    }
+  }
   const cropGrowth = new CropGrowth();
   const particles = new BreakParticles(gr.scene);
   const viewModel = new ViewModel(gr.camera);
@@ -547,6 +575,10 @@ async function boot(): Promise<void> {
     infoPanel.show();
     // Minimap + weather: overworld only, sampling this seed's terrain/biomes.
     weatherSeedInt = cyrb128(`${seed} weather`)[0] ?? 0;
+    // Titans are per-seed too; a fresh session brings every colossus back.
+    titanSeedInt = cyrb128(`${seed} titans`)[0] ?? 0;
+    slainTitans.clear();
+    currentTitanKey = null;
     if (dimension === 'overworld') {
       const overworldGen = createGenerator(seed, 'overworld');
       overworldBiomeAt = overworldGen.biomeAt;
@@ -757,6 +789,7 @@ async function boot(): Promise<void> {
         (ax, ay, az) => hostiles.spawnAt(ax, ay, az),
         (id, count, lx, ly, lz) => itemDrops.spawn(id, count, lx, ly, lz),
       );
+      tryEngageTitan(player.body.x, player.body.y, player.body.z);
     },
     render(alpha, frameDt) {
       if (session?.dimension === 'underworld') {

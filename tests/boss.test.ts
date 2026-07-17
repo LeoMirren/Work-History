@@ -1,11 +1,13 @@
 /**
- * The Sunken King: phase thresholds, loot fountain, and the summon/hurt/death
- * lifecycle over a headless scene.
+ * The great bosses: phase thresholds, loot fountains, and the summon/hurt/
+ * death lifecycle over a headless scene — for the Sunken King and the
+ * roaming Stone Colossus alike.
  */
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { bossPhase, bossLoot, BossSystem, BOSS_HP } from '../src/entities/boss';
+import { bossPhase, bossLoot, colossusLoot, BossSystem, BOSS_HP, BOSS_SPECS } from '../src/entities/boss';
 import { Item } from '../src/world/items';
+import { Block } from '../src/world/blocks';
 
 describe('bossPhase', () => {
   it('escalates as health drops (1 opener, 2 summoner, 3 enraged)', () => {
@@ -27,6 +29,54 @@ describe('bossLoot', () => {
     const gold = drops.filter((d) => d.id === Item.goldIngot).length;
     expect(gems).toBeGreaterThanOrEqual(6);
     expect(gold).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('colossusLoot', () => {
+  it('always yields the titan heart and earthshaker plus iron/gems/crystal', () => {
+    const drops = colossusLoot(() => 0.5);
+    expect(drops.some((d) => d.id === Item.titanHeart)).toBe(true);
+    expect(drops.some((d) => d.id === Item.earthshaker)).toBe(true);
+    expect(drops.filter((d) => d.id === Item.ingot).length).toBeGreaterThanOrEqual(8);
+    expect(drops.filter((d) => d.id === Item.gem).length).toBeGreaterThanOrEqual(5);
+    expect(drops.filter((d) => d.id === Block.crystal).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the Stone Colossus', () => {
+  const world = { isSolid: (_x: number, y: number) => y < 10, getBlock: () => 0 };
+
+  it('is a bigger, tougher boss with its own name and hitbox', () => {
+    const spec = BOSS_SPECS.stoneColossus;
+    expect(spec.hp).toBeGreaterThan(BOSS_HP);
+    expect(spec.height).toBeGreaterThan(BOSS_SPECS.sunkenKing.height);
+    const scene = new THREE.Scene();
+    const sys = new BossSystem(scene, () => 0.5);
+    expect(sys.summon(0, 12, 0, 'stoneColossus')).toBe(true);
+    expect(sys.name).toBe('The Stone Colossus');
+    expect(sys.healthFraction).toBeCloseTo(1);
+    expect(sys.halfWidth).toBe(spec.halfWidth);
+    expect(sys.height).toBe(spec.height);
+    // A ray at ~3.8 blocks up sails over the King but strikes the Colossus.
+    expect(sys.raycastNearest(0.5, 12 + 3.8, -4, 0, 0, 1, 12)).not.toBeNull();
+  });
+
+  it('collapse drops its own hoard and reports the slain kind', () => {
+    const scene = new THREE.Scene();
+    const sys = new BossSystem(scene, () => 0.5);
+    sys.summon(0, 12, 0, 'stoneColossus');
+    let slain: string | null = null;
+    sys.onSlain = (kind) => void (slain = kind);
+    const loot: Array<{ id: number; count: number }> = [];
+    const drop = (id: number, count: number): void => void loot.push({ id, count });
+    const hit = sys.raycastNearest(0.5, 13, -4, 0, 0, 1, 12);
+    expect(hit).not.toBeNull();
+    if (hit) sys.hurt(hit.boss, BOSS_SPECS.stoneColossus.hp, 0, 0);
+    expect(slain).toBe('stoneColossus');
+    for (let i = 0; i < 20; i++) sys.fixedUpdate(0.1, world, 0.5, 12, 0.5, () => {}, () => {}, drop);
+    expect(sys.active).toBe(false);
+    expect(loot.some((d) => d.id === Item.titanHeart)).toBe(true);
+    expect(loot.some((d) => d.id === Item.earthshaker)).toBe(true);
   });
 });
 

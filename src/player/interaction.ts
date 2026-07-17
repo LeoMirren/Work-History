@@ -25,7 +25,7 @@ import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { FishSystem } from '../entities/fish';
 import { VILLAGER_HALF_WIDTH, VILLAGER_HEIGHT, type Villager, type VillagerSystem } from '../entities/villagers';
-import { BOSS_HALF_WIDTH, BOSS_HEIGHT, BOSS_SUMMON_MAX_Y, type BossSystem } from '../entities/boss';
+import { BOSS_SUMMON_MAX_Y, type BossSystem } from '../entities/boss';
 import { GUARDIAN_HALF_WIDTH, GUARDIAN_HEIGHT, type GuardianSystem } from '../entities/guardians';
 import type { GameMode, PlayerController } from './controller';
 import type { Inventory } from './inventory';
@@ -293,8 +293,8 @@ export class Interaction {
     const bossAim = this.boss?.raycastNearest(body.x, eyeY, body.z, dirX, dirY, dirZ, reach) ?? null;
     if (bossAim && bossAim.distance < aimDist) {
       aimBody = bossAim.boss.body;
-      aimHalf = BOSS_HALF_WIDTH;
-      aimHeight = BOSS_HEIGHT;
+      aimHalf = bossAim.boss.spec.halfWidth;
+      aimHeight = bossAim.boss.spec.height;
       aimDist = bossAim.distance;
     }
     if (animalAim && animalAim.distance < aimDist) {
@@ -349,7 +349,8 @@ export class Interaction {
     const use = input.takePressed('KeyU');
     // Weapon-scaled melee: the King's greataxe hits hardest, tools middling.
     const held = this.heldId(hotbar);
-    this.currentMeleeDamage = held === Item.kingsplitter ? 14 : isToolId(held) ? 6 : 3;
+    this.currentMeleeDamage =
+      held === Item.earthshaker ? 16 : held === Item.kingsplitter ? 14 : isToolId(held) ? 6 : 3;
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
       // Every queued click swings at the aimed entity (blocks mine via hold).
