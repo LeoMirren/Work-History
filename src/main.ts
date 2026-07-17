@@ -227,6 +227,8 @@ async function boot(): Promise<void> {
   const boss = new BossSystem(gr.scene);
   const bossBar = new BossBar(app);
   interaction.onSummonBoss = (x, y, z) => boss.summon(x, y + 0.5, z);
+  // Shrine altars wake the Hollow Tyrant right where the altar stands.
+  interaction.onSummonAltarBoss = (bx, by, bz) => boss.summon(bx + 0.5, by + 1, bz + 0.5, 'hollowTyrant');
   // Roaming titans: region-seeded Stone Colossus anchors (overworld surface).
   // Walk within reach of a living titan's anchor and the fight simply begins.
   let titanSeedInt = 0;
@@ -429,6 +431,7 @@ async function boot(): Promise<void> {
         pitch: player.pitch,
         flying: player.flying,
         hp: player.hp,
+        maxHp: player.maxHp,
         hunger: player.hunger,
         inventory: inventory.serialize(),
         armor: armorSlot.serialize(),
@@ -532,8 +535,10 @@ async function boot(): Promise<void> {
       player.yaw = resume.player.yaw;
       player.pitch = resume.player.pitch;
       player.flying = resume.player.flying === true;
+      const maxHp = resume.player.maxHp ?? MAX_HP;
+      player.maxHp = Number.isFinite(maxHp) && maxHp >= MAX_HP && maxHp <= 40 ? Math.floor(maxHp) : MAX_HP;
       const hp = resume.player.hp;
-      player.hp = Number.isFinite(hp) && hp >= 1 && hp <= MAX_HP ? Math.floor(hp) : MAX_HP;
+      player.hp = Number.isFinite(hp) && hp >= 1 && hp <= player.maxHp ? Math.floor(hp) : player.maxHp;
       const hunger = resume.player.hunger;
       player.hunger = Number.isFinite(hunger) && hunger >= 0 && hunger <= MAX_HUNGER ? Math.floor(hunger) : MAX_HUNGER;
       inventory.load(resume.player.inventory);
@@ -850,7 +855,7 @@ async function boot(): Promise<void> {
         if (player.hp < prevHp) hurt.hit(prevHp - player.hp);
         prevHp = player.hp;
         hurt.update(frameDt);
-        damageOverlay.setIntensity(hurt.intensity(player.hp, MAX_HP));
+        damageOverlay.setIntensity(hurt.intensity(player.hp, player.maxHp));
       } else {
         prevHp = player.hp;
         damageOverlay.setIntensity(0);
@@ -1015,7 +1020,7 @@ async function boot(): Promise<void> {
       const clockM = Math.floor(((dayFrac * 24 + 6) % 1) * 60);
       infoPanel.setStatus({
         hp: player.hp,
-        maxHp: MAX_HP,
+        maxHp: player.maxHp,
         hunger: player.hunger,
         mode: session.mode === 'survival' ? `survival (${mode})` : `creative (${mode})`,
         position: `${b.x.toFixed(0)}, ${b.y.toFixed(0)}, ${b.z.toFixed(0)}`,

@@ -84,7 +84,22 @@ export function colossusLoot(random: () => number): Array<{ id: number; count: n
   return drops;
 }
 
-export type BossKind = 'sunkenKing' | 'stoneColossus';
+/**
+ * The Tyrant's boost hoard (pure): its unblinking eye, heartstones that
+ * permanently grow the player's health, and a scatter of dusk metal and gems.
+ */
+export function tyrantLoot(random: () => number): Array<{ id: number; count: number }> {
+  const drops: Array<{ id: number; count: number }> = [{ id: Item.tyrantEye, count: 1 }];
+  const hearts = 2 + Math.floor(random() * 2); // 2-3 heartstones
+  const dusk = 4 + Math.floor(random() * 4); // 4-7 dusksteel
+  const gems = 5 + Math.floor(random() * 4); // 5-8 gems
+  for (let i = 0; i < hearts; i++) drops.push({ id: Item.heartstone, count: 1 });
+  for (let i = 0; i < dusk; i++) drops.push({ id: Item.duskIngot, count: 1 });
+  for (let i = 0; i < gems; i++) drops.push({ id: Item.gem, count: 1 });
+  return drops;
+}
+
+export type BossKind = 'sunkenKing' | 'stoneColossus' | 'hollowTyrant';
 
 /** Everything that makes one great boss distinct — the engine reads only this. */
 export interface BossSpec {
@@ -127,6 +142,19 @@ export const BOSS_SPECS: Record<BossKind, BossSpec> = {
     slamCooldown: 2.6,
     enragedCooldown: 1.5,
     loot: colossusLoot,
+  },
+  hollowTyrant: {
+    name: 'The Hollow Tyrant',
+    hp: 210,
+    halfWidth: 0.85,
+    height: 3.6,
+    speed: 2.6, // the fastest of the great bosses...
+    enragedSpeed: 4.0, // ...and terrifying once enraged
+    slamRange: 2.8,
+    slamDamage: 7,
+    slamCooldown: 2.0,
+    enragedCooldown: 1.2,
+    loot: tyrantLoot,
   },
 };
 
@@ -282,9 +310,68 @@ function makeColossusMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THR
   return { group, torso, limbs, mats: [granite, limbMat, moss] };
 }
 
+const tyrantEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xf2f0ff });
+
+/** The Tyrant rig: a gaunt ~3.6-block shade, all shroud, claws and pale eyes. */
+function makeTyrantMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] } {
+  const shroud = hideMaterial(0x241f30, 'cloth');
+  const limbMat = hideMaterial(0x18141f, 'cloth');
+  const bone = hideMaterial(0x8a8494, 'stone');
+  const group = new THREE.Group();
+  group.name = 'entity';
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.6, 0.7), shroud);
+  torso.name = 'entity';
+  torso.position.set(0, 2.1, 0);
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 0.7), shroud);
+  head.name = 'entity';
+  head.position.set(0, 3.25, -0.02);
+  group.add(head);
+  // A cracked bone circlet and wide, pale, unblinking eyes.
+  const circlet = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.12, 0.76), bone);
+  circlet.name = 'entity';
+  circlet.position.set(0, 3.62, -0.02);
+  group.add(circlet);
+  for (const ex of [-0.17, 0.17]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.05), tyrantEyeMaterial);
+    eye.name = 'entity';
+    eye.position.set(ex, 3.3, -0.37);
+    group.add(eye);
+  }
+
+  // [legL, legR, armL, armR] — long, spindly limbs with bone claws.
+  const limbs: THREE.Mesh[] = [];
+  const legGeo = new THREE.BoxGeometry(0.32, 1.3, 0.36);
+  legGeo.translate(0, -0.65, 0);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, limbMat);
+    leg.name = 'entity';
+    leg.position.set(sx * 0.28, 1.3, 0);
+    group.add(leg);
+    limbs.push(leg);
+  }
+  const armGeo = new THREE.BoxGeometry(0.26, 1.7, 0.3);
+  armGeo.translate(0, -0.85, 0);
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeo, limbMat);
+    arm.name = 'entity';
+    arm.position.set(sx * 0.7, 2.85, 0);
+    group.add(arm);
+    limbs.push(arm);
+    const claw = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.4, 0.38), bone);
+    claw.name = 'entity';
+    claw.position.set(0, -1.85, 0);
+    arm.add(claw);
+  }
+  return { group, torso, limbs, mats: [shroud, limbMat, bone] };
+}
+
 const BOSS_MESH: Record<BossKind, () => { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: readonly THREE.MeshLambertMaterial[] }> = {
   sunkenKing: makeBossMesh,
   stoneColossus: makeColossusMesh,
+  hollowTyrant: makeTyrantMesh,
 };
 
 /** Callback: spawn one hostile add near (x, y, z) — main bridges to HostileSystem. */

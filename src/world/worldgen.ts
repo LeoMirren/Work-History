@@ -79,6 +79,10 @@ const DUNGEON_D = 7;
 const DEEPHOLD_CHANCE = 130; // ~1 chunk in 130 buries a deephold (mob village)
 const DEEPHOLD_MIN_Y = 16; // hash-picked hall-floor band
 const DEEPHOLD_MAX_Y = 30;
+const ALTAR_CHANCE = 110; // ~1 chunk in 110 hides a Tyrant shrine
+const ALTAR_MIN_Y = 8; // hash-picked shrine-floor band
+const ALTAR_MAX_Y = 24;
+const ALTAR_SIZE = 7; // shrine footprint (7x7 shell, 5x5 interior)
 // Deephold footprint: a great hall flanked by north/south chambers and an
 // east annex — 14x14 columns, 8 cells tall (floor y0 .. probe y0+7).
 const DEEPHOLD_SIZE = 14;
@@ -433,6 +437,7 @@ function createOverworld(seed: string): Generator {
   const reefSeed = cyrb128(`${seed} reef`)[0];
   const dungeonSeed = cyrb128(`${seed} dungeons`)[0];
   const deepholdSeed = cyrb128(`${seed} deepholds`)[0];
+  const altarSeed = cyrb128(`${seed} altars`)[0];
   const villageSeed = cyrb128(`${seed} villages`)[0];
 
   function biomeAt(wx: number, wz: number): number {
@@ -867,6 +872,22 @@ function createOverworld(seed: string): Generator {
       }
     }
 
+    // Tyrant shrines: small buried vaults on their own stream. Same burial
+    // invariants; the altar block inside is the whole point.
+    const aroll = rollAltar(altarSeed, cx, cz);
+    if (aroll !== null) {
+      const { hash: ahash, x0, z0 } = aroll;
+      let minH = CHUNK_HEIGHT;
+      for (let dz = 0; dz < ALTAR_SIZE; dz++) {
+        for (let dx = 0; dx < ALTAR_SIZE; dx++) {
+          minH = Math.min(minH, heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? 0);
+        }
+      }
+      if (minH >= SEA_LEVEL + 2 && altarY(ahash) + 6 <= minH - 8) {
+        tryCarveAltarShrine(data, ahash, x0, z0);
+      }
+    }
+
     return data;
   }
 
@@ -1262,6 +1283,75 @@ export function tryCarveDeephold(data: Uint8Array, hash: number, x0: number, z0:
   data[blockIndex(x0 + 1, y0 + 1, z0 + 9)] = Block.chest;
   data[blockIndex(x0 + 6, y0 + 1, z0 + 12)] = Block.chest;
   data[blockIndex(x0 + 12, y0 + 1, z0 + 5)] = Block.chest;
+}
+
+/** Hash-picked shrine floor height in [ALTAR_MIN_Y, ALTAR_MAX_Y]. */
+function altarY(hash: number): number {
+  return ALTAR_MIN_Y + ((hash >>> 16) % (ALTAR_MAX_Y - ALTAR_MIN_Y + 1));
+}
+
+/** The Tyrant-shrine placement roll, mirroring rollDungeon on its own stream. */
+function rollAltar(
+  altarSeedInt: number,
+  cx: number,
+  cz: number,
+): { hash: number; x0: number; z0: number } | null {
+  const hash = hash2(altarSeedInt, cx, cz);
+  if (hash % ALTAR_CHANCE !== 0) return null;
+  const m = 1;
+  const span = Math.max(1, CHUNK_SIZE - ALTAR_SIZE - 2 * m);
+  return { hash, x0: m + ((hash >>> 4) % span), z0: m + ((hash >>> 8) % span) };
+}
+
+/**
+ * Locate the Tyrant shrine hosted by chunk (cx, cz), or null. Returns the
+ * WORLD coordinates of the altar block itself (dais centre). Pure, shared
+ * with the carver — same contract as dungeonFor/deepholdFor.
+ */
+export function altarFor(
+  altarSeedInt: number,
+  cx: number,
+  cz: number,
+): { x: number; y: number; z: number } | null {
+  const roll = rollAltar(altarSeedInt, cx, cz);
+  if (roll === null) return null;
+  return {
+    x: cx * CHUNK_SIZE + roll.x0 + 3,
+    y: altarY(roll.hash) + 2,
+    z: cz * CHUNK_SIZE + roll.z0 + 3,
+  };
+}
+
+/**
+ * Carve a buried Tyrant shrine: a 5x5x4 vaulted pocket with a mossstone
+ * floor, a raised 3x3 dais, the rune-lit altar block at its centre and two
+ * emberrock braziers on the corners. Use (U) the altar to wake the Hollow
+ * Tyrant. Bails when the burial probe above the vault finds open air; shell
+ * cells only replace solid non-bedrock ground so caves may breach a wall and
+ * spill torchless dark into the shrine.
+ */
+export function tryCarveAltarShrine(data: Uint8Array, hash: number, x0: number, z0: number): void {
+  const y0 = altarY(hash);
+  if ((data[blockIndex(x0 + 3, y0 + 6, z0 + 3)] ?? Block.air) === Block.air) return;
+  for (let y = y0; y <= y0 + 5; y++) {
+    for (let z = z0; z <= z0 + 6; z++) {
+      for (let x = x0; x <= x0 + 6; x++) {
+        const i = blockIndex(x, y, z);
+        const cur = data[i] ?? Block.air;
+        if (cur === Block.bedrock) continue;
+        const edge = x === x0 || x === x0 + 6 || y === y0 || y === y0 + 5 || z === z0 || z === z0 + 6;
+        if (!edge) data[i] = Block.air;
+        else if (cur !== Block.air) data[i] = y === y0 ? Block.mossstone : Block.cobblestone;
+      }
+    }
+  }
+  // The dais, the altar, and two ember braziers.
+  for (let dz = 2; dz <= 4; dz++) {
+    for (let dx = 2; dx <= 4; dx++) data[blockIndex(x0 + dx, y0 + 1, z0 + dz)] = Block.mossstone;
+  }
+  data[blockIndex(x0 + 3, y0 + 2, z0 + 3)] = Block.altar;
+  data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.emberrock;
+  data[blockIndex(x0 + 5, y0 + 1, z0 + 5)] = Block.emberrock;
 }
 
 /** A local-space footprint: [x0, z0, width, depth]. */

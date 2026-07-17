@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.14 DEEP METALS — silver · dusksteel · ember ore · duskblade';
+export const BUILD_TAG = 'v0.15 SHRINES OF THE TYRANT — U an altar · heartstone boosts';

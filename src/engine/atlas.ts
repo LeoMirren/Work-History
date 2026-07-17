@@ -108,6 +108,10 @@ export const Tiles = {
   silverVest: 87,
   duskVest: 88,
   duskblade: 89,
+  // Shrine altars and the Tyrant's boost hoard.
+  altar: 90,
+  tyrantEye: 91,
+  heartstone: 92,
 } as const;
 
 type Rng = () => number;
@@ -1257,6 +1261,70 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** The shrine altar: near-black stone etched with a glowing violet rune ring. */
+const paintAltar: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 10);
+      set(x, y, 30 + n, 27 + n, 38 + n);
+    }
+  }
+  // A glowing violet rune: a diamond ring around a hot centre.
+  const rune = (x: number, y: number, hot: boolean): void => {
+    set(x, y, hot ? 212 : 148, hot ? 168 : 96, hot ? 255 : 224);
+  };
+  for (let i = 0; i <= 4; i++) {
+    rune(7 - i, 3 + i, false);
+    rune(8 + i, 3 + i, false);
+    rune(7 - i, 12 - i, false);
+    rune(8 + i, 12 - i, false);
+  }
+  rune(7, 7, true);
+  rune(8, 7, true);
+  rune(7, 8, true);
+  rune(8, 8, true);
+};
+
+/** The Tyrant's eye: a pale orb with a violet iris on a transparent tile. */
+const paintTyrantEye: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 3; y <= 12; y++) {
+    for (let x = 3; x <= 12; x++) {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      if (d > 4.6) continue;
+      const n = jitter(rng, 8);
+      if (d < 1.6) set(x, y, 40, 30, 60); // pupil
+      else if (d < 3) set(x, y, 150 + n, 96 + n, 220 + n); // violet iris
+      else set(x, y, 236 + n, 232 + n, 244 + n); // pale sclera
+    }
+  }
+  set(6, 5, 255, 255, 255); // glint
+};
+
+/** A heartstone: a rosy crystal heart shot through with a bright core. */
+const paintHeartstone: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 3; y <= 13; y++) {
+    for (let x = 2; x <= 13; x++) {
+      const cx = x - 7.5;
+      const lobe = Math.min(Math.hypot(cx + 2.4, y - 5.5), Math.hypot(cx - 2.4, y - 5.5));
+      const taper = Math.abs(cx) * 1.2 + (y - 5);
+      if (lobe > 3 && (y < 6 || taper > 8.4)) continue;
+      const n = jitter(rng, 14);
+      set(x, y, 224 + n * 0.5, 76 + n, 108 + n);
+    }
+  }
+  // Bright crystalline core.
+  set(7, 7, 255, 168, 190);
+  set(8, 7, 255, 168, 190);
+  set(7, 8, 255, 140, 168);
+  set(6, 6, 255, 196, 210);
+};
+
 /** A jagged ember shard: molten amber crystal splinter on a transparent tile. */
 const paintEmberShard: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -1439,6 +1507,9 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.silverVest, 'silverVest', paintVest(212, 216, 228)],
   [Tiles.duskVest, 'duskVest', paintVest(112, 96, 176)],
   [Tiles.duskblade, 'duskblade', paintDuskblade],
+  [Tiles.altar, 'altar', paintAltar],
+  [Tiles.tyrantEye, 'tyrantEye', paintTyrantEye],
+  [Tiles.heartstone, 'heartstone', paintHeartstone],
 ];
 
 /**

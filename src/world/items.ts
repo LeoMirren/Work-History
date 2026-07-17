@@ -48,6 +48,9 @@ export const Item = {
   silverVest: 134,
   duskVest: 135,
   duskblade: 136, // craftable apex blade (boss weapons still hit harder)
+  // The Hollow Tyrant's boost hoard.
+  tyrantEye: 137, // trophy of the slain Tyrant
+  heartstone: 138, // U: +1 heart of max health, permanently
 } as const;
 
 /**
@@ -139,7 +142,7 @@ export function isToolId(id: number): boolean {
   return PICKAXES.has(id);
 }
 
-const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown, Item.titanHeart]);
+const SINGLE = new Set<number>([Item.bucket, Item.waterBucket, Item.hoe, Item.sovereignTotem, Item.crown, Item.titanHeart, Item.tyrantEye]);
 
 export function stackLimit(id: number): number {
   return isToolId(id) || SINGLE.has(id) ? 1 : MAX_STACK;
@@ -183,6 +186,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.silverVest]: Tiles.silverVest,
   [Item.duskVest]: Tiles.duskVest,
   [Item.duskblade]: Tiles.duskblade,
+  [Item.tyrantEye]: Tiles.tyrantEye,
+  [Item.heartstone]: Tiles.heartstone,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -229,6 +234,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.silverVest]: 'silver vest',
   [Item.duskVest]: 'dusksteel vest',
   [Item.duskblade]: 'duskblade',
+  [Item.tyrantEye]: 'tyrant eye',
+  [Item.heartstone]: 'heartstone',
 };
 
 export function itemName(id: number): string {
@@ -253,6 +260,8 @@ export function usageHintFor(id: number): string {
   if (id === Item.titanHeart) return 'a trophy carved from the fallen Colossus';
   if (id === Item.earthshaker) return 'hold a mouse button: the heaviest blow in the game — also mines at the apex tier';
   if (id === Item.duskblade) return 'hold a mouse button: the sharpest craftable blade (12 damage)';
+  if (id === Item.tyrantEye) return 'a trophy pried from the Hollow Tyrant';
+  if (id === Item.heartstone) return 'U: bind it to your heart — +1 max heart, forever';
   if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
   if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';

@@ -58,6 +58,8 @@ export class PlayerController {
   sprinting = false;
   mode: GameMode = 'creative';
   hp = MAX_HP;
+  /** Heartstones raise this permanently; every clamp/regen respects it. */
+  maxHp = MAX_HP;
   dead = false;
   /** Set by the game to drive a death screen; null means auto-respawn. */
   onDeath: (() => void) | null = null;
@@ -218,11 +220,11 @@ export class PlayerController {
       this.hunger--;
     }
 
-    if (this.hunger >= 18 && this.hp < MAX_HP) {
+    if (this.hunger >= 18 && this.hp < this.maxHp) {
       this.regenTimer += dt;
       if (this.regenTimer >= REGEN_INTERVAL) {
         this.regenTimer = 0;
-        this.hp = Math.min(MAX_HP, this.hp + 1);
+        this.hp = Math.min(this.maxHp, this.hp + 1);
         this.exhaustion += EXHAUST_PER_HUNGER * 0.8; // healing costs food
       }
     } else {
@@ -269,9 +271,9 @@ export class PlayerController {
     }
   }
 
-  /** Eat/regen: clamped to MAX_HP. */
+  /** Eat/regen: clamped to the (possibly heartstone-boosted) max. */
   heal(amount: number): void {
-    this.hp = Math.min(MAX_HP, this.hp + amount);
+    this.hp = Math.min(this.maxHp, this.hp + amount);
   }
 
   private applyDamage(amount: number): void {
@@ -294,7 +296,7 @@ export class PlayerController {
   /** Respawn at the bound spawn point with full vitals. */
   respawn(): void {
     this.teleport(this.spawnX, this.spawnY, this.spawnZ);
-    this.hp = MAX_HP;
+    this.hp = this.maxHp;
     this.hunger = MAX_HUNGER;
     this.exhaustion = 0;
     this.dead = false;

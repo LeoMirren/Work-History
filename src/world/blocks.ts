@@ -51,6 +51,7 @@ export const Block = {
   silverOre: 42,
   duskOre: 43,
   emberOre: 44,
+  altar: 45, // shrine altar: U wakes the Hollow Tyrant, one summon each
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -131,6 +132,7 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.silverOre, name: 'silverOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.silverOre) },
   { id: Block.duskOre, name: 'duskOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.duskOre) },
   { id: Block.emberOre, name: 'emberOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.emberOre) },
+  { id: Block.altar, name: 'altar', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 8, tiles: tiles(T.altar) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -167,6 +169,7 @@ LIGHT_EMIT[Block.coralTeal] = 4; // faint glow so shallow reefs shimmer at night
 LIGHT_EMIT[Block.glowmoss] = 8; // soft teal light for underworld cavern floors
 LIGHT_EMIT[Block.glowbloom] = 6; // warm chartreuse glow in the mossy hollows
 LIGHT_EMIT[Block.cindercap] = 4; // dim orange mushroom light in the cinder deeps
+LIGHT_EMIT[Block.altar] = 10; // rune-lit shrine altar, a beacon in the deep dark
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

@@ -15,6 +15,8 @@ export interface WorldMeta {
     pitch: number;
     flying: boolean;
     hp: number;
+    /** Heartstone-boosted health cap; absent in pre-v0.15 saves. */
+    maxHp?: number;
     hunger: number;
     inventory: Array<[number, number] | null>;
     armor?: Array<[number, number] | null>;

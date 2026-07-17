@@ -68,6 +68,12 @@ const FEEDBACK_TOO_FAR = 'out of reach — get closer to a surface';
 const FEEDBACK_BLOCKED = "can't place there — aim at a face beside open space";
 const FEEDBACK_EMPTY = 'select a block in the hotbar (1-9)';
 const FEEDBACK_TOTEM_SHALLOW = 'the totem only wakes the King in the deep dark (y<30)';
+const FEEDBACK_ALTAR_WAKES = 'the altar goes dark — something rises';
+const FEEDBACK_ALTAR_BUSY = 'another great foe still walks — finish it first';
+const FEEDBACK_HEART_BOUND = 'the heartstone melts into you — +1 heart, forever';
+const FEEDBACK_HEART_FULL = 'your heart can hold no more';
+/** Heartstones stop working at this max HP (10 bonus hearts). */
+export const BOOSTED_HP_CAP = 40;
 
 /**
  * Crack stage shown for a hold-to-break progress value: quarters of the 0..1
@@ -175,6 +181,8 @@ export class Interaction {
   onTradeVillager: ((villager: Villager) => void) | null = null;
   /** Use a Sovereign Totem deep underground: summon the boss at (x,y,z). Returns true if it summoned. */
   onSummonBoss: ((x: number, y: number, z: number) => boolean) | null = null;
+  /** Use a shrine altar: summon the altar boss at the block. Returns true if it summoned. */
+  onSummonAltarBoss: ((bx: number, by: number, bz: number) => boolean) | null = null;
   /** A hostile or guardian died to the player's melee (goal tracking). */
   onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
   /** A fish was caught by melee (goal tracking). */
@@ -365,10 +373,12 @@ export class Interaction {
         if (
           !this.tryTradeVillager(body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.tryActivateRift(world) &&
+          !this.tryUseAltar(world) &&
           !this.tryUseBed(world) &&
           !this.tryOpenContainer(world) &&
           !this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.tryFarm(world, hotbar) &&
+          !this.tryUseBoost(player, hotbar) &&
           !this.tryEat(player, hotbar) &&
           !this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.trySummonTotem(player, hotbar)
@@ -387,7 +397,7 @@ export class Interaction {
         if (this.hasTarget) this.tryBreak(world);
       }
       if (use) {
-        if (!this.tryActivateRift(world) && !this.tryUseBed(world) && !this.tryOpenContainer(world)) {
+        if (!this.tryActivateRift(world) && !this.tryUseAltar(world) && !this.tryUseBed(world) && !this.tryOpenContainer(world)) {
           if (this.hasTarget) this.tryPlace(world, body, hotbar.creativeBlock);
           else this.setFeedback(FEEDBACK_TOO_FAR);
         }
@@ -421,6 +431,41 @@ export class Interaction {
     const { bx, by, bz } = this.hit;
     if (world.getBlock(bx, by, bz) !== Block.riftframe) return false;
     return this.onActivateRift(bx, by, bz);
+  }
+
+  /**
+   * Use a shrine altar: wake the Hollow Tyrant. The altar goes dark
+   * (becomes mossstone) on a successful summon — one boss per shrine.
+   */
+  private tryUseAltar(world: World): boolean {
+    if (!this.hasTarget || !this.onSummonAltarBoss) return false;
+    const { bx, by, bz } = this.hit;
+    if (world.getBlock(bx, by, bz) !== Block.altar) return false;
+    if (this.onSummonAltarBoss(bx, by, bz)) {
+      world.setBlock(bx, by, bz, Block.mossstone);
+      this.onEdit?.('break', Block.altar);
+      this.setFeedback(FEEDBACK_ALTAR_WAKES);
+    } else {
+      this.setFeedback(FEEDBACK_ALTAR_BUSY);
+    }
+    return true;
+  }
+
+  /** Bind a heartstone: +1 heart of max health, permanently (capped at 40). */
+  private tryUseBoost(player: PlayerController, hotbar: HotbarState): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || stack.id !== Item.heartstone) return false;
+    if (player.maxHp >= BOOSTED_HP_CAP) {
+      this.setFeedback(FEEDBACK_HEART_FULL);
+      return true;
+    }
+    if (!inventory.consumeOne(hotbar.slot)) return false;
+    player.maxHp += 2;
+    player.hp = Math.min(player.maxHp, player.hp + 2);
+    this.onEdit?.('place', Item.heartstone);
+    this.setFeedback(FEEDBACK_HEART_BOUND);
+    return true;
   }
 
   /** Right-click a bed: hand off to the sleep / set-respawn hook. */

@@ -394,3 +394,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Smith chains: smelt silver/dusksteel ingots; craft the silver vest (60% reduction, between gold and gem), the dusksteel vest (78%, the best armor in the game) and the duskblade (12 damage — the sharpest craftable blade; boss weapons still hit harder); ember shards craft 6-packs of torches
 - [x] Ore priority chain in the vein carver now dusk > gold > silver > copper > iron > coal; 9 new atlas tiles (ores, ingots, shard, vests, blade)
 - [x] New ore census tests (vein presence in generated terrain, tier gates, armor ladder, recipes); 499 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.14 DEEP METALS
+
+## Post-spec: v0.15 SHRINES OF THE TYRANT — altar bosses & heartstone boosts
+
+- [x] Tyrant shrines: ~1 chunk in 110 buries a vaulted 5x5 shrine (y 8-24) — mossstone dais, two ember braziers, and a rune-lit ALTAR block (light 10, a violet beacon in the deep dark)
+- [x] Use (U) the altar and the Hollow Tyrant rises on the spot — the fastest great boss (2.6/4.0 speed, 210 HP, 7-damage strikes), a gaunt shade with a bone circlet, pale unblinking eyes and bone claws; the altar goes dark after one summon
+- [x] Boost loot: the tyrant eye trophy + 2-3 HEARTSTONES — U a heartstone to gain +1 max heart PERMANENTLY (stacks to +10 hearts, persisted in the save, HUD/regen/respawn all follow) — plus dusksteel and gems
+- [x] Third entry in the boss spec table; new altar/heartstone/tyrant tests; 504 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.15 SHRINES OF THE TYRANT
