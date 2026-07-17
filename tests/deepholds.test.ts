@@ -48,18 +48,18 @@ describe('deepholdFor', () => {
     expect(x).toBeLessThan((cx + 1) * CHUNK_SIZE);
     expect(z).toBeGreaterThanOrEqual(cz * CHUNK_SIZE);
     expect(z).toBeLessThan((cz + 1) * CHUNK_SIZE);
-    expect(y).toBeGreaterThanOrEqual(17); // DEEPHOLD_MIN_Y + 1
-    expect(y).toBeLessThanOrEqual(31); // DEEPHOLD_MAX_Y + 1
+    expect(y).toBeGreaterThanOrEqual(81); // DEEPHOLD_MIN_Y + 1
+    expect(y).toBeLessThanOrEqual(95); // DEEPHOLD_MAX_Y + 1
   });
 });
 
 describe('tryCarveDeephold', () => {
   // The carver derives everything from the hash; hash 0 keeps the maths easy
-  // (floor at DEEPHOLD_MIN_Y = 16, origin x0 = z0 = 1).
+  // (floor at DEEPHOLD_MIN_Y = 80, origin x0 = z0 = 1).
   const HASH = 0;
   const X0 = 1;
   const Z0 = 1;
-  const Y0 = 16;
+  const Y0 = 80;
 
   it('carves the hall, chambers, doorways, lights and three chests', () => {
     const data = stoneChunk(90);

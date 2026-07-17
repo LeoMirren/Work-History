@@ -56,13 +56,13 @@ function bumpColumn(chunk: { data: Uint8Array; heights: Int32Array }, x: number,
 
 describe('outpost hut', () => {
   it('builds a 5x5 cabin on flat grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantHut(data, heights, 5, 5);
-    const floorY = 61;
+    const floorY = 125;
     // Floor + roof are planks across the footprint.
     expect(data[blockIndex(5, floorY, 5)]).toBe(Block.planks);
     expect(data[blockIndex(9, floorY, 9)]).toBe(Block.planks);
-    expect(data[blockIndex(7, 65, 7)]).toBe(Block.planks); // roof
+    expect(data[blockIndex(7, 129, 7)]).toBe(Block.planks); // roof
     // Corner walls are cobblestone, interior is hollow.
     expect(data[blockIndex(5, floorY + 1, 5)]).toBe(Block.cobblestone);
     expect(data[blockIndex(7, floorY + 2, 7)]).toBe(Block.air);
@@ -71,23 +71,23 @@ describe('outpost hut', () => {
     expect(data[blockIndex(7, floorY + 2, 5)]).toBe(Block.air);
     // Glass window on the back wall, a lantern, and a chest inside.
     expect(data[blockIndex(7, floorY + 2, 9)]).toBe(Block.glass);
-    expect(data[blockIndex(7, 64, 7)]).toBe(Block.lantern);
+    expect(data[blockIndex(7, 128, 7)]).toBe(Block.lantern);
     expect(data[blockIndex(6, floorY + 1, 6)]).toBe(Block.chest);
   });
 
   it('rides a small step with a cobblestone plinth, never touching surfaces', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 6, 6, 61); // one-block step inside the footprint
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 6, 6, 125); // one-block step inside the footprint
     tryPlantHut(chunk.data, chunk.heights, 5, 5);
-    expect(chunk.data[blockIndex(5, 62, 5)]).toBe(Block.planks); // floor rides the high column
-    expect(chunk.data[blockIndex(5, 61, 5)]).toBe(Block.cobblestone); // plinth over low ground
-    expect(chunk.data[blockIndex(5, 60, 5)]).toBe(Block.grass); // surface block intact
-    expect(chunk.data[blockIndex(6, 61, 6)]).toBe(Block.grass); // the step's own surface too
+    expect(chunk.data[blockIndex(5, 126, 5)]).toBe(Block.planks); // floor rides the high column
+    expect(chunk.data[blockIndex(5, 125, 5)]).toBe(Block.cobblestone); // plinth over low ground
+    expect(chunk.data[blockIndex(5, 124, 5)]).toBe(Block.grass); // surface block intact
+    expect(chunk.data[blockIndex(6, 125, 6)]).toBe(Block.grass); // the step's own surface too
   });
 
   it('refuses to build on ground that drifts beyond its allowance', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 6, 6, 63); // three-block spike
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 6, 6, 127); // three-block spike
     const before = chunk.data.slice();
     tryPlantHut(chunk.data, chunk.heights, 5, 5);
     expect(chunk.data).toEqual(before); // untouched
@@ -109,17 +109,17 @@ describe('outpost hut', () => {
 
 describe('sunken desert ruin', () => {
   it('lays a brick floor, broken walls and a corner chest on flat sand', () => {
-    const { data, heights } = flatChunk(60, Block.sand);
+    const { data, heights } = flatChunk(124, Block.sand);
     tryPlantRuin(data, heights, 0xc0ffee, 4, 4);
     // Floor is brick across the footprint at ground level.
-    expect(data[blockIndex(4, 60, 4)]).toBe(Block.brick);
-    expect(data[blockIndex(9, 60, 9)]).toBe(Block.brick);
+    expect(data[blockIndex(4, 124, 4)]).toBe(Block.brick);
+    expect(data[blockIndex(9, 124, 9)]).toBe(Block.brick);
     // The chest survives in the interior corner.
-    expect(data[blockIndex(5, 61, 5)]).toBe(Block.chest);
+    expect(data[blockIndex(5, 125, 5)]).toBe(Block.chest);
     // Perimeter wall stubs are brick or already-crumbled air, never sand.
     let stubs = 0;
     for (let d = 0; d < 6; d++) {
-      const id = data[blockIndex(4 + d, 61, 4)];
+      const id = data[blockIndex(4 + d, 125, 4)];
       expect(id === Block.brick || id === Block.air).toBe(true);
       if (id === Block.brick) stubs++;
     }
@@ -127,15 +127,15 @@ describe('sunken desert ruin', () => {
   });
 
   it('bails on ground that drifts more than one block', () => {
-    const { data, heights } = flatChunk(60, Block.sand);
-    heights[6 * CHUNK_SIZE + 6] = 62;
+    const { data, heights } = flatChunk(124, Block.sand);
+    heights[6 * CHUNK_SIZE + 6] = 126;
     const before = data.slice();
     tryPlantRuin(data, heights, 0xc0ffee, 4, 4);
     expect(data).toEqual(before);
   });
 
   it('bails off sand', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     const before = data.slice();
     tryPlantRuin(data, heights, 0xc0ffee, 4, 4);
     expect(data).toEqual(before);
@@ -144,27 +144,27 @@ describe('sunken desert ruin', () => {
 
 describe('snow dome shelter', () => {
   it('raises a hollow lit dome with a door on flat snow', () => {
-    const { data, heights } = flatChunk(70, Block.snow);
+    const { data, heights } = flatChunk(134, Block.snow);
     tryPlantSnowDome(data, heights, 8, 8);
     // Hollow interior with head clearance at the centre.
-    expect(data[blockIndex(8, 71, 8)]).toBe(Block.air);
-    expect(data[blockIndex(8, 72, 8)]).toBe(Block.air);
+    expect(data[blockIndex(8, 135, 8)]).toBe(Block.air);
+    expect(data[blockIndex(8, 136, 8)]).toBe(Block.air);
     // Snow shell at the rim, lantern set into the ceiling cap.
-    expect(data[blockIndex(11, 71, 8)]).toBe(Block.snow);
-    expect(data[blockIndex(8, 73, 8)]).toBe(Block.lantern);
+    expect(data[blockIndex(11, 135, 8)]).toBe(Block.snow);
+    expect(data[blockIndex(8, 137, 8)]).toBe(Block.lantern);
     // Two-tall door gap through the -z rim.
-    expect(data[blockIndex(8, 71, 5)]).toBe(Block.air);
-    expect(data[blockIndex(8, 72, 5)]).toBe(Block.air);
+    expect(data[blockIndex(8, 135, 5)]).toBe(Block.air);
+    expect(data[blockIndex(8, 136, 5)]).toBe(Block.air);
   });
 
   it('bails on uneven or non-snow ground', () => {
-    const bumpy = flatChunk(70, Block.snow);
-    bumpy.heights[8 * CHUNK_SIZE + 8] = 72;
+    const bumpy = flatChunk(134, Block.snow);
+    bumpy.heights[8 * CHUNK_SIZE + 8] = 136;
     const before = bumpy.data.slice();
     tryPlantSnowDome(bumpy.data, bumpy.heights, 8, 8);
     expect(bumpy.data).toEqual(before);
 
-    const grass = flatGrassChunk(70);
+    const grass = flatGrassChunk(134);
     const untouched = grass.data.slice();
     tryPlantSnowDome(grass.data, grass.heights, 8, 8);
     expect(grass.data).toEqual(untouched);
@@ -173,19 +173,19 @@ describe('snow dome shelter', () => {
 
 describe('overgrown shrine', () => {
   it('builds a plinth, pillar and glowing crystal on flat grass', () => {
-    const { data, heights } = flatGrassChunk(64);
+    const { data, heights } = flatGrassChunk(128);
     tryPlantShrine(data, heights, 6, 6);
-    expect(data[blockIndex(6, 65, 6)]).toBe(Block.cobblestone); // plinth corner
-    expect(data[blockIndex(8, 65, 8)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(7, 66, 7)]).toBe(Block.cobblestone); // pillar
-    expect(data[blockIndex(7, 67, 7)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(7, 68, 7)]).toBe(Block.crystal); // glowing crown
-    expect(data[blockIndex(6, 66, 6)]).toBe(Block.leaves); // creeping corner
+    expect(data[blockIndex(6, 129, 6)]).toBe(Block.cobblestone); // plinth corner
+    expect(data[blockIndex(8, 129, 8)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(7, 130, 7)]).toBe(Block.cobblestone); // pillar
+    expect(data[blockIndex(7, 131, 7)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(7, 132, 7)]).toBe(Block.crystal); // glowing crown
+    expect(data[blockIndex(6, 130, 6)]).toBe(Block.leaves); // creeping corner
   });
 
   it('bails on uneven ground', () => {
-    const { data, heights } = flatGrassChunk(64);
-    heights[7 * CHUNK_SIZE + 7] = 65;
+    const { data, heights } = flatGrassChunk(128);
+    heights[7 * CHUNK_SIZE + 7] = 129;
     const before = data.slice();
     tryPlantShrine(data, heights, 6, 6);
     expect(data).toEqual(before);
@@ -193,11 +193,11 @@ describe('overgrown shrine', () => {
 });
 
 describe('buried dungeon', () => {
-  // hash 0 picks the shallowest floor: y0 = 14. Origin at (2, 2).
-  const Y0 = 14;
+  // hash 0 picks the shallowest floor: y0 = 78. Origin at (2, 2).
+  const Y0 = 78;
 
   it('carves two rooms, a corridor, embers, a chest and a crystal', () => {
-    const { data } = flatGrassChunk(60);
+    const { data } = flatGrassChunk(124);
     tryCarveDungeon(data, 0, 2, 2);
     // Room A: brick floor, hollow 5x4x5 interior, cobble wall + ceiling.
     expect(data[blockIndex(5, Y0, 5)]).toBe(Block.brick);
@@ -221,7 +221,7 @@ describe('buried dungeon', () => {
   });
 
   it('stays untouched when it would breach the surface', () => {
-    const { data } = flatGrassChunk(16); // rooms would poke into open air
+    const { data } = flatGrassChunk(80); // rooms would poke into open air
     const before = data.slice();
     tryCarveDungeon(data, 0, 2, 2);
     expect(data).toEqual(before);
@@ -235,7 +235,7 @@ describe('buried dungeon', () => {
     let crystal = 0;
     for (let i = 0; i < data.length; i++) {
       const y = i >> 8;
-      if (y > 40) continue; // only the buried band
+      if (y < 96 || y > 104) continue; // only this dungeon's own floor band
       if (data[i] === Block.chest) chest++;
       else if (data[i] === Block.emberrock) ember++;
       else if (data[i] === Block.crystal) crystal++;
@@ -254,24 +254,25 @@ describe('dungeonFor locator', () => {
     // Chunk (5, 5) hosts a carved dungeon (pinned by the carver test above);
     // dungeonFor must land on room A's interior centre, one above the brick.
     const at = dungeonFor(dseed, 5, 5);
-    expect(at).toEqual({ x: 84, y: 34, z: 88 });
+    expect(at).toEqual({ x: 84, y: 98, z: 88 });
     const data = createGenerator('voxelheim-test').generateChunk(5, 5);
     const lx = 84 - 5 * CHUNK_SIZE;
     const lz = 88 - 5 * CHUNK_SIZE;
-    expect(data[blockIndex(lx, 34, lz)]).toBe(Block.air); // interior floor cell
-    expect(data[blockIndex(lx, 33, lz)]).toBe(Block.brick); // brick floor below
-    expect(data[blockIndex(lx, 35, lz)]).toBe(Block.air); // headroom above
+    expect(data[blockIndex(lx, 98, lz)]).toBe(Block.air); // interior floor cell
+    expect(data[blockIndex(lx, 97, lz)]).toBe(Block.brick); // brick floor below
+    expect(data[blockIndex(lx, 99, lz)]).toBe(Block.air); // headroom above
   });
 
-  it('agrees for a second scanned host chunk', () => {
-    // Scanned: chunk (4, 6) of this seed also rolls and carves a dungeon.
+  it('honours the carver bail: a rolled chunk with thin cover stays uncarved', () => {
+    // Scanned: chunk (4, 6) rolls a dungeon, but its post-Deepening terrain
+    // is too low for the burial margin — the locator still points (per its
+    // documented contract) while the carver leaves the ground untouched.
     const at = dungeonFor(dseed, 4, 6);
     expect(at).not.toBeNull();
     const data = createGenerator('voxelheim-test').generateChunk(4, 6);
     const lx = at!.x - 4 * CHUNK_SIZE;
     const lz = at!.z - 6 * CHUNK_SIZE;
-    expect(data[blockIndex(lx, at!.y, lz)]).toBe(Block.air);
-    expect(data[blockIndex(lx, at!.y - 1, lz)]).toBe(Block.brick);
+    expect(data[blockIndex(lx, at!.y - 1, lz)]).not.toBe(Block.brick);
   });
 
   it('returns null for a chunk that hosts no dungeon, and is pure', () => {
@@ -285,9 +286,9 @@ describe('dungeonFor locator', () => {
       for (let cx = -20; cx <= 20; cx++) {
         const at = dungeonFor(dseed, cx, cz);
         if (at === null) continue;
-        // Interior floor y sits one above a hash-picked y0 in [14, 34].
-        expect(at.y).toBeGreaterThanOrEqual(15);
-        expect(at.y).toBeLessThanOrEqual(35);
+        // Interior floor y sits one above a hash-picked y0 in [78, 98].
+        expect(at.y).toBeGreaterThanOrEqual(79);
+        expect(at.y).toBeLessThanOrEqual(99);
         // Room A centre stays inside its own chunk.
         expect(at.x - cx * CHUNK_SIZE).toBeGreaterThanOrEqual(0);
         expect(at.x - cx * CHUNK_SIZE).toBeLessThan(CHUNK_SIZE);
@@ -344,18 +345,18 @@ describe('underworld flora', () => {
 
 describe('well', () => {
   it('digs a watered shaft ringed by a cobblestone rim on flat grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantWell(data, heights, 5, 5); // 3x3 rim over x 5..7, z 5..7
-    expect(data[blockIndex(5, 61, 5)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(7, 61, 7)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(6, 61, 6)]).toBe(Block.air); // open mouth
-    expect(data[blockIndex(6, 60, 6)]).toBe(Block.water); // shaft, two deep
-    expect(data[blockIndex(6, 59, 6)]).toBe(Block.water);
+    expect(data[blockIndex(5, 125, 5)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(7, 125, 7)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(6, 125, 6)]).toBe(Block.air); // open mouth
+    expect(data[blockIndex(6, 124, 6)]).toBe(Block.water); // shaft, two deep
+    expect(data[blockIndex(6, 123, 6)]).toBe(Block.water);
   });
 
   it('needs perfectly level grass', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 6, 5, 61); // bump inside the rim footprint
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 6, 5, 125); // bump inside the rim footprint
     const before = chunk.data.slice();
     tryPlantWell(chunk.data, chunk.heights, 5, 5);
     expect(chunk.data).toEqual(before);
@@ -364,9 +365,9 @@ describe('well', () => {
 
 describe('hamlet', () => {
   it('plants two huts and a watered well on flat grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantHamlet(data, heights, 0, 1, 1);
-    const floorY = 61;
+    const floorY = 125;
     // Both cabins: plank floors and their corner chests.
     expect(data[blockIndex(1, floorY, 1)]).toBe(Block.planks);
     expect(data[blockIndex(8, floorY, 1)]).toBe(Block.planks);
@@ -374,20 +375,20 @@ describe('hamlet', () => {
     expect(data[blockIndex(9, floorY + 1, 2)]).toBe(Block.chest);
     // Well (hash 0 puts the shaft at x0+5 = 6, z0+6 = 7): cobble rim ring
     // around an open mouth over a two-deep water column.
-    expect(data[blockIndex(5, 61, 6)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(7, 61, 8)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(6, 61, 7)]).toBe(Block.air);
-    expect(data[blockIndex(6, 60, 7)]).toBe(Block.water);
-    expect(data[blockIndex(6, 59, 7)]).toBe(Block.water);
+    expect(data[blockIndex(5, 125, 6)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(7, 125, 8)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(6, 125, 7)]).toBe(Block.air);
+    expect(data[blockIndex(6, 124, 7)]).toBe(Block.water);
+    expect(data[blockIndex(6, 123, 7)]).toBe(Block.water);
   });
 
   it('falls back cleanly (data untouched) on unfit ground', () => {
-    const chunk = flatGrassChunk(60);
+    const chunk = flatGrassChunk(124);
     // Spikes beyond the huts' drift allowance, and a bump on the well rim
     // (wells demand perfectly level grass).
-    bumpColumn(chunk, 3, 3, 64); // inside hut A's footprint
-    bumpColumn(chunk, 10, 3, 64); // inside hut B's footprint
-    bumpColumn(chunk, 6, 7, 61); // the well shaft column
+    bumpColumn(chunk, 3, 3, 128); // inside hut A's footprint
+    bumpColumn(chunk, 10, 3, 128); // inside hut B's footprint
+    bumpColumn(chunk, 6, 7, 125); // the well shaft column
     const before = chunk.data.slice();
     tryPlantHamlet(chunk.data, chunk.heights, 0, 1, 1);
     expect(chunk.data).toEqual(before);
@@ -396,9 +397,9 @@ describe('hamlet', () => {
 
 describe('long house', () => {
   it('raises a plank hall with pillars, windows, lantern and chest on flat grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantLongHouse(data, heights, 3, 5); // 8x5 over x 3..10, z 5..9
-    const floorY = 61;
+    const floorY = 125;
     // Plank floor and roof across the footprint.
     expect(data[blockIndex(3, floorY, 5)]).toBe(Block.planks);
     expect(data[blockIndex(10, floorY, 9)]).toBe(Block.planks);
@@ -420,18 +421,18 @@ describe('long house', () => {
   });
 
   it('underpins a one-block step with a cobblestone plinth', () => {
-    const chunk = flatGrassChunk(60);
-    for (let dx = 0; dx < 8; dx++) bumpColumn(chunk, 3 + dx, 9, 61); // raise the back row
+    const chunk = flatGrassChunk(124);
+    for (let dx = 0; dx < 8; dx++) bumpColumn(chunk, 3 + dx, 9, 125); // raise the back row
     tryPlantLongHouse(chunk.data, chunk.heights, 3, 5);
-    expect(chunk.data[blockIndex(3, 62, 5)]).toBe(Block.planks); // floor above the high row
-    expect(chunk.data[blockIndex(3, 61, 5)]).toBe(Block.cobblestone); // plinth over low ground
-    expect(chunk.data[blockIndex(3, 60, 5)]).toBe(Block.grass); // surface untouched
-    expect(chunk.data[blockIndex(3, 61, 9)]).toBe(Block.grass); // high row surface too
+    expect(chunk.data[blockIndex(3, 126, 5)]).toBe(Block.planks); // floor above the high row
+    expect(chunk.data[blockIndex(3, 125, 5)]).toBe(Block.cobblestone); // plinth over low ground
+    expect(chunk.data[blockIndex(3, 124, 5)]).toBe(Block.grass); // surface untouched
+    expect(chunk.data[blockIndex(3, 125, 9)]).toBe(Block.grass); // high row surface too
   });
 
   it('bails when the ground drifts beyond the build allowance', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 6, 6, 63); // three-block spike inside the footprint
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 6, 6, 127); // three-block spike inside the footprint
     const before = chunk.data.slice();
     tryPlantLongHouse(chunk.data, chunk.heights, 3, 5);
     expect(chunk.data).toEqual(before);
@@ -440,9 +441,9 @@ describe('long house', () => {
 
 describe('farm plot', () => {
   it('tills crop rows around a capped water channel on flat grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantFarm(data, heights, 4, 6); // 6x5 over x 4..9, z 6..10
-    const padY = 61; // raised bed plane one above the surface
+    const padY = 125; // raised bed plane one above the surface
     // Farmland rows carry alternating growing/ripe crops.
     expect(data[blockIndex(4, padY, 6)]).toBe(Block.farmland);
     expect(data[blockIndex(9, padY, 10)]).toBe(Block.farmland);
@@ -454,21 +455,21 @@ describe('farm plot', () => {
     for (let x = 5; x <= 8; x++) expect(data[blockIndex(x, padY, 8)]).toBe(Block.water);
     expect(data[blockIndex(6, padY + 1, 8)]).toBe(Block.air);
     // The bed rides on the ground: surface blocks survive beneath it.
-    expect(data[blockIndex(4, 60, 6)]).toBe(Block.grass);
+    expect(data[blockIndex(4, 124, 6)]).toBe(Block.grass);
   });
 
   it('steps a one-block drift with a dirt underlay', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 4, 6, 61); // origin column one higher
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 4, 6, 125); // origin column one higher
     tryPlantFarm(chunk.data, chunk.heights, 4, 6);
-    expect(chunk.data[blockIndex(9, 61, 10)]).toBe(Block.dirt); // fill under the bed
-    expect(chunk.data[blockIndex(9, 62, 10)]).toBe(Block.farmland); // bed plane above
-    expect(chunk.data[blockIndex(4, 62, 6)]).toBe(Block.farmland); // flush on the high column
+    expect(chunk.data[blockIndex(9, 125, 10)]).toBe(Block.dirt); // fill under the bed
+    expect(chunk.data[blockIndex(9, 126, 10)]).toBe(Block.farmland); // bed plane above
+    expect(chunk.data[blockIndex(4, 126, 6)]).toBe(Block.farmland); // flush on the high column
   });
 
   it('bails beyond a single block of drift', () => {
-    const chunk = flatGrassChunk(60);
-    bumpColumn(chunk, 6, 8, 62); // two-block step inside the plot
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 6, 8, 126); // two-block step inside the plot
     const before = chunk.data.slice();
     tryPlantFarm(chunk.data, chunk.heights, 4, 6);
     expect(chunk.data).toEqual(before);
@@ -477,17 +478,17 @@ describe('farm plot', () => {
 
 describe('lamp post', () => {
   it('raises a lantern-topped cobblestone pillar on grass', () => {
-    const { data, heights } = flatGrassChunk(60);
+    const { data, heights } = flatGrassChunk(124);
     tryPlantLampPost(data, heights, 8, 8);
-    expect(data[blockIndex(8, 61, 8)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(8, 62, 8)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(8, 63, 8)]).toBe(Block.cobblestone);
-    expect(data[blockIndex(8, 64, 8)]).toBe(Block.lantern);
-    expect(data[blockIndex(8, 60, 8)]).toBe(Block.grass); // stands on the surface
+    expect(data[blockIndex(8, 125, 8)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(8, 126, 8)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(8, 127, 8)]).toBe(Block.cobblestone);
+    expect(data[blockIndex(8, 128, 8)]).toBe(Block.lantern);
+    expect(data[blockIndex(8, 124, 8)]).toBe(Block.grass); // stands on the surface
   });
 
   it('bails off grass and below the build line', () => {
-    const sandy = flatChunk(60, Block.sand);
+    const sandy = flatChunk(124, Block.sand);
     const untouchedSand = sandy.data.slice();
     tryPlantLampPost(sandy.data, sandy.heights, 8, 8);
     expect(sandy.data).toEqual(untouchedSand);

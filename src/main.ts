@@ -60,7 +60,7 @@ import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
 import { chunkCoord, CHUNK_VOLUME } from './world/chunk';
 import { decodeRLE, encodeRLE } from './persist/rle';
-import { chunkStoreKey, IDBStorage, MemoryStorage, type StorageBackend, type WorldMeta } from './persist/store';
+import { chunkStoreKey, IDBStorage, MemoryStorage, SAVE_VERSION, type StorageBackend, type WorldMeta } from './persist/store';
 import type { WorldStats } from './world/world';
 
 const BASE_SENSITIVITY = 0.002;
@@ -103,7 +103,13 @@ async function boot(): Promise<void> {
     console.error('IndexedDB unavailable, falling back to in-memory storage', err);
     storage = new MemoryStorage();
   }
-  const savedMeta = await storage.getMeta();
+  let savedMeta = await storage.getMeta();
+  if (savedMeta && savedMeta.version !== SAVE_VERSION) {
+    // Pre-Deepening world: the terrain shifted +64, so the old player
+    // position and chunk data no longer fit. Start fresh on the same seed.
+    console.warn(`world save v${savedMeta.version} predates the Great Deepening — starting fresh`);
+    savedMeta = null;
+  }
 
   const gr = new GameRenderer(app);
   const vignette = document.createElement('div');
@@ -242,7 +248,7 @@ async function boot(): Promise<void> {
   };
   const TITAN_ENGAGE_DIST = 40;
   function tryEngageTitan(px: number, py: number, pz: number): void {
-    if (!session || session.dimension !== 'overworld' || boss.active || py < 30) return;
+    if (!session || session.dimension !== 'overworld' || boss.active || py < 94) return;
     const rx = Math.floor(px / TITAN_REGION_BLOCKS);
     const rz = Math.floor(pz / TITAN_REGION_BLOCKS);
     // Anchors keep a 48-block margin inside their region, so only the
@@ -254,7 +260,7 @@ async function boot(): Promise<void> {
     const dx = anchor.x + 0.5 - px;
     const dz = anchor.z + 0.5 - pz;
     if (dx * dx + dz * dz > TITAN_ENGAGE_DIST * TITAN_ENGAGE_DIST) return;
-    for (let y = 100; y > SEA_LEVEL; y--) {
+    for (let y = 184; y > SEA_LEVEL; y--) {
       if (!session.world.isSolid(anchor.x, y, anchor.z)) continue;
       if (boss.summon(anchor.x + 0.5, y + 1, anchor.z + 0.5, 'stoneColossus')) currentTitanKey = key;
       return;
@@ -423,7 +429,7 @@ async function boot(): Promise<void> {
 
   function buildMeta(): WorldMeta {
     return {
-      version: 1,
+      version: SAVE_VERSION,
       seed: session?.seed ?? '',
       mode: session?.mode ?? 'creative',
       player: {

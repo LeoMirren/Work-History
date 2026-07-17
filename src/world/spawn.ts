@@ -12,7 +12,7 @@ const SPAWN_RANGE = 640;
 const PROBE_STEP = 12;
 const MAX_PROBES = 240;
 /** Dry land below the peaks: comfortable to land on and to walk out of. */
-const MAX_SPAWN_HEIGHT = 96;
+const MAX_SPAWN_HEIGHT = 160; // below the snow line (post-Deepening surface)
 
 function isGoodSpawn(gen: Generator, x: number, z: number): boolean {
   const h = gen.heightAt(x, z);

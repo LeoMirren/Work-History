@@ -42,8 +42,8 @@ describe('altar shrines', () => {
       if (!hit) continue;
       expect(hit.x).toBeGreaterThanOrEqual(cx * CHUNK_SIZE);
       expect(hit.x).toBeLessThan((cx + 1) * CHUNK_SIZE);
-      expect(hit.y).toBeGreaterThanOrEqual(10); // ALTAR_MIN_Y + 2
-      expect(hit.y).toBeLessThanOrEqual(26); // ALTAR_MAX_Y + 2
+      expect(hit.y).toBeGreaterThanOrEqual(42); // ALTAR_MIN_Y + 2
+      expect(hit.y).toBeLessThanOrEqual(90); // ALTAR_MAX_Y + 2
       return;
     }
     throw new Error('no shrine in 400 chunks — chance roll broken');
@@ -57,12 +57,12 @@ describe('altar shrines', () => {
         for (let y = 1; y <= 90; y++) data[blockIndex(x, y, z)] = Block.stone;
       }
     }
-    // hash 0: floor at ALTAR_MIN_Y = 8, origin (1, 1).
+    // hash 0: floor at ALTAR_MIN_Y = 40, origin (1, 1).
     tryCarveAltarShrine(data, 0, 1, 1);
-    expect(data[blockIndex(4, 10, 4)]).toBe(Block.altar); // dais centre
-    expect(data[blockIndex(4, 9, 4)]).toBe(Block.mossstone); // dais
-    expect(data[blockIndex(2, 11, 4)]).toBe(Block.air); // vault interior
-    expect(data[blockIndex(2, 9, 2)]).toBe(Block.emberrock); // brazier
+    expect(data[blockIndex(4, 42, 4)]).toBe(Block.altar); // dais centre
+    expect(data[blockIndex(4, 41, 4)]).toBe(Block.mossstone); // dais
+    expect(data[blockIndex(2, 43, 4)]).toBe(Block.air); // vault interior
+    expect(data[blockIndex(2, 41, 2)]).toBe(Block.emberrock); // brazier
     // Bails untouched when there is no cover above the vault.
     const thin = new Uint8Array(CHUNK_VOLUME);
     for (let z = 0; z < CHUNK_SIZE; z++) {

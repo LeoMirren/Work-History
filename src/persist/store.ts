@@ -3,8 +3,15 @@
  * in-memory for tests. DB `voxelgame` has two stores: `worlds` (key 'default'
  * → world meta) and `chunks` (key "cx,cz" → RLE-encoded Uint8Array).
  */
+/**
+ * Save-format version. 2 = the Great Deepening (192-tall chunks, surface
+ * +64): version-1 worlds decode to the wrong volume and would resume the
+ * player inside the shifted terrain, so main discards them on load.
+ */
+export const SAVE_VERSION = 2;
+
 export interface WorldMeta {
-  version: 1;
+  version: number;
   seed: string;
   mode: 'creative' | 'survival';
   player: {

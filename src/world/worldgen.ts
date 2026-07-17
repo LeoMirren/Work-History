@@ -12,24 +12,30 @@ import { cyrb128, hash2, rngFromSeed, seededNoise2D, seededNoise3D } from './noi
 import { Block } from './blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE, createChunkData } from './chunk';
 
-export const SEA_LEVEL = 52;
-const SNOW_LINE = 96; // surface block is snow above this height
+// The Great Deepening: the surface sits +64 higher than it once did, and the
+// 64 reclaimed blocks below are the ABYSS — grand caverns, dusk metal, and
+// the deepest dark in the overworld.
+export const SEA_LEVEL = 116;
+const SNOW_LINE = 160; // surface block is snow above this height
 const CAVE_THRESHOLD = 0.58;
 const TUNNEL_WIDTH = 0.09; // spaghetti tunnels: both noises within this of zero
+/** Top of the abyss: grand caverns and dusk seams live below this. */
+const ABYSS_TOP = 58;
+const ABYSS_THRESHOLD = 0.17; // |abyss noise| below this carves grand caverns
 const ORE_MIN_Y = 5;
 // Each ore: noise scale, threshold (higher = rarer), and max depth band.
 const IRON_THRESHOLD = 0.74;
-const IRON_MAX_Y = 60;
+const IRON_MAX_Y = 124;
 const COAL_THRESHOLD = 0.7; // common, shallow-to-deep
-const COAL_MAX_Y = 90;
+const COAL_MAX_Y = 154;
 const COPPER_THRESHOLD = 0.78;
-const COPPER_MAX_Y = 46;
+const COPPER_MAX_Y = 110;
 const GOLD_THRESHOLD = 0.84; // rare, deep
-const GOLD_MAX_Y = 28;
+const GOLD_MAX_Y = 92;
 const SILVER_THRESHOLD = 0.8; // between copper and gold in rarity
-const SILVER_MAX_Y = 22;
-const DUSK_THRESHOLD = 0.86; // the rarest seam, only in the deepest dark
-const DUSK_MAX_Y = 10;
+const SILVER_MAX_Y = 86;
+const DUSK_THRESHOLD = 0.86; // the rarest seam, abyss-only
+const DUSK_MAX_Y = 40;
 const UW_EMBERORE_THRESHOLD = 0.9; // the hottest ember seams crystallize to ore
 const UW_BLOOM_CHANCE = 34; // rarer than moss: crimson pinpricks in the ash
 const UW_THRONE_CHANCE = 140; // ~1 chunk in 140 raises the Monarch's hall
@@ -41,17 +47,20 @@ const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
 const ZONE_SCALE = 180; // horizontal zone wavelength: ~11 chunks across
 const ZONE_Y_SCALE = 110; // gentle vertical drift through the cave band
 const ZONE_THRESHOLD = 0.35; // zone noise above this -> the theme applies
-const MOSSY_MIN_Y = 25; // mossy hollows: the shallow cave band
-const MOSSY_MAX_Y = 55;
+const MOSSY_MIN_Y = 89; // mossy hollows: the shallow cave band
+const MOSSY_MAX_Y = 119;
 const MOSSY_FLOOR_DIV = 8; // ~1/8 stone cave floors turn to mossstone
 const GLOWBLOOM_DIV = 30; // ~1/30 cave floors sprout a glowbloom
-const GROTTO_MIN_Y = 8; // crystal grottoes: the deep cave band
-const GROTTO_MAX_Y = 30;
+const GROTTO_MIN_Y = 72; // crystal grottoes: the deep cave band
+const GROTTO_MAX_Y = 94;
 const GROTTO_WALL_DIV = 24; // ~1/24 air-adjacent stone cells crystallize
 const GROTTO_KNOB_DIV = 6; // ~1 crystallized cell in 6 is a geodeshell knob
 const GROTTO_STUB_DIV = 40; // ~1/40 cave floors grow a crystal stub
-const CINDER_MIN_Y = 5; // cinder deeps: the deepest cave band
-const CINDER_MAX_Y = 22;
+const CINDER_MIN_Y = 60; // cinder deeps: the last themed band above the abyss
+const CINDER_MAX_Y = 80;
+// Below CINDER_MIN_Y the ABYSS theme owns every cave floor (no zone gating):
+const ABYSS_GLOW_DIV = 22; // ~1/22 abyss cave floors sprout glowmoss
+const ABYSS_BELL_DIV = 30; // ~1/30 sprout a duskbell
 const CINDER_FLOOR_DIV = 10; // ~1/10 stone cave floors turn to emberrock
 const CINDERCAP_DIV = 26; // ~1/26 cave floors sprout a cindercap
 // Surface flora: per-column hash rolls dress grass with tufts and flowers.
@@ -61,8 +70,8 @@ const FLORA_GRASS_DIV_WOOD = 14; // forest/jungle: ~1/14 wildgrass
 const FLORA_FLOWER_DIV_WOOD = 50; // ...and ~1/50 a wildflower
 const GEODE_CHANCE = 16; // ~1 chunk in 16 hosts a geode
 const GEODE_R = 4; // sphere radius; kept inside the chunk
-const GEODE_MIN_Y = 8;
-const GEODE_MAX_Y = 40;
+const GEODE_MIN_Y = 12;
+const GEODE_MAX_Y = 104;
 const HUT_CHANCE = 320; // ~1 wilderness chunk in 320 hosts a lone outpost hut
 const HUT_SIZE = 5; // 5x5 footprint, kept fully inside the chunk
 const STRUCT_CHANCE = 120; // ~1 chunk in 120 rolls a biome landmark
@@ -71,19 +80,19 @@ const DOME_R = 3; // snow dome radius (7x7 footprint)
 const SHRINE_SIZE = 3; // overgrown shrine plinth
 const REEF_CHANCE = 34; // ~1 deep ocean-floor column in 34 sprouts reef décor
 const DUNGEON_CHANCE = 90; // ~1 chunk in 90 hides a buried dungeon
-const DUNGEON_MIN_Y = 14; // hash-picked dungeon floor band
-const DUNGEON_MAX_Y = 34;
+const DUNGEON_MIN_Y = 78; // hash-picked dungeon floor band
+const DUNGEON_MAX_Y = 98;
 // Dungeon footprint: room A shell (7 wide) + corridor (1 free column, its
 // ends punched through both shared walls) + room B shell (6 wide) = 14
 // columns by 7 deep. y extent is 6 cells (floor y0 .. ceiling y0+5).
 const DUNGEON_W = 14;
 const DUNGEON_D = 7;
 const DEEPHOLD_CHANCE = 130; // ~1 chunk in 130 buries a deephold (mob village)
-const DEEPHOLD_MIN_Y = 16; // hash-picked hall-floor band
-const DEEPHOLD_MAX_Y = 30;
+const DEEPHOLD_MIN_Y = 80; // hash-picked hall-floor band
+const DEEPHOLD_MAX_Y = 94;
 const ALTAR_CHANCE = 110; // ~1 chunk in 110 hides a Tyrant shrine
-const ALTAR_MIN_Y = 8; // hash-picked shrine-floor band
-const ALTAR_MAX_Y = 24;
+const ALTAR_MIN_Y = 40; // hash-picked shrine-floor band (reaches the abyss)
+const ALTAR_MAX_Y = 88;
 const ALTAR_SIZE = 7; // shrine footprint (7x7 shell, 5x5 interior)
 // Deephold footprint: a great hall flanked by north/south chambers and an
 // east annex — 14x14 columns, 8 cells tall (floor y0 .. probe y0+7).
@@ -198,7 +207,7 @@ export function findSafeSpawnY(seed: string, dimension: Dimension, wx: number, w
     const air2 = (data[blockIndex(lx, y + 2, lz)] ?? Block.air) === Block.air;
     if (solid && air1 && air2) return y + 1;
   }
-  return dimension === 'underworld' ? UW_FLOOR + 3 : 70;
+  return dimension === 'underworld' ? UW_FLOOR + 3 : 134;
 }
 
 function createUnderworld(seed: string): Generator {
@@ -472,6 +481,7 @@ function createOverworld(seed: string): Generator {
   const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
   const silverN: NoiseFunction3D = seededNoise3D(seed, 'silver');
   const duskN: NoiseFunction3D = seededNoise3D(seed, 'dusk');
+  const abyssN: NoiseFunction3D = seededNoise3D(seed, 'abyss');
   const treeSeed = cyrb128(`${seed} trees`)[0];
   const caveDecorSeed = cyrb128(`${seed} cavebiomes`)[0];
   const floraSeed = cyrb128(`${seed} flora`)[0];
@@ -497,7 +507,7 @@ function createOverworld(seed: string): Generator {
 
   function heightAt(wx: number, wz: number): number {
     const c = continental(wx / shape.continentScale, wz / shape.continentScale);
-    const base = 50 + 22 * c;
+    const base = 114 + 22 * c;
     const mask = Math.max(0, hillMask(wx / 300, wz / 300));
     const hill = hills(wx / 96, wz / 96) * shape.hillAmp * mask;
     const det = detail(wx / 24, wz / 24) * 3;
@@ -506,7 +516,7 @@ function createOverworld(seed: string): Generator {
     const mtn = m * m * shape.mountainAmp;
     const bias = BIOME_DEFS[biomeAt(wx, wz)]?.heightBias ?? 0;
     const h = Math.round(base + hill + det + mtn + bias);
-    return Math.min(120, Math.max(8, h));
+    return Math.min(184, Math.max(72, h));
   }
 
   /** Surface block for a column, honoring oceans/beaches and the snow line. */
@@ -581,8 +591,12 @@ function createOverworld(seed: string): Generator {
         }
 
         // Caves: never carve near/below sea level columns (keeps oceans full).
-        // Two systems: "cheese" rooms (threshold) plus winding "spaghetti"
-        // tunnels where two independent noises both pass near zero.
+        // Three systems: "cheese" rooms (threshold), winding "spaghetti"
+        // tunnels where two independent noises both pass near zero, and —
+        // below ABYSS_TOP — GRAND CAVERNS: huge, smooth halls from one
+        // large-wavelength noise, so the deep dark opens into real caverns
+        // instead of more spaghetti. (Every abyss ceiling keeps >= 8 blocks
+        // of cover: h is clamped to >= 72 and ABYSS_TOP is 58.)
         if (h >= SEA_LEVEL + 2) {
           for (let y = 5; y <= h - 6; y++) {
             const room = cave(wx / 40, y / 28, wz / 40) > CAVE_THRESHOLD;
@@ -590,7 +604,9 @@ function createOverworld(seed: string): Generator {
               !room &&
               Math.abs(tunnelA(wx / 70, y / 42, wz / 70)) < TUNNEL_WIDTH &&
               Math.abs(tunnelB(wx / 70, y / 42, wz / 70)) < TUNNEL_WIDTH;
-            if (room || tunnel) data[blockIndex(x, y, z)] = Block.air;
+            const grand =
+              !room && !tunnel && y <= ABYSS_TOP && Math.abs(abyssN(wx / 56, y / 36, wz / 56)) < ABYSS_THRESHOLD;
+            if (room || tunnel || grand) data[blockIndex(x, y, z)] = Block.air;
           }
         }
       }
@@ -616,31 +632,37 @@ function createOverworld(seed: string): Generator {
         const wz = cz * CHUNK_SIZE + z;
         const colHash = hash2(caveDecorSeed, wx, wz);
         const yTop = Math.min(h - 6, MOSSY_MAX_Y);
-        for (let y = CINDER_MIN_Y; y <= yTop; y++) {
+        for (let y = 6; y <= yTop; y++) {
           const i = blockIndex(x, y, z);
           const id = data[i];
           if (id === Block.air) {
             // Floor decoration: a cave air cell seated on plain stone.
             if (data[blockIndex(x, y - 1, z)] !== Block.stone) continue;
             const cellHash = hash2(colHash, y, 0);
-            if (
+            if (y <= ABYSS_TOP) {
+              // The abyss theme owns every floor below the cinder band:
+              // glowmoss pinpricks and dusk-violet bells, no zone gating.
+              if (cellHash % ABYSS_GLOW_DIV === 0) data[i] = Block.glowmoss;
+              else if ((cellHash >>> 8) % ABYSS_BELL_DIV === 0) data[i] = Block.duskbell;
+            } else if (
               y >= MOSSY_MIN_Y &&
               zoneMossy(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
             ) {
               if (cellHash % MOSSY_FLOOR_DIV === 0) data[blockIndex(x, y - 1, z)] = Block.mossstone;
               if ((cellHash >>> 8) % GLOWBLOOM_DIV === 0) data[i] = Block.glowbloom;
             } else if (
-              y >= GROTTO_MIN_Y &&
-              y <= GROTTO_MAX_Y &&
-              zoneCrystal(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
-            ) {
-              if (cellHash % GROTTO_STUB_DIV === 0) data[i] = Block.crystal;
-            } else if (
+              y >= CINDER_MIN_Y &&
               y <= CINDER_MAX_Y &&
               zoneCinder(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
             ) {
               if (cellHash % CINDER_FLOOR_DIV === 0) data[blockIndex(x, y - 1, z)] = Block.emberrock;
               if ((cellHash >>> 8) % CINDERCAP_DIV === 0) data[i] = Block.cindercap;
+            } else if (
+              y >= GROTTO_MIN_Y &&
+              y <= GROTTO_MAX_Y &&
+              zoneCrystal(wx / ZONE_SCALE, y / ZONE_Y_SCALE, wz / ZONE_SCALE) > ZONE_THRESHOLD
+            ) {
+              if (cellHash % GROTTO_STUB_DIV === 0) data[i] = Block.crystal;
             }
           } else if (id === Block.stone && y >= GROTTO_MIN_Y && y <= GROTTO_MAX_Y) {
             // Grotto walls/ceilings: stone touching cave air grows crystal

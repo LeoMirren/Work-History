@@ -32,13 +32,13 @@ describe('hostile spawning', () => {
     // Daylight on the SURFACE (player high above the underground band):
     // only the slow elite prowler cadence runs, and every spawn is elite.
     const day = makeSystem();
-    for (let i = 0; i < 60 * 30; i++) day.system.fixedUpdate(DT, 0.5, 80, 0.5, DAY, noDamage);
+    for (let i = 0; i < 60 * 30; i++) day.system.fixedUpdate(DT, 0.5, 144, 0.5, DAY, noDamage);
     expect(day.system.count).toBeGreaterThan(0);
     expect(day.system.count).toBeLessThan(6); // far sparser than night
     expect(day.system.stalkers.every((s) => s.elite)).toBe(true);
 
     const night = makeSystem();
-    for (let i = 0; i < 60 * 30; i++) night.system.fixedUpdate(DT, 0.5, 80, 0.5, NIGHT, noDamage);
+    for (let i = 0; i < 60 * 30; i++) night.system.fixedUpdate(DT, 0.5, 144, 0.5, NIGHT, noDamage);
     expect(night.system.count).toBeGreaterThan(0);
     expect(night.system.count).toBeLessThanOrEqual(18); // raised cap for chaos spawning
   });
@@ -112,7 +112,7 @@ describe('hostile behaviour', () => {
     system.spawnAt(3.5, 11, 0.5);
     expect(system.count).toBe(1);
     // Player on the surface: the elite prowler cadence (9s) hasn't fired yet.
-    for (let i = 0; i < 60 * 6; i++) system.fixedUpdate(DT, 0.5, 80, 0.5, DAY, noDamage);
+    for (let i = 0; i < 60 * 6; i++) system.fixedUpdate(DT, 0.5, 144, 0.5, DAY, noDamage);
     expect(system.count).toBe(0);
   });
 
@@ -127,7 +127,7 @@ describe('hostile behaviour', () => {
     expect(scene.children.length).toBe(before);
     expect(system.hurt(s)).toBe(false);
     expect(system.raycastNearest(0.5, 12.6, 0.5, 1, 0, 0, 8)).toBeNull();
-    system.fixedUpdate(0.2, 0.5, 80, 0.5, DAY, noDamage); // pop elapses -> removal (surface: no refill)
+    system.fixedUpdate(0.2, 0.5, 144, 0.5, DAY, noDamage); // pop elapses -> removal (surface: no refill)
     expect(system.count).toBe(0);
     expect(scene.children.length).toBe(before - 1);
   });

@@ -14,7 +14,7 @@ const EVENT_FOR: Readonly<Record<string, GoalEvent>> = {
   'iron-age': { kind: 'smelt', name: 'iron ingot' },
   'green-thumb': { kind: 'harvest', id: Block.cropRipe },
   'night-watch': { kind: 'sleep' },
-  'deep-delver': { kind: 'depth', y: 12 },
+  'deep-delver': { kind: 'depth', y: 30 },
   gilded: { kind: 'smelt', name: 'gold ingot' },
   'gem-hunter': { kind: 'break', id: Block.crystal },
   wayfarer: { kind: 'trade' },
@@ -54,9 +54,9 @@ describe('goal definitions', () => {
     expect(reef?.test({ kind: 'break', id: Block.coralTeal })).toBe(true);
   });
 
-  it('deep-delver requires strictly below y 20', () => {
+  it('deep-delver requires strictly below the abyss line (y 40)', () => {
     const deep = GOALS.find((g) => g.id === 'deep-delver');
-    expect(deep?.test({ kind: 'depth', y: 20 })).toBe(false);
+    expect(deep?.test({ kind: 'depth', y: 40 })).toBe(false);
     expect(deep?.test({ kind: 'depth', y: 19 })).toBe(true);
   });
 });

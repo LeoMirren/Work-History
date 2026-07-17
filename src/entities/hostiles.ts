@@ -47,7 +47,7 @@ export const ELITE_SCALE = 1.7;
 export const ELITE_HP = 24;
 const ELITE_DAMAGE = 4;
 /** Below this y the world counts as "underground": hostiles spawn any hour. */
-export const UNDERGROUND_SPAWN_Y = 50;
+export const UNDERGROUND_SPAWN_Y = 114; // below the post-Deepening surface, caves are never safe
 /** Melee tell: the torso tips this far forward on a hit, decaying upright. */
 const LUNGE_TIP = 0.25;
 const LUNGE_S = 0.3; // seconds the lunge tell takes to decay
@@ -336,7 +336,7 @@ export class HostileSystem {
     // Underground: scan the cave band around the player's depth for a floor;
     // on the surface: classic top-down scan for the first standable column.
     const underground = py < UNDERGROUND_SPAWN_Y;
-    const yTop = underground ? Math.min(120, Math.floor(py) + 10) : 120;
+    const yTop = underground ? Math.min(184, Math.floor(py) + 10) : 184;
     const yBottom = underground ? Math.max(1, Math.floor(py) - 14) : 1;
     for (let y = yTop; y >= yBottom; y--) {
       const id = world.getBlock(x, y, z);

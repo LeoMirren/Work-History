@@ -31,7 +31,7 @@ describe('chunk index math', () => {
 
   it('matches the spec formula i = x + (z<<4) + (y<<8)', () => {
     expect(blockIndex(5, 7, 3)).toBe(5 + (3 << 4) + (7 << 8));
-    expect(blockIndex(15, 127, 15)).toBe(CHUNK_VOLUME - 1);
+    expect(blockIndex(15, CHUNK_HEIGHT - 1, 15)).toBe(CHUNK_VOLUME - 1);
     expect(blockIndex(0, 0, 0)).toBe(0);
   });
 

@@ -263,7 +263,7 @@ export function usageHintFor(id: number): string {
   if (id === Item.bucket) return 'right-click water: scoop it up';
   if (id === Item.waterBucket) return 'right-click: pour the water out';
   if (isThrowable(id)) return 'right-click: throw';
-  if (id === Item.sovereignTotem) return 'U deep underground (y<30): summon the Sunken King';
+  if (id === Item.sovereignTotem) return 'U deep underground (y<94): summon the Sunken King';
   if (id === Item.crown) return 'a trophy of the fallen king';
   if (id === Item.titanHeart) return 'a trophy carved from the fallen Colossus';
   if (id === Item.earthshaker) return 'hold a mouse button: the heaviest blow in the game — also mines at the apex tier';

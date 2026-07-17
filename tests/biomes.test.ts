@@ -50,7 +50,7 @@ describe('biome surfaces and trees', () => {
             const wz = cz * CHUNK_SIZE + z;
             if (gen.biomeAt(wx, wz) !== Biome.desert) continue;
             const h = gen.heightAt(wx, wz);
-            if (h <= SEA_LEVEL + 1 || h > 96) continue; // skip beach/peak overrides
+            if (h <= SEA_LEVEL + 1 || h > 160) continue; // skip beach/peak overrides
             desertColumns++;
             expect(data[blockIndex(x, h, z)]).toBe(Block.sand);
             for (let y = h + 1; y < 128; y++) {

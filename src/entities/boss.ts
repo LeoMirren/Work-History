@@ -30,7 +30,7 @@ export const BOSS_HALF_WIDTH = 0.9;
 export const BOSS_HEIGHT = 3.2;
 export const BOSS_HP = 180;
 /** y below which the totem will summon (the deep dark). */
-export const BOSS_SUMMON_MAX_Y = 30;
+export const BOSS_SUMMON_MAX_Y = 94;
 const LEASH_RANGE = 26; // never strays far from the summon arena
 const DESPAWN_DIST = 90; // player this far away ends the fight (boss leaves)
 const HOP_VELOCITY = 8;

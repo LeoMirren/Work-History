@@ -3,6 +3,7 @@ import { Tiles, tileUVRect } from '../src/engine/atlas';
 import { canPlaceAt, crackStageFor, crackUVsFor, hintForTarget } from '../src/player/interaction';
 import { blockIntersectsBody, createBody } from '../src/player/physics';
 import { Block } from '../src/world/blocks';
+import { CHUNK_HEIGHT } from '../src/world/chunk';
 import { Item } from '../src/world/items';
 
 describe('placement rules (§4.8)', () => {
@@ -31,8 +32,8 @@ describe('placement rules (§4.8)', () => {
 
   it('rejects placement outside the world height', () => {
     expect(canPlaceAt(Block.air, 5, -1, 5, body)).toBe(false);
-    expect(canPlaceAt(Block.air, 5, 128, 5, body)).toBe(false);
-    expect(canPlaceAt(Block.air, 5, 127, 5, body)).toBe(true);
+    expect(canPlaceAt(Block.air, 5, CHUNK_HEIGHT, 5, body)).toBe(false);
+    expect(canPlaceAt(Block.air, 5, CHUNK_HEIGHT - 1, 5, body)).toBe(true);
   });
 });
 

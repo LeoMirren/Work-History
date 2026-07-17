@@ -28,7 +28,7 @@ export interface Goal {
 }
 
 /** Player must dip below this world-y to count as "deep". */
-const DEEP_Y = 20;
+const DEEP_Y = 40; // the abyss: far below the post-Deepening surface (~116)
 
 /**
  * The fourteen goals, in rough progression order — from punching out a first

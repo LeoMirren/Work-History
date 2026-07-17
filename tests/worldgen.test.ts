@@ -109,7 +109,7 @@ describe('worldgen content rules', () => {
               expect(data[blockIndex(x, SEA_LEVEL + 1, z)]).toBe(Block.air);
             } else if (h <= SEA_LEVEL + 1) {
               expect(surface).toBe(Block.sand); // beach band
-            } else if (h > 96) {
+            } else if (h > 160) {
               expect(surface).toBe(Block.snow); // peaks
             } else {
               // Biome surface: grass (plains/forest/savanna), sand (desert)
@@ -168,10 +168,10 @@ describe('worldgen content rules', () => {
     const counts = new Map<number, number>();
     const maxY = new Map<number, number>();
     const bands: Array<[number, number]> = [
-      [Block.coalOre, 90],
-      [Block.ore, 60],
-      [Block.copperOre, 46],
-      [Block.goldOre, 28],
+      [Block.coalOre, 154],
+      [Block.ore, 124],
+      [Block.copperOre, 110],
+      [Block.goldOre, 92],
     ];
     for (let cz = -4; cz <= 4; cz++) {
       for (let cx = -4; cx <= 4; cx++) {
@@ -287,7 +287,7 @@ describe('portal landing (findSafeSpawnY)', () => {
       ] as const) {
         const y = findSafeSpawnY(SEED, dim, wx, wz);
         expect(y).toBeGreaterThan(0);
-        expect(y).toBeLessThan(127);
+        expect(y).toBeLessThan(CHUNK_HEIGHT - 1);
         expect(findSafeSpawnY(SEED, dim, wx, wz)).toBe(y); // deterministic
       }
     }
@@ -319,7 +319,7 @@ describe('geodes', () => {
     const gen = createGenerator(SEED, 'overworld');
     let crystal = 0;
     let shell = 0;
-    let minCrystalY = 128;
+    let minCrystalY = CHUNK_HEIGHT;
     let maxCrystalY = 0;
     for (let cz = -8; cz <= 8; cz++) {
       for (let cx = -8; cx <= 8; cx++) {
@@ -339,7 +339,7 @@ describe('geodes', () => {
     expect(crystal).toBeGreaterThan(0);
     expect(shell).toBeGreaterThan(0);
     expect(minCrystalY).toBeGreaterThanOrEqual(1);
-    expect(maxCrystalY).toBeLessThan(50); // deep underground
+    expect(maxCrystalY).toBeLessThan(112); // underground (geodes, grottoes, vault crystals)
     // Determinism: same chunk regenerates identically.
     expect(gen.generateChunk(3, -5)).toEqual(createGenerator(SEED, 'overworld').generateChunk(3, -5));
   });
