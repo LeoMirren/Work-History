@@ -54,8 +54,8 @@ describe('terrainShade bands', () => {
     }
   });
 
-  it('past 85 is grey-brown rock (muted, warm-leaning)', () => {
-    for (const h of [ROCK_LINE, 90, SNOW_LINE - 1]) {
+  it('past the rock line is grey-brown rock (muted, warm-leaning)', () => {
+    for (const h of [ROCK_LINE, 152, SNOW_LINE - 1]) {
       const [r, g, b] = terrainShade(h, SEA);
       expect(r).toBeGreaterThanOrEqual(g);
       expect(g).toBeGreaterThanOrEqual(b);
@@ -63,8 +63,8 @@ describe('terrainShade bands', () => {
     }
   });
 
-  it('past 96 is snow white', () => {
-    for (const h of [SNOW_LINE, 110, 140]) {
+  it('past the snow line is snow white', () => {
+    for (const h of [SNOW_LINE, 170, 184]) {
       const [r, g, b] = terrainShade(h, SEA);
       expect(Math.min(r, g, b)).toBeGreaterThanOrEqual(230);
     }

@@ -279,7 +279,9 @@ describe('herd spawning & size variety', () => {
     const scene = new THREE.Scene();
     const system = new AnimalSystem(scene, tapeRng(herdTape));
     system.setWorld(lonePatch);
-    system.fixedUpdate(DT, 0.5, 10, 0.5);
+    // Player at surface height: only the herd path runs (cave wildlife
+    // spawns are gated to players roaming below CAVE_WILDLIFE_Y).
+    system.fixedUpdate(DT, 0.5, 144, 0.5);
     expect(system.count).toBe(1);
     const lead = system.animals[0]!;
     expect(lead.body.x).toBe(16.5); // dropped onto the scanned column's surface

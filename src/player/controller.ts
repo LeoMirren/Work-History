@@ -74,6 +74,8 @@ export class PlayerController {
   /** Auto-run (T): run forward hands-free so the mouse is free to steer —
    * sidesteps OS "disable touchpad while typing" entirely. S or T cancels. */
   autoRun = false;
+  /** Steer mode: A/D rotate instead of strafing (trackpad-proof turning). */
+  steerMode = false;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;
@@ -143,10 +145,18 @@ export class PlayerController {
     // Auto-run: T toggles a held-W; pressing S (brake) also cancels it.
     if (input.takePressed('KeyT')) this.autoRun = !this.autoRun;
     if (input.isDown('KeyS')) this.autoRun = false;
+    // Steer mode (Y toggles): A/D TURN instead of strafing — turning while
+    // running works on pure keyboard, no matter what the OS does to the
+    // trackpad while keys are held (libinput palm rejection etc.).
+    if (input.takePressed('KeyY')) this.steerMode = !this.steerMode;
+    if (this.steerMode) {
+      if (input.isDown('KeyD')) this.yaw -= KEY_TURN_RATE * dt;
+      if (input.isDown('KeyA')) this.yaw += KEY_TURN_RATE * dt;
+    }
 
     // Movement intent in the yaw frame, normalized so diagonals aren't faster.
     const forward = (input.isDown('KeyW') || this.autoRun ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
-    const strafe = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
+    const strafe = this.steerMode ? 0 : (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const len = Math.hypot(forward, strafe);
     const nf = len > 0 ? forward / len : 0;
     const ns = len > 0 ? strafe / len : 0;

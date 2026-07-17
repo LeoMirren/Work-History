@@ -5,10 +5,11 @@
  */
 /**
  * Save-format version. 2 = the Great Deepening (192-tall chunks, surface
- * +64): version-1 worlds decode to the wrong volume and would resume the
- * player inside the shifted terrain, so main discards them on load.
+ * +64). 3 = the Discovery update (cairns, markers, cave wildlife, throne
+ * citadels): worlds regenerate so every buried hall gets its surface cairn.
+ * Old-version worlds are discarded on load and regenerate on their seed.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface WorldMeta {
   version: number;

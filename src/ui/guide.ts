@@ -24,6 +24,12 @@ const HOW_TO: ReadonlyArray<readonly [string, string]> = [
   ['Survive', 'Hunt animals for meat (left-click), eat meat (right-click) to heal. Falls over 3 blocks hurt; water breaks a fall.'],
   ['Farm', 'Breaking grass sometimes drops seeds. Till grass or dirt with a hoe (right-click), plant seeds on the farmland, and harvest once the stalks turn amber — grain bakes into bread.'],
   ['Explore', 'Caves darken with depth — bring blocks to wall off drops. Different biomes (forest, desert, snowy, savanna) ring the world.'],
+  ['Read the map', 'The minimap marks the world: amber dots are villages, red dots are roaming Stone Colossi, steel-blue are buried dungeons, teal are deephold cave-villages, violet are Tyrant shrines.'],
+  ['Follow the cairns', 'A small cobblestone cairn with a glowing crown marks buried halls on the surface: crystal = dungeon below, lantern = deephold below, emberrock = shrine below. Dig straight down beside one.'],
+  ['The abyss', 'Below y 58 the caves open into grand caverns lit by glowmoss and duskbells. Dusk ore — the best craftable metal — only seams below y 40. Press F3 to watch your depth.'],
+  ['Deepholds', 'Buried mob villages (y 80-94): lantern-lit halls holding three loot chests, two underfolk traders with full barter books... and the guardians that claimed the place.'],
+  ['The great bosses', 'The Sunken King answers a crafted totem deep underground. The Stone Colossus roams the wilds — walk up to a red map dot. The Hollow Tyrant rises when you use (U) a shrine altar; it drops HEARTSTONES (+1 max heart each, forever).'],
+  ['The end of the game', 'Take a rift to the underworld. Find an emberthrone hall, use (U) the throne, and the ASHEN MONARCH rises — the biggest fight there is. It drops the Nightsever: 100 damage, one-shots everything that walks.'],
 ];
 
 export class Guide {

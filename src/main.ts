@@ -54,7 +54,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { Biome, createGenerator, deepholdFor, dungeonFor, findSafeSpawnY, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, type Dimension } from './world/worldgen';
+import { altarFor, Biome, createGenerator, deepholdFor, dungeonFor, findSafeSpawnY, nearestThroneChunk, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, VILLAGE_REGION, villageCenterFor, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -534,11 +534,15 @@ async function boot(): Promise<void> {
 
     // Fresh overworld sessions roll a per-seed landing spot; dimension
     // travel and resumes use their explicit positions.
-    const spawn =
-      spawnOverride ??
-      (dimension === 'overworld'
-        ? findWorldSpawn(seed)
-        : { x: 0.5, y: createGenerator(seed, dimension).heightAt(0, 0) + 2, z: 0.5 });
+    let spawn = spawnOverride ?? (dimension === 'overworld' ? findWorldSpawn(seed) : null);
+    if (!spawn) {
+      // Underworld arrivals land AT the Monarch's citadel: the rift routes
+      // you straight to the endgame instead of an anonymous ash plain.
+      const throne = nearestThroneChunk(seed, 0, 0);
+      const tx = throne.cx * 16 + 10; // beside the dais, not on it
+      const tz = throne.cz * 16 + 8;
+      spawn = { x: tx + 0.5, y: findSafeSpawnY(seed, dimension, tx, tz), z: tz + 0.5 };
+    }
     const spawnX = spawn.x;
     const spawnY = spawn.y;
     const spawnZ = spawn.z;
@@ -614,9 +618,43 @@ async function boot(): Promise<void> {
       const overworldGen = createGenerator(seed, 'overworld');
       overworldBiomeAt = overworldGen.biomeAt;
       minimap.bind(overworldGen.heightAt, (h) => terrainShade(h, SEA_LEVEL));
+      // Structure markers: how you SEE the content — amber villages, red
+      // roaming titans, teal deepholds, violet shrines, steel-blue dungeons.
+      const villageSeedInt = cyrb128(`${seed} villages`)[0] ?? 0;
+      const markerTitanSeed = cyrb128(`${seed} titans`)[0] ?? 0;
+      const markerDungeonSeed = dungeonSeedInt;
+      const markerDeepholdSeed = deepholdSeedInt;
+      const markerAltarSeed = cyrb128(`${seed} altars`)[0] ?? 0;
+      minimap.bindMarkers((wx0, wz0, wx1, wz1) => {
+        const out: Array<{ x: number; z: number; color: string }> = [];
+        for (let rx = Math.floor(wx0 / (VILLAGE_REGION * 16)); rx <= Math.floor(wx1 / (VILLAGE_REGION * 16)); rx++) {
+          for (let rz = Math.floor(wz0 / (VILLAGE_REGION * 16)); rz <= Math.floor(wz1 / (VILLAGE_REGION * 16)); rz++) {
+            const c = villageCenterFor(villageSeedInt, rx, rz);
+            if (c) out.push({ x: c.cx * 16 + 8, z: c.cz * 16 + 8, color: '#ffd85e' });
+          }
+        }
+        for (let rx = Math.floor(wx0 / TITAN_REGION_BLOCKS); rx <= Math.floor(wx1 / TITAN_REGION_BLOCKS); rx++) {
+          for (let rz = Math.floor(wz0 / TITAN_REGION_BLOCKS); rz <= Math.floor(wz1 / TITAN_REGION_BLOCKS); rz++) {
+            const a = titanAnchorFor(markerTitanSeed, rx, rz);
+            if (a) out.push({ x: a.x, z: a.z, color: '#ff5a4a' });
+          }
+        }
+        for (let ccx = Math.floor(wx0 / 16); ccx <= Math.floor(wx1 / 16); ccx++) {
+          for (let ccz = Math.floor(wz0 / 16); ccz <= Math.floor(wz1 / 16); ccz++) {
+            const dg = dungeonFor(markerDungeonSeed, ccx, ccz);
+            if (dg) out.push({ x: dg.x, z: dg.z, color: '#9aa4ff' });
+            const dh = deepholdFor(markerDeepholdSeed, ccx, ccz);
+            if (dh) out.push({ x: dh.x, z: dh.z, color: '#4adfc8' });
+            const al = altarFor(markerAltarSeed, ccx, ccz);
+            if (al) out.push({ x: al.x, z: al.z, color: '#c884ff' });
+          }
+        }
+        return out;
+      });
       minimap.setVisible(true);
     } else {
       overworldBiomeAt = null;
+      minimap.bindMarkers(null);
       minimap.setVisible(false);
     }
     applyMode(mode, world, atlasCanvas);

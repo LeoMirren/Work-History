@@ -16,6 +16,7 @@
  */
 import * as THREE from 'three';
 import { Block } from '../world/blocks';
+import { CHUNK_HEIGHT } from '../world/chunk';
 import { Item } from '../world/items';
 import { rayAABB } from '../world/raycast';
 import {
@@ -102,6 +103,9 @@ const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
 
 /** The ash-born species of the underworld (spawned only in that realm). */
 export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Species.ashcrawler];
+
+/** Below this y the overworld's cave wildlife starts appearing. */
+const CAVE_WILDLIFE_Y = 100;
 
 /** Skittish species bolt when the player closes within FLEE_RADIUS. */
 const SKITTISH = new Set<SpeciesId>([Species.bramblehorn, Species.dustpuff, Species.stiltback, Species.mosshare]);
@@ -789,6 +793,34 @@ export class AnimalSystem {
     return null;
   }
 
+  /**
+   * Cave wildlife: when the player roams underground, thornbacks, mossharen
+   * and treasure-saddled glimmerbacks pick across the cave floors too — the
+   * underground is a living place, not just a hostile one. Spawns scan the
+   * cave band around the player's depth for a stone-family floor.
+   */
+  private tryCaveSpawn(px: number, py: number, pz: number): void {
+    const world = this.world;
+    if (!world || this.animals.length >= MAX_ANIMALS) return;
+    const angle = this.random() * Math.PI * 2;
+    const dist = SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
+    const x = Math.floor(px + Math.cos(angle) * dist);
+    const z = Math.floor(pz + Math.sin(angle) * dist);
+    const yTop = Math.min(CHUNK_HEIGHT - 4, Math.floor(py) + 10);
+    const yBottom = Math.max(2, Math.floor(py) - 14);
+    for (let y = yTop; y >= yBottom; y--) {
+      const id = world.getBlock(x, y, z);
+      if (id === Block.air || id === Block.water) continue;
+      const floor = id === Block.stone || id === Block.mossstone || id === Block.cobblestone;
+      if (floor && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
+        const roll = this.random();
+        const species = roll < 0.4 ? Species.thornback : roll < 0.7 ? Species.glimmerback : Species.mosshare;
+        this.spawnAt(x + 0.5, y + 1, z + 0.5, species);
+      }
+      return;
+    }
+  }
+
   /** Herd scatter offset: ±1..HERD_SCATTER blocks (never 0, so mates don't stack). */
   private scatter(): number {
     const mag = 1 + Math.floor(this.random() * HERD_SCATTER);
@@ -844,6 +876,7 @@ export class AnimalSystem {
       if (this.spawnTimer <= 0) {
         this.spawnTimer = SPAWN_INTERVAL_S;
         this.trySpawn(px, pz);
+        if (this.realm === 'overworld' && py < CAVE_WILDLIFE_Y) this.tryCaveSpawn(px, py, pz);
       }
     }
     for (let i = this.animals.length - 1; i >= 0; i--) {

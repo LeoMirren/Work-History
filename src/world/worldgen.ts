@@ -200,14 +200,25 @@ export function findSafeSpawnY(seed: string, dimension: Dimension, wx: number, w
   const data = gen.generateChunk(Math.floor(wx / CHUNK_SIZE), Math.floor(wz / CHUNK_SIZE));
   const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
   const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-  const top = dimension === 'underworld' ? UW_CEIL - 1 : CHUNK_HEIGHT - 1;
-  for (let y = top; y >= 1; y--) {
+  // Overworld: topmost standable spot (the surface). Underworld: LOWEST
+  // standable spot, so rift arrivals land on cavern/citadel floors instead
+  // of ceiling ledges under the bedrock roof.
+  if (dimension === 'underworld') {
+    for (let y = 2; y <= UW_CEIL - 3; y++) {
+      const solid = data[blockIndex(lx, y, lz)] !== Block.air && data[blockIndex(lx, y, lz)] !== Block.water;
+      const air1 = data[blockIndex(lx, y + 1, lz)] === Block.air;
+      const air2 = (data[blockIndex(lx, y + 2, lz)] ?? Block.air) === Block.air;
+      if (solid && air1 && air2) return y + 1;
+    }
+    return UW_FLOOR + 3;
+  }
+  for (let y = CHUNK_HEIGHT - 1; y >= 1; y--) {
     const solid = data[blockIndex(lx, y, lz)] !== Block.air && data[blockIndex(lx, y, lz)] !== Block.water;
     const air1 = data[blockIndex(lx, y + 1, lz)] === Block.air;
     const air2 = (data[blockIndex(lx, y + 2, lz)] ?? Block.air) === Block.air;
     if (solid && air1 && air2) return y + 1;
   }
-  return dimension === 'underworld' ? UW_FLOOR + 3 : 134;
+  return 134;
 }
 
 function createUnderworld(seed: string): Generator {
@@ -272,11 +283,13 @@ function createUnderworld(seed: string): Generator {
       }
     }
     // The Monarch's throne hall: ~1 chunk in UW_THRONE_CHANCE raises an
-    // obsidian-and-ember arena around the emberthrone. Use (U) the throne to
-    // wake the Ashen Monarch — the end of the game.
+    // obsidian-and-ember citadel around the emberthrone. Use (U) the throne
+    // to wake the Ashen Monarch — the end of the game. Throne chunks ALWAYS
+    // build (the hall carves its own space when no cavern offers a floor),
+    // so rift arrivals can be routed straight to a citadel.
     if (hash2(throneSeed, cx, cz) % UW_THRONE_CHANCE === 0) {
       const floorY = cavernFloorY(data, 8, 8);
-      if (floorY !== null && floorY < UW_CEIL - 12) buildThroneHall(data, floorY);
+      buildThroneHall(data, floorY !== null && floorY < UW_CEIL - 12 ? floorY : 12);
     }
     return data;
   }
@@ -296,6 +309,31 @@ function createUnderworld(seed: string): Generator {
  * null when the column has no such floor (fully solid, or capped by
  * emberrock/bedrock everywhere the cavern opens).
  */
+/**
+ * Nearest underworld throne-citadel chunk to (fromCx, fromCz), scanning a
+ * square spiral over the pure per-chunk roll (same stream as the builder).
+ * With ~1 chunk in UW_THRONE_CHANCE hosting one, a radius-24 scan is
+ * effectively certain to hit; falls back to the origin chunk if not.
+ */
+export function nearestThroneChunk(
+  seed: string,
+  fromCx: number,
+  fromCz: number,
+): { cx: number; cz: number } {
+  const throneSeed = cyrb128(`${seed} uw:throne`)[0] ?? 0;
+  for (let r = 0; r <= 24; r++) {
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; // ring only
+        const cx = fromCx + dx;
+        const cz = fromCz + dz;
+        if (hash2(throneSeed, cx, cz) % UW_THRONE_CHANCE === 0) return { cx, cz };
+      }
+    }
+  }
+  return { cx: fromCx, cz: fromCz };
+}
+
 /**
  * Raise the Monarch's throne hall around local centre (8, 8): a 9x9 platform
  * (emberrock rim, ashstone floor) under a cleared 6-tall hall, four ember
@@ -919,6 +957,7 @@ function createOverworld(seed: string): Generator {
       }
       if (minH >= SEA_LEVEL + 2 && dungeonY(dhash) + 6 <= minH - 8) {
         tryCarveDungeon(data, dhash, x0, z0);
+        plantCairn(data, heights, x0 + 3, z0 + 3, Block.crystal);
       }
     }
 
@@ -935,6 +974,7 @@ function createOverworld(seed: string): Generator {
       }
       if (minH >= SEA_LEVEL + 2 && deepholdY(hhash) + 7 <= minH - 8) {
         tryCarveDeephold(data, hhash, x0, z0);
+        plantCairn(data, heights, x0 + 4, z0 + 6, Block.lantern);
       }
     }
 
@@ -951,6 +991,7 @@ function createOverworld(seed: string): Generator {
       }
       if (minH >= SEA_LEVEL + 2 && altarY(ahash) + 6 <= minH - 8) {
         tryCarveAltarShrine(data, ahash, x0, z0);
+        plantCairn(data, heights, x0 + 3, z0 + 3, Block.emberrock);
       }
     }
 
@@ -1418,6 +1459,21 @@ export function tryCarveAltarShrine(data: Uint8Array, hash: number, x0: number, 
   data[blockIndex(x0 + 3, y0 + 2, z0 + 3)] = Block.altar;
   data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.emberrock;
   data[blockIndex(x0 + 5, y0 + 1, z0 + 5)] = Block.emberrock;
+}
+
+/**
+ * Plant a discovery cairn on the surface column above a buried structure:
+ * a two-block cobblestone stack crowned by a glowing signature block —
+ * crystal over dungeons, lantern over deepholds, emberrock over shrines.
+ * The world's buried content is findable by walking, not just by luck.
+ * Bails quietly over water or missing height data.
+ */
+function plantCairn(data: Uint8Array, heights: Int32Array, lx: number, lz: number, crown: number): void {
+  const h = heights[lz * CHUNK_SIZE + lx] ?? -1;
+  if (h < SEA_LEVEL + 2 || h + 4 >= CHUNK_HEIGHT) return;
+  data[blockIndex(lx, h + 1, lz)] = Block.cobblestone;
+  data[blockIndex(lx, h + 2, lz)] = Block.cobblestone;
+  data[blockIndex(lx, h + 3, lz)] = crown;
 }
 
 /** A local-space footprint: [x0, z0, width, depth]. */

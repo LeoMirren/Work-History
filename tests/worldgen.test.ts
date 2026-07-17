@@ -328,8 +328,12 @@ describe('geodes', () => {
           if (data[i] === Block.crystal) {
             crystal++;
             const y = i >> 8;
-            minCrystalY = Math.min(minCrystalY, y);
-            maxCrystalY = Math.max(maxCrystalY, y);
+            // Surface discovery cairns wear crystal crowns — track only the
+            // buried crystals for the depth-band assertion.
+            if (y < 116) {
+              minCrystalY = Math.min(minCrystalY, y);
+              maxCrystalY = Math.max(maxCrystalY, y);
+            }
           } else if (data[i] === Block.geodeshell) {
             shell++;
           }

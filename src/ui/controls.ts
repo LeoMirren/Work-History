@@ -8,6 +8,7 @@ export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Mouse', 'look'],
   ['Arrow keys', 'turn / look (no mouse needed)'],
   ['T', 'auto-run toggle (S stops)'],
+  ['Y', 'steer mode: A/D turn (trackpad fix)'],
   ['LMB / RMB', 'break / hunt (either button)'],
   ['U', 'use: place · talk · open · eat · throw'],
   ['1-9, wheel', 'hotbar select'],

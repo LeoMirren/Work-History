@@ -25,6 +25,14 @@ export const REDRAW_GRID_BLOCKS = 8;
 export type HeightSampler = (wx: number, wz: number) => number;
 /** Maps a terrain height to an rgb triple, each channel 0..255. */
 export type HeightPalette = (h: number) => readonly [number, number, number];
+/** A point of interest to draw on the map (world coords + CSS color). */
+export interface MapMarker {
+  readonly x: number;
+  readonly z: number;
+  readonly color: string;
+}
+/** Supplies the markers inside a world-space rect, called on each redraw. */
+export type MarkerSource = (wx0: number, wz0: number, wx1: number, wz1: number) => readonly MapMarker[];
 
 /**
  * Key of the redraw-gating grid cell containing world position (px, pz).
@@ -38,10 +46,10 @@ export function gridCellOf(px: number, pz: number): string {
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 const lerp = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
 
-/** Absolute height where grass gives way to grey-brown rock. */
-export const ROCK_LINE = 85;
-/** Absolute height where rock gives way to snow. */
-export const SNOW_LINE = 96;
+/** Absolute height where grass gives way to grey-brown rock (post-Deepening). */
+export const ROCK_LINE = 149;
+/** Absolute height where rock gives way to snow (mirrors worldgen's line). */
+export const SNOW_LINE = 160;
 /** Blocks above the sea surface treated as beach sand. */
 export const BEACH_BAND = 3;
 
@@ -149,6 +157,7 @@ export class Minimap {
   private readonly arrow: HTMLDivElement;
   private sampler: HeightSampler | null = null;
   private palette: HeightPalette | null = null;
+  private markers: MarkerSource | null = null;
   /** Grid-cell key of the last full redraw; null forces one on next update. */
   private lastCell: string | null = null;
 
@@ -182,6 +191,12 @@ export class Minimap {
   bind(sampler: HeightSampler, palette: HeightPalette): void {
     this.sampler = sampler;
     this.palette = palette;
+    this.lastCell = null;
+  }
+
+  /** Supply (or clear) the structure-marker source; repaints on next update. */
+  bindMarkers(markers: MarkerSource | null): void {
+    this.markers = markers;
     this.lastCell = null;
   }
 
@@ -234,5 +249,21 @@ export class Minimap {
       }
     }
     ctx.putImageData(img, 0, 0);
+
+    // Structure markers: villages, roaming titans, buried halls — the map is
+    // how you SEE the world's content. Each is a 3-sample dot with a dark
+    // outline so it pops on any terrain.
+    if (this.markers) {
+      const span = half * BLOCKS_PER_SAMPLE;
+      for (const m of this.markers(cx - span, cz - span, cx + span, cz + span)) {
+        const sx = Math.round((m.x - cx) / BLOCKS_PER_SAMPLE + half);
+        const sz = Math.round((m.z - cz) / BLOCKS_PER_SAMPLE + half);
+        if (sx < 1 || sz < 1 || sx > SAMPLE_GRID - 2 || sz > SAMPLE_GRID - 2) continue;
+        ctx.fillStyle = 'rgba(10, 10, 14, 0.9)';
+        ctx.fillRect(sx - 2, sz - 2, 5, 5);
+        ctx.fillStyle = m.color;
+        ctx.fillRect(sx - 1, sz - 1, 3, 3);
+      }
+    }
   }
 }

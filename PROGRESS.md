@@ -442,3 +442,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Three new species: TUSKBEAST (a hulking shaggy bruiser with bone tusks and a shoulder hump — plains/savanna, drops a 3-4 meat feast), MOSSHARE (a quick long-eared bounder with a puff tail — forest/jungle, skittish), GLIMMERBACK (weird: dusk-grey with a glittering crystal saddle you spot from afar, 50% gem drop)
 - [x] 13 species total; richer biome mixes (savanna herds now 4 species deep)
 - [x] 519 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.19 WILD FACES
+
+## Post-spec: v0.20 DISCOVERY — you can finally SEE the world's content
+
+- [x] Minimap structure markers: amber = villages, red = roaming Stone Colossi, steel-blue = buried dungeons, teal = deephold cave-villages, violet = Tyrant shrines — every dot outlined so it pops on any terrain (pure locators, zero worldgen cost)
+- [x] Surface discovery cairns: a cobble stack with a glowing crown now stands over every buried hall — crystal = dungeon, lantern = deephold, emberrock = shrine. Dig beside one.
+- [x] Cave wildlife: below y 100 the overworld's caves live — thornbacks, treasure-saddled glimmerbacks and mossharen pick across stone floors near your depth
+- [x] Citadel arrivals: rifting into the underworld now routes you STRAIGHT to the nearest Monarch throne citadel (thrones always build in their chunk now; underworld spawn scan is floor-seeking, never a ceiling ledge)
+- [x] STEER MODE (Y): A/D turn instead of strafing — turning while running on pure keyboard, immune to any trackpad palm-rejection the OS does while W is held
+- [x] World guide chapter: how to read the map, follow cairns, reach the abyss, the deepholds, all four great bosses and the endgame
+- [x] TRUE WORLD RESET: save format v3 — every world regenerates on its seed with all of the above present; fixed the minimap painting everything as rock/snow since the Deepening
+- [x] 522 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.20 DISCOVERY
