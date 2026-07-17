@@ -574,6 +574,11 @@ async function boot(): Promise<void> {
     villagers = new VillagerSystem(gr.scene, cyrb128(`${seed} villages`)[0] ?? 0);
     villagers.setWorld(dimension === 'overworld' ? entityWorld : null);
     interaction.villagers = villagers;
+    // Underfolk traders wait in the deephold halls (cave villages).
+    const villagerDeepholdSeed = cyrb128(`${seed} deepholds`)[0] ?? 0;
+    villagers.setDeepholdFn(
+      dimension === 'overworld' ? (dcx, dcz) => deepholdFor(villagerDeepholdSeed, dcx, dcz) : null,
+    );
     // Guardians haunt this seed's overworld dungeons and deephold halls
     // (survival threat only) — one locator, first structure in the chunk wins.
     guardians.clear();

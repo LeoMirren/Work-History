@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { Block } from '../world/blocks';
-import { CHUNK_SIZE } from '../world/chunk';
+import { CHUNK_HEIGHT, CHUNK_SIZE } from '../world/chunk';
 import { hash2 } from '../world/noise';
 import { rayAABB } from '../world/raycast';
 import { villageCenterFor, VILLAGE_REGION } from '../world/worldgen';
@@ -35,6 +35,8 @@ export const LEASH_DIST = 24;
 export const NIGHT_LEASH_DIST = 10;
 const SPAWN_INTERVAL_S = 2; // one re-population sweep every ~2 s
 const VILLAGE_ACTIVE_DIST = 80; // villages with a centre this close to the player re-fill
+const DEEP_POPULATION = 2; // underfolk traders living in each deephold hall
+const DEEP_ACTIVE_DIST = 48; // deepholds this close (2D) to the player re-fill
 const DESPAWN_DIST = 110;
 const SPAWN_SCATTER = 6; // spawn columns land within ±6 blocks of the centre
 const WALK_SPEED = 1.2;
@@ -75,6 +77,14 @@ const mouthGeometry = new THREE.BoxGeometry(0.12, 0.025, 0.02);
 /** Pack a village region (rx, rz) into one int key (exact for |r| < 32768). */
 export function packVillageKey(rx: number, rz: number): number {
   return ((rx & 0xffff) << 16) | (rz & 0xffff);
+}
+
+/**
+ * Packed key for a deephold's traders (chunk coords, salted so it can never
+ * be confused with a surface village's region key).
+ */
+export function packDeepholdKey(cx: number, cz: number): number {
+  return (((cx & 0xffff) << 16) | (cz & 0xffff)) ^ 0x2f177e39;
 }
 
 /** Target head-count (3-5) for the village of region (rx, rz), from its hash. */
@@ -216,6 +226,7 @@ function makeVillagerMesh(tunicColor: number, apron: boolean): {
 export class VillagerSystem {
   readonly villagers: Villager[] = [];
   private world: WorldView | null = null;
+  private deepholdFn: ((cx: number, cz: number) => { x: number; y: number; z: number } | null) | null = null;
   private night = false;
   private spawnEnabled = true;
   private spawnTimer = 0;
@@ -308,7 +319,7 @@ export class VillagerSystem {
    * when the column is empty, submerged or roofed too tightly.
    */
   private surfaceY(world: WorldView, x: number, z: number): number | null {
-    for (let y = 120; y >= 1; y--) {
+    for (let y = CHUNK_HEIGHT - 8; y >= 1; y--) {
       if (!world.isSolid(x, y, z)) continue;
       return world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air
         ? y + 1
@@ -369,6 +380,44 @@ export class VillagerSystem {
     }
   }
 
+  /**
+   * Underfolk sweep: deepholds near the player (2D — they wait in their
+   * halls below) fill toward DEEP_POPULATION traders, stood beside the
+   * long-table on the hall's mossstone floor. Same barter-book contract as
+   * surface wardens: identical (key, index) → identical offers, forever.
+   */
+  private tryDeepSpawn(px: number, pz: number): void {
+    const world = this.world;
+    if (!world || !this.deepholdFn) return;
+    const pcx = Math.floor(px / CHUNK_SIZE);
+    const pcz = Math.floor(pz / CHUNK_SIZE);
+    for (let dcx = -2; dcx <= 2; dcx++) {
+      for (let dcz = -2; dcz <= 2; dcz++) {
+        const cx = pcx + dcx;
+        const cz = pcz + dcz;
+        const at = this.deepholdFn(cx, cz);
+        if (!at) continue;
+        const dx = at.x - px;
+        const dz = at.z - pz;
+        if (dx * dx + dz * dz > DEEP_ACTIVE_DIST * DEEP_ACTIVE_DIST) continue;
+        const key = packDeepholdKey(cx, cz);
+        const index = this.freeIndex(key, DEEP_POPULATION);
+        if (index === null) continue; // hall fully peopled
+        // Flank the long-table; bail if the hall didn't carve (thin cover).
+        const x = at.x + (index === 0 ? -2 : 2);
+        const z = at.z + (index === 0 ? 1 : -1);
+        if (!world.isSolid(x, at.y - 1, z)) continue;
+        if (world.getBlock(x, at.y, z) !== Block.air || world.getBlock(x, at.y + 1, z) !== Block.air) continue;
+        this.spawnAt(x + 0.5, at.y, z + 0.5, key, index, at.x + 0.5, at.z + 0.5);
+      }
+    }
+  }
+
+  /** Bind the deephold locator (null outside the overworld). */
+  setDeepholdFn(fn: ((cx: number, cz: number) => { x: number; y: number; z: number } | null) | null): void {
+    this.deepholdFn = fn;
+  }
+
   fixedUpdate(dt: number, px: number, py: number, pz: number): void {
     const world = this.world;
     if (!world) return;
@@ -377,6 +426,7 @@ export class VillagerSystem {
       if (this.spawnTimer <= 0) {
         this.spawnTimer = SPAWN_INTERVAL_S;
         this.trySpawn(px, pz);
+        this.tryDeepSpawn(px, pz);
       }
     }
     for (let i = this.villagers.length - 1; i >= 0; i--) {

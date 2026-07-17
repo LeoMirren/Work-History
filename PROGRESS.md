@@ -410,3 +410,14 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] The prize: THE NIGHTSEVER — 100 damage, one-shots everything that walks (and mines at the apex tier) — plus the ash crown trophy, 2 heartstones and a king's ransom of dusksteel/gems/gold
 - [x] 15th goal: "Realm Sovereign — fell the Ashen Monarch on its own throne" (fires from the boss's own onSlain hook)
 - [x] 510 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.16 THE ASHEN MONARCH
+
+## Post-spec: v0.17 THE GREAT DEEPENING — a 192-tall world with an abyss
+
+- [x] World height raised 128 -> 192: all surface terrain shifted +64 (sea level 116, snow line 160), and the reclaimed 64 blocks below are the ABYSS
+- [x] Grand caverns: a new large-wavelength carver opens huge smooth halls below y=58 — the deep dark finally feels vast instead of spaghetti-thin
+- [x] The abyss has its own face: glowmoss pinpricks and dusk-violet duskbells on every cave floor below the cinder band, no zone gating
+- [x] Everything re-banded: ores (+64, dusk ore now an abyss-exclusive band to y 40), cave biomes, geodes (12-104), dungeons (78-98), deepholds (80-94), altars reach the abyss (40-88), spawn/snow/height clamps, hostile cave-band, boss summon depth, titan scans
+- [x] Save format v2: pre-Deepening worlds regenerate on their seed (old saves would resume inside the shifted terrain); chunk/lighting/mesher/worker code needed zero changes (all derived from CHUNK_HEIGHT)
+- [x] CAVE VILLAGES: every deephold hall now houses 2 UNDERFOLK TRADERS — full barter books (same deterministic offers contract as surface wardens), standing by the long-table under the lanterns; the halls are worth fighting the guardians for
+- [x] Fixed a latent spawn-scan cap that would have kept villagers off high terrain
+- [x] 511 tests green (12 files retuned for the new bands), strict tsc, clean build, headless boot verified at y=119; BUILD_TAG bumped to v0.17 THE GREAT DEEPENING

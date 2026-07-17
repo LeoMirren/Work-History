@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.16 THE ASHEN MONARCH — the end of the game waits below';
+export const BUILD_TAG = 'v0.17 THE GREAT DEEPENING — 192-tall world · the abyss · underfolk traders';
