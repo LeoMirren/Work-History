@@ -64,10 +64,13 @@ const SKIN_COLOR = 0xd9a877;
 const TROUSER_COLOR = 0x6b543b; // undyed workaday linen
 const APRON_COLOR = 0xded2bd;
 
-/** Shared per-eye material — small and dark; nothing glows on a warden. */
+/** Shared face materials/geometry — friendly, readable, never glowing. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x2a2620 });
-/** Shared eye geometry — identical across every warden. */
-const eyeGeometry = new THREE.BoxGeometry(0.07, 0.07, 0.03);
+const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf2efe6 });
+const eyeWhiteGeometry = new THREE.BoxGeometry(0.1, 0.09, 0.03);
+const pupilGeometry = new THREE.BoxGeometry(0.045, 0.05, 0.025);
+const noseGeometry = new THREE.BoxGeometry(0.06, 0.09, 0.05);
+const mouthGeometry = new THREE.BoxGeometry(0.12, 0.025, 0.02);
 
 /** Pack a village region (rx, rz) into one int key (exact for |r| < 32768). */
 export function packVillageKey(rx: number, rz: number): number {
@@ -163,10 +166,18 @@ function makeVillagerMesh(tunicColor: number, apron: boolean): {
   const brim = detail(new THREE.BoxGeometry(HEAD_S + 0.08, 0.1, HEAD_S + 0.1), hoodCloth, head);
   brim.position.set(0, HEAD_S / 2 + 0.01, 0.03);
 
-  // Two small dark eyes — children of the head, so idle tilts carry the face.
-  for (const ex of [-0.09, 0.09]) {
-    detail(eyeGeometry, eyeMaterial, head).position.set(ex, 0.02, -HEAD_S / 2 - 0.015);
+  // FACE: two-layer eyes, a skin-toned nose and a gentle mouth line — the
+  // wardens look like people now. All children of the head for idle tilts.
+  for (const ex of [-0.1, 0.1]) {
+    const white = detail(eyeWhiteGeometry, eyeWhiteMaterial, head);
+    white.position.set(ex, 0.04, -HEAD_S / 2 - 0.012);
+    const pupil = detail(pupilGeometry, eyeMaterial, head);
+    pupil.position.set(ex - Math.sign(ex) * 0.01, 0.035, -HEAD_S / 2 - 0.026);
   }
+  const nose = detail(noseGeometry, skin, head);
+  nose.position.set(0, -0.04, -HEAD_S / 2 - 0.02);
+  const mouth = detail(mouthGeometry, eyeMaterial, head);
+  mouth.position.set(0, -0.13, -HEAD_S / 2 - 0.012);
 
   // Belt sash around the tunic; an apron front panel on some wardens.
   const belt = detail(new THREE.BoxGeometry(TORSO_W + 0.04, 0.09, TORSO_D + 0.04), hoodCloth, torso);

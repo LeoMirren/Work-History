@@ -95,6 +95,7 @@ export interface Guardian {
 // Eye slits are unlit so they glint in dark vaults; the dim violet matches
 // the geode-crystal palette.
 const guardianEyeMaterial = new THREE.MeshBasicMaterial({ color: 0x7f68c9 });
+const guardianMawMaterial = new THREE.MeshBasicMaterial({ color: 0x17151e });
 
 const LEG_LEN = 0.5;
 const ARM_LEN = 0.85;
@@ -135,12 +136,22 @@ function makeGuardianMesh(): {
   head.name = 'entity';
   head.position.set(0, 1.2, -0.06);
   group.add(head);
-  for (const ex of [-0.07, 0.07]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.03), guardianEyeMaterial);
+  // FACE: wider glowing eye slits under one heavy stone brow, and a grim
+  // mouth gash — the brute finally has a face to hate.
+  for (const ex of [-0.08, 0.08]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.045, 0.03), guardianEyeMaterial);
     eye.name = 'entity';
     eye.position.set(ex, 1.22, -0.22);
     group.add(eye);
   }
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.07, 0.06), limbMat);
+  brow.name = 'entity';
+  brow.position.set(0, 1.29, -0.21);
+  group.add(brow);
+  const maw = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.03), guardianMawMaterial);
+  maw.name = 'entity';
+  maw.position.set(0, 1.1, -0.22);
+  group.add(maw);
 
   // Limbs pivot at hip/shoulder: [legL, legR, armL, armR].
   const limbs: THREE.Mesh[] = [];

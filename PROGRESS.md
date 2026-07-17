@@ -361,3 +361,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Living projectiles: thrown stones are chipped two-tone rocks that tumble in flight and shed a dust wake; spitter venom bolts spin with a bright core inside a translucent green shell and trail a venom wake (new pooled puff emitter)
 - [x] Snappier keyboard turning (3.0 rad/s)
 - [x] 482 tests, clean build; BUILD_TAG bumped to v0.10 FACES for stale-client verification
+
+## Post-spec: v0.11 EVERYONE HAS A FACE — hostile jaws, warden faces, auto-run
+
+- [x] Hostile faces: melee stalkers and spitters get big glowing eyes under angled dark brows, a jutting jaw slab and three bone-white teeth (spitters get venom-green fangs) — the menace finally reads from the front, elites included at 1.7x scale
+- [x] Villager face upgrade: two-layer warm-white + pupil eyes, a skin-toned nose and a mouth line replace the old dot eyes — traders look at you like people now
+- [x] Guardian faces: wide burning eye slits under a heavy stone brow, plus a dark maw gash — dungeon wardens loom instead of staring blankly
+- [x] Auto-run (T): press T to latch hands-free forward movement (S or a second T cancels) — steer freely with mouse/trackpad/arrow keys while moving, the trackpad answer to "can't turn while running"
+- [x] Controls panel documents the new T binding
+- [x] 483 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.11 EVERYONE HAS A FACE

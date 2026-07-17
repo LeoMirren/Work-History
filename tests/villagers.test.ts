@@ -230,8 +230,9 @@ describe('picking & rig', () => {
         if (!(obj instanceof THREE.Mesh)) return;
         expect(obj.name).toBe('entity');
         if (obj.material instanceof THREE.MeshBasicMaterial) {
-          // The only unlit parts are the eyes — small and dark, never glowing.
-          expect(parseInt(obj.material.color.getHexString(), 16)).toBeLessThan(0x404040);
+          // The only unlit parts are the two-layer eyes: warm white sclera + dark pupil.
+          const hex = parseInt(obj.material.color.getHexString(), 16);
+          expect(hex === 0xf2efe6 || hex < 0x404040).toBe(true);
         }
       });
       expect(w.head.children.length).toBeGreaterThanOrEqual(4); // hood, brim, two eyes

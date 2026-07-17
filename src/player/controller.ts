@@ -69,6 +69,9 @@ export class PlayerController {
   private exhaustion = 0;
   private regenTimer = 0;
   private starveTimer = 0;
+  /** Auto-run (T): run forward hands-free so the mouse is free to steer —
+   * sidesteps OS "disable touchpad while typing" entirely. S or T cancels. */
+  autoRun = false;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;
@@ -135,8 +138,12 @@ export class PlayerController {
     if (this.pitch > PITCH_LIMIT) this.pitch = PITCH_LIMIT;
     if (this.pitch < -PITCH_LIMIT) this.pitch = -PITCH_LIMIT;
 
+    // Auto-run: T toggles a held-W; pressing S (brake) also cancels it.
+    if (input.takePressed('KeyT')) this.autoRun = !this.autoRun;
+    if (input.isDown('KeyS')) this.autoRun = false;
+
     // Movement intent in the yaw frame, normalized so diagonals aren't faster.
-    const forward = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
+    const forward = (input.isDown('KeyW') || this.autoRun ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
     const strafe = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const len = Math.hypot(forward, strafe);
     const nf = len > 0 ? forward / len : 0;

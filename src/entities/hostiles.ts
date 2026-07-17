@@ -135,6 +135,8 @@ const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
 const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
 // Elites wear an unlit gold brow band — readable at range, day or night.
 const eliteBandMaterial = new THREE.MeshBasicMaterial({ color: 0xe6be4a });
+// Bone-white fangs shared by every melee stalker's jaw.
+const fangMaterial = new THREE.MeshBasicMaterial({ color: 0xe8e2d2 });
 
 const LEG_LEN = 0.72;
 const ARM_LEN = 0.66;
@@ -164,11 +166,29 @@ function makeStalkerMesh(ranged: boolean): {
   head.position.set(0, 1.62, 0);
   group.add(torso, head);
 
-  for (const ex of [-0.1, 0.1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
+  // FACE: big glowing eyes under a heavy brow, a dark jaw slab and a mouth
+  // gash with teeth — a hostile you can read from across a clearing.
+  const faceDark = new THREE.MeshBasicMaterial({ color: 0x14161c });
+  for (const ex of [-0.11, 0.11]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.1, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
     eye.name = 'entity';
     eye.position.set(ex, 1.66, -0.22);
     group.add(eye);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.04), faceDark);
+    brow.name = 'entity';
+    brow.position.set(ex, 1.73, -0.225);
+    brow.rotation.z = ex > 0 ? -0.25 : 0.25; // angled scowl
+    group.add(brow);
+  }
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.04), faceDark);
+  jaw.name = 'entity';
+  jaw.position.set(0, 1.48, -0.22);
+  group.add(jaw);
+  for (const tx of [-0.08, 0, 0.08]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.03), ranged ? spitterEyeMaterial : fangMaterial);
+    tooth.name = 'entity';
+    tooth.position.set(tx, 1.52, -0.23);
+    group.add(tooth);
   }
 
   if (ranged) {
