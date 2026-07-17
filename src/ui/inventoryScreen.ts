@@ -5,7 +5,10 @@
  */
 import { ATLAS_TILES, TILE_PX } from '../engine/atlas';
 import { craft, craftableCount, RECIPES } from '../world/crafting';
-import { iconTileFor, itemName, isBlockId, isArmor } from '../world/items';
+import { armorPieceOf, iconTileFor, itemName, isBlockId } from '../world/items';
+
+/** The three worn-armor slots, in display order. */
+const ARMOR_PIECES = ['vest', 'helm', 'boots'] as const;
 import { blockName } from '../world/blocks';
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from '../player/inventory';
 import { Cursor } from '../player/cursor';
@@ -26,7 +29,7 @@ export class InventoryScreen {
   private readonly slotEls: HTMLDivElement[] = [];
   private inventory: Inventory | null = null;
   private armor: Inventory | null = null;
-  private readonly armorSlotEl: HTMLDivElement = document.createElement('div');
+  private readonly armorSlotEls: HTMLDivElement[] = [];
   private atlasCanvas: HTMLCanvasElement | null = null;
   private readonly cursor = new Cursor();
   private readonly heldLabel: HTMLDivElement = document.createElement('div');
@@ -42,21 +45,28 @@ export class InventoryScreen {
     const heading = document.createElement('h1');
     heading.textContent = 'Inventory';
 
-    // Worn-armor slot (single).
+    // Worn-armor slots: vest, helm, boots — a full set now.
     const armorRow = document.createElement('div');
     armorRow.className = 'armor-row';
     const armorLabel = document.createElement('span');
     armorLabel.textContent = 'Armor';
-    this.armorSlotEl.className = 'inv-slot armor-slot';
-    const armorIcon = document.createElement('canvas');
-    armorIcon.width = ICON_PX;
-    armorIcon.height = ICON_PX;
-    this.armorSlotEl.appendChild(armorIcon);
-    this.armorSlotEl.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      this.onArmorClick(e.button);
-    });
-    armorRow.append(armorLabel, this.armorSlotEl);
+    armorRow.appendChild(armorLabel);
+    for (let i = 0; i < ARMOR_PIECES.length; i++) {
+      const el = document.createElement('div');
+      el.className = 'inv-slot armor-slot';
+      el.title = ARMOR_PIECES[i] ?? '';
+      const icon = document.createElement('canvas');
+      icon.width = ICON_PX;
+      icon.height = ICON_PX;
+      el.appendChild(icon);
+      const slot = i;
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.onArmorClick(slot, e.button);
+      });
+      this.armorSlotEls.push(el);
+      armorRow.appendChild(el);
+    }
 
     const columns = document.createElement('div');
     columns.className = 'inventory-columns';
@@ -112,13 +122,13 @@ export class InventoryScreen {
     this.render();
   }
 
-  /** Armor slot accepts only armor items; left-click equips/unequips/swaps. */
-  private onArmorClick(button: number): void {
+  /** Each slot accepts only its own piece; left-click equips/unequips/swaps. */
+  private onArmorClick(slot: number, button: number): void {
     const armor = this.armor;
     if (!armor || button !== 0) return;
     const held = this.cursor.held;
-    if (held && !isArmor(held.id)) return; // junk can't be worn
-    this.cursor.leftClick(armor, 0);
+    if (held && armorPieceOf(held.id) !== ARMOR_PIECES[slot]) return; // wrong piece
+    this.cursor.leftClick(armor, slot);
     this.render();
   }
 
@@ -172,11 +182,15 @@ export class InventoryScreen {
     const held = this.cursor.held;
     this.heldLabel.textContent = held ? `Holding: ${nameFor(held.id)} ×${held.count}` : '';
 
-    // Armor slot.
-    const worn = this.armor?.slots[0] ?? null;
-    const armorIcon = this.armorSlotEl.querySelector('canvas');
-    if (armorIcon) this.drawIcon(armorIcon, worn?.id ?? 0);
-    this.armorSlotEl.title = worn ? nameFor(worn.id) : 'armor';
+    // Armor slots: vest / helm / boots.
+    for (let i = 0; i < this.armorSlotEls.length; i++) {
+      const el = this.armorSlotEls[i];
+      if (!el) continue;
+      const worn = this.armor?.slots[i] ?? null;
+      const icon = el.querySelector('canvas');
+      if (icon) this.drawIcon(icon, worn?.id ?? 0);
+      el.title = worn ? nameFor(worn.id) : ARMOR_PIECES[i] ?? '';
+    }
 
     this.recipeList.textContent = '';
     const ctx = { furnaceAvailable: this.furnaceAvailable };

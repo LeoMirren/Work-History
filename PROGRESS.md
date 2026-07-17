@@ -453,3 +453,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] World guide chapter: how to read the map, follow cairns, reach the abyss, the deepholds, all four great bosses and the endgame
 - [x] TRUE WORLD RESET: save format v3 — every world regenerates on its seed with all of the above present; fixed the minimap painting everything as rock/snow since the Deepening
 - [x] 522 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.20 DISCOVERY
+
+## Post-spec: v0.21 THE ARMORY — full armor sets
+
+- [x] Three worn-armor slots: vest, helm, boots — each gated to its own piece type in the inventory screen
+- [x] Ten new armor pieces: iron/gold/silver/gem/dusksteel helms (4 ingots) and boots (3 ingots), all craftable, all with procedural tiles
+- [x] Protection stacks across worn pieces with a hard 85% ceiling (a full dusk set: 78+40+27 raw -> capped) — the death of one-shot cave deaths, not invincibility
+- [x] 525 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.21 THE ARMORY

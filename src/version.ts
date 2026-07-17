@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.20 DISCOVERY — map markers · cairns · cave wildlife · citadel arrivals · Y-steer';
+export const BUILD_TAG = 'v0.21 THE ARMORY — vest · helm · boots for every metal';

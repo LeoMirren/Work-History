@@ -120,6 +120,17 @@ export const Tiles = {
   // Late-game kitchen.
   heartyStew: 97,
   goldenLoaf: 98,
+  // The armory: helms and boots for every metal.
+  ironHelm: 99,
+  ironBoots: 100,
+  goldHelm: 101,
+  goldBoots: 102,
+  silverHelm: 103,
+  silverBoots: 104,
+  gemHelm: 105,
+  gemBoots: 106,
+  duskHelm: 107,
+  duskBoots: 108,
 } as const;
 
 type Rng = () => number;
@@ -1269,6 +1280,62 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** A rounded helm with a nose guard, in the metal's hue. */
+function paintHelm(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    // Dome.
+    for (let y = 4; y <= 10; y++) {
+      for (let x = 3; x <= 12; x++) {
+        const d = Math.hypot(x - 7.5, (y - 10) * 1.5);
+        if (d > 6.8) continue;
+        const n = jitter(rng, 14);
+        set(x, y, r + n, g + n, b + n);
+      }
+    }
+    // Brim and nose guard.
+    for (let x = 2; x <= 13; x++) {
+      const n = jitter(rng, 10);
+      set(x, 11, r * 0.8 + n, g * 0.8 + n, b * 0.8 + n);
+    }
+    set(7, 12, r * 0.75, g * 0.75, b * 0.75);
+    set(8, 12, r * 0.75, g * 0.75, b * 0.75);
+    set(7, 13, r * 0.7, g * 0.7, b * 0.7);
+    set(8, 13, r * 0.7, g * 0.7, b * 0.7);
+    set(4, 5, Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)); // glint
+  };
+}
+
+/** A pair of sturdy boots, toes facing out, in the metal's hue. */
+function paintBoots(r: number, g: number, b: number): TilePainter {
+  return (set, rng) => {
+    for (let y = 0; y < TILE_PX; y++) {
+      for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+    }
+    for (const x0 of [2, 9]) {
+      // Shaft.
+      for (let y = 5; y <= 10; y++) {
+        for (let x = x0 + 1; x <= x0 + 4; x++) {
+          const n = jitter(rng, 12);
+          set(x, y, r + n, g + n, b + n);
+        }
+      }
+      // Foot: toe flares outward from the pair's centre.
+      const toe = x0 === 2 ? x0 : x0 + 1;
+      for (let y = 11; y <= 13; y++) {
+        for (let x = toe; x <= toe + 4; x++) {
+          const n = jitter(rng, 10);
+          set(x, y, r * 0.82 + n, g * 0.82 + n, b * 0.82 + n);
+        }
+      }
+      // Sole.
+      for (let x = toe; x <= toe + 4; x++) set(x, 14, 52, 44, 40);
+    }
+  };
+}
+
 /** A steaming bowl of stew: dark rim, rich brown broth, rising wisps. */
 const paintHeartyStew: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -1632,6 +1699,16 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.ashcrown, 'ashcrown', paintAshcrown],
   [Tiles.heartyStew, 'heartyStew', paintHeartyStew],
   [Tiles.goldenLoaf, 'goldenLoaf', paintGoldenLoaf],
+  [Tiles.ironHelm, 'ironHelm', paintHelm(184, 188, 198)],
+  [Tiles.ironBoots, 'ironBoots', paintBoots(184, 188, 198)],
+  [Tiles.goldHelm, 'goldHelm', paintHelm(226, 194, 78)],
+  [Tiles.goldBoots, 'goldBoots', paintBoots(226, 194, 78)],
+  [Tiles.silverHelm, 'silverHelm', paintHelm(212, 216, 228)],
+  [Tiles.silverBoots, 'silverBoots', paintBoots(212, 216, 228)],
+  [Tiles.gemHelm, 'gemHelm', paintHelm(150, 120, 220)],
+  [Tiles.gemBoots, 'gemBoots', paintBoots(150, 120, 220)],
+  [Tiles.duskHelm, 'duskHelm', paintHelm(112, 96, 176)],
+  [Tiles.duskBoots, 'duskBoots', paintBoots(112, 96, 176)],
 ];
 
 /**

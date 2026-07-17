@@ -23,7 +23,7 @@ import { Interaction, type HotbarState } from './player/interaction';
 import { BuildKeys, buildTargetFor, type BuildKey } from './player/buildkeys';
 import { Inventory } from './player/inventory';
 import { ViewModel } from './player/viewmodel';
-import { armorReductionOf, iconTileFor, isBlockId, stackLimit } from './world/items';
+import { iconTileFor, isBlockId, stackLimit, totalArmorReduction } from './world/items';
 import { HurtIndicator } from './player/feedback';
 import { MAX_HP, MAX_HUNGER, PLAYER_HALF_WIDTH } from './player/physics';
 import { DamageOverlay } from './ui/damageOverlay';
@@ -148,7 +148,7 @@ async function boot(): Promise<void> {
   const audio = new TapAudio();
   interaction.onEdit = (kind, blockId) => audio.play(kind, blockId);
   const inventory = new Inventory();
-  const armorSlot = new Inventory(1); // single worn-vest slot
+  const armorSlot = new Inventory(3); // worn set: vest / helm / boots
   const inventoryScreen = new InventoryScreen(app);
   const chestScreen = new ChestScreen(app);
   const blockPicker = new BlockPicker(app);
@@ -1027,7 +1027,7 @@ async function boot(): Promise<void> {
         // Click-failure feedback ('out of reach', …) outranks the aim hint.
         hud.setTargetHint(interaction.feedback ?? interaction.targetHint);
         if (session.mode === 'survival') {
-          player.armorReduction = armorReductionOf(armorSlot.slots[0]?.id ?? 0);
+          player.armorReduction = totalArmorReduction(armorSlot.slots.map((s) => s?.id ?? 0));
           hud.setHealth(player.hp);
           hud.setHunger(player.hunger);
           hud.setBreakProgress(interaction.breakProgress);

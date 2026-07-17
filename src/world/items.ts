@@ -57,6 +57,17 @@ export const Item = {
   // Late-game kitchen.
   heartyStew: 141, // cooked meat + grain, the best campfire meal
   goldenLoaf: 142, // bread baked with gold — decadent, and it shows
+  // The armory: helms and boots complete every metal's set.
+  ironHelm: 143,
+  ironBoots: 144,
+  goldHelm: 145,
+  goldBoots: 146,
+  silverHelm: 147,
+  silverBoots: 148,
+  gemHelm: 149,
+  gemBoots: 150,
+  duskHelm: 151,
+  duskBoots: 152,
 } as const;
 
 /**
@@ -91,7 +102,36 @@ const ARMOR_REDUCTION: Record<number, number> = {
   [Item.silverVest]: 0.6,
   [Item.gemVest]: 0.7,
   [Item.duskVest]: 0.78,
+  // Helms carry about half a vest's protection, boots about a third.
+  [Item.ironHelm]: 0.18,
+  [Item.ironBoots]: 0.12,
+  [Item.goldHelm]: 0.25,
+  [Item.goldBoots]: 0.17,
+  [Item.silverHelm]: 0.3,
+  [Item.silverBoots]: 0.2,
+  [Item.gemHelm]: 0.35,
+  [Item.gemBoots]: 0.24,
+  [Item.duskHelm]: 0.4,
+  [Item.duskBoots]: 0.27,
 };
+
+/** Which body slot an armor item occupies (null for non-armor). */
+export function armorPieceOf(id: number): 'vest' | 'helm' | 'boots' | null {
+  if (id === Item.ironVest || id === Item.goldVest || id === Item.silverVest || id === Item.gemVest || id === Item.duskVest) return 'vest';
+  if (id === Item.ironHelm || id === Item.goldHelm || id === Item.silverHelm || id === Item.gemHelm || id === Item.duskHelm) return 'helm';
+  if (id === Item.ironBoots || id === Item.goldBoots || id === Item.silverBoots || id === Item.gemBoots || id === Item.duskBoots) return 'boots';
+  return null;
+}
+
+/** Total protection cap: even a full dusk set never blocks everything. */
+export const ARMOR_TOTAL_CAP = 0.85;
+
+/** Combined reduction of all worn pieces, capped at ARMOR_TOTAL_CAP. */
+export function totalArmorReduction(ids: readonly number[]): number {
+  let sum = 0;
+  for (const id of ids) sum += ARMOR_REDUCTION[id] ?? 0;
+  return Math.min(ARMOR_TOTAL_CAP, sum);
+}
 
 export function isArmor(id: number): boolean {
   return id in ARMOR_REDUCTION;
@@ -201,6 +241,16 @@ const ITEM_TILE: Record<number, number> = {
   [Item.ashcrown]: Tiles.ashcrown,
   [Item.heartyStew]: Tiles.heartyStew,
   [Item.goldenLoaf]: Tiles.goldenLoaf,
+  [Item.ironHelm]: Tiles.ironHelm,
+  [Item.ironBoots]: Tiles.ironBoots,
+  [Item.goldHelm]: Tiles.goldHelm,
+  [Item.goldBoots]: Tiles.goldBoots,
+  [Item.silverHelm]: Tiles.silverHelm,
+  [Item.silverBoots]: Tiles.silverBoots,
+  [Item.gemHelm]: Tiles.gemHelm,
+  [Item.gemBoots]: Tiles.gemBoots,
+  [Item.duskHelm]: Tiles.duskHelm,
+  [Item.duskBoots]: Tiles.duskBoots,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -253,6 +303,16 @@ const ITEM_NAME: Record<number, string> = {
   [Item.ashcrown]: 'ash crown',
   [Item.heartyStew]: 'hearty stew',
   [Item.goldenLoaf]: 'golden loaf',
+  [Item.ironHelm]: 'iron helm',
+  [Item.ironBoots]: 'iron boots',
+  [Item.goldHelm]: 'gold helm',
+  [Item.goldBoots]: 'gold boots',
+  [Item.silverHelm]: 'silver helm',
+  [Item.silverBoots]: 'silver boots',
+  [Item.gemHelm]: 'gem helm',
+  [Item.gemBoots]: 'gem boots',
+  [Item.duskHelm]: 'dusksteel helm',
+  [Item.duskBoots]: 'dusksteel boots',
 };
 
 export function itemName(id: number): string {
@@ -281,7 +341,7 @@ export function usageHintFor(id: number): string {
   if (id === Item.heartstone) return 'U: bind it to your heart — +1 max heart, forever';
   if (id === Item.nightsever) return 'hold a mouse button: 100 damage — nothing that walks survives it';
   if (id === Item.ashcrown) return 'the Monarch is fallen. the realm is yours';
-  if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
+  if (isArmor(id)) return 'open the inventory (E) and drop it into its armor slot — vest, helm and boots stack';
   if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
   if (id === Block.riftframe) return 'right-click: place · right-click a placed frame: travel realms';

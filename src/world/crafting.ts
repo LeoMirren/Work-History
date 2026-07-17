@@ -146,6 +146,17 @@ export const RECIPES: readonly Recipe[] = [
     ],
   },
   { name: 'ember torches', station: 'craft', output: Block.torch, outputCount: 6, inputs: [{ id: Item.emberShard, count: 1 }, { id: Item.stick, count: 1 }] },
+  // The armory: every metal's helm (4) and boots (3) complete the set.
+  { name: 'iron helm', station: 'craft', output: Item.ironHelm, outputCount: 1, inputs: [{ id: Item.ingot, count: 4 }] },
+  { name: 'iron boots', station: 'craft', output: Item.ironBoots, outputCount: 1, inputs: [{ id: Item.ingot, count: 3 }] },
+  { name: 'gold helm', station: 'craft', output: Item.goldHelm, outputCount: 1, inputs: [{ id: Item.goldIngot, count: 4 }] },
+  { name: 'gold boots', station: 'craft', output: Item.goldBoots, outputCount: 1, inputs: [{ id: Item.goldIngot, count: 3 }] },
+  { name: 'silver helm', station: 'craft', output: Item.silverHelm, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 4 }] },
+  { name: 'silver boots', station: 'craft', output: Item.silverBoots, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 3 }] },
+  { name: 'gem helm', station: 'craft', output: Item.gemHelm, outputCount: 1, inputs: [{ id: Item.gem, count: 4 }] },
+  { name: 'gem boots', station: 'craft', output: Item.gemBoots, outputCount: 1, inputs: [{ id: Item.gem, count: 3 }] },
+  { name: 'dusksteel helm', station: 'craft', output: Item.duskHelm, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 4 }] },
+  { name: 'dusksteel boots', station: 'craft', output: Item.duskBoots, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 3 }] },
   // Smelting (furnace + fuel).
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
   { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },
