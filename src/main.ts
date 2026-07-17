@@ -54,7 +54,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { Biome, createGenerator, dungeonFor, findSafeSpawnY, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, type Dimension } from './world/worldgen';
+import { Biome, createGenerator, deepholdFor, dungeonFor, findSafeSpawnY, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -559,12 +559,16 @@ async function boot(): Promise<void> {
     villagers = new VillagerSystem(gr.scene, cyrb128(`${seed} villages`)[0] ?? 0);
     villagers.setWorld(dimension === 'overworld' ? entityWorld : null);
     interaction.villagers = villagers;
-    // Guardians haunt this seed's overworld dungeons (survival threat only).
+    // Guardians haunt this seed's overworld dungeons and deephold halls
+    // (survival threat only) — one locator, first structure in the chunk wins.
     guardians.clear();
     const dungeonSeedInt = cyrb128(`${seed} dungeons`)[0] ?? 0;
+    const deepholdSeedInt = cyrb128(`${seed} deepholds`)[0] ?? 0;
     guardians = new GuardianSystem(
       gr.scene,
-      dimension === 'overworld' ? (gcx, gcz) => dungeonFor(dungeonSeedInt, gcx, gcz) : () => null,
+      dimension === 'overworld'
+        ? (gcx, gcz) => dungeonFor(dungeonSeedInt, gcx, gcz) ?? deepholdFor(deepholdSeedInt, gcx, gcz)
+        : () => null,
     );
     guardians.setWorld(entityWorld); // guardians haunt vaults in both modes
     interaction.guardians = guardians;

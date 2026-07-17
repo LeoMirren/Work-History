@@ -71,6 +71,12 @@ const DUNGEON_MAX_Y = 34;
 // columns by 7 deep. y extent is 6 cells (floor y0 .. ceiling y0+5).
 const DUNGEON_W = 14;
 const DUNGEON_D = 7;
+const DEEPHOLD_CHANCE = 130; // ~1 chunk in 130 buries a deephold (mob village)
+const DEEPHOLD_MIN_Y = 16; // hash-picked hall-floor band
+const DEEPHOLD_MAX_Y = 30;
+// Deephold footprint: a great hall flanked by north/south chambers and an
+// east annex — 14x14 columns, 8 cells tall (floor y0 .. probe y0+7).
+const DEEPHOLD_SIZE = 14;
 const HAMLET_W = 12; // two hut footprints with a 2-column gap between them
 const HAMLET_D = 8; // hut rows plus the well row south of them
 /** Village grid: chunk space is partitioned into square regions this many chunks per side. */
@@ -417,6 +423,7 @@ function createOverworld(seed: string): Generator {
   const structSeed = cyrb128(`${seed} structures`)[0];
   const reefSeed = cyrb128(`${seed} reef`)[0];
   const dungeonSeed = cyrb128(`${seed} dungeons`)[0];
+  const deepholdSeed = cyrb128(`${seed} deepholds`)[0];
   const villageSeed = cyrb128(`${seed} villages`)[0];
 
   function biomeAt(wx: number, wz: number): number {
@@ -830,6 +837,22 @@ function createOverworld(seed: string): Generator {
       }
     }
 
+    // Deepholds: buried mob villages on their own seed stream, same burial
+    // invariants as dungeons (dry land, 8+ blocks of cover over the halls).
+    const hroll = rollDeephold(deepholdSeed, cx, cz);
+    if (hroll !== null) {
+      const { hash: hhash, x0, z0 } = hroll;
+      let minH = CHUNK_HEIGHT;
+      for (let dz = 0; dz < DEEPHOLD_SIZE; dz++) {
+        for (let dx = 0; dx < DEEPHOLD_SIZE; dx++) {
+          minH = Math.min(minH, heights[(z0 + dz) * CHUNK_SIZE + (x0 + dx)] ?? 0);
+        }
+      }
+      if (minH >= SEA_LEVEL + 2 && deepholdY(hhash) + 7 <= minH - 8) {
+        tryCarveDeephold(data, hhash, x0, z0);
+      }
+    }
+
     return data;
   }
 
@@ -1118,6 +1141,113 @@ export function tryCarveDungeon(data: Uint8Array, hash: number, x0: number, z0: 
   data[blockIndex(x0 + 5, y0 + 2, z0 + 6)] = Block.emberrock;
   data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.chest;
   data[blockIndex(x0 + 11, y0 + 1, z0 + 2)] = Block.crystal;
+}
+
+/** Hash-picked deephold hall-floor height in [DEEPHOLD_MIN_Y, DEEPHOLD_MAX_Y]. */
+function deepholdY(hash: number): number {
+  return DEEPHOLD_MIN_Y + ((hash >>> 16) % (DEEPHOLD_MAX_Y - DEEPHOLD_MIN_Y + 1));
+}
+
+/**
+ * The single source of the deephold placement roll, mirroring rollDungeon on
+ * its own seed stream (cyrb128(`${seed} deepholds`)[0]). The 14x14 footprint
+ * fills the chunk interior, so the origin is always (1, 1).
+ */
+function rollDeephold(
+  deepholdSeedInt: number,
+  cx: number,
+  cz: number,
+): { hash: number; x0: number; z0: number } | null {
+  const hash = hash2(deepholdSeedInt, cx, cz);
+  if (hash % DEEPHOLD_CHANCE !== 0) return null;
+  const m = 1;
+  const span = Math.max(1, CHUNK_SIZE - DEEPHOLD_SIZE - 2 * m);
+  return { hash, x0: m + ((hash >>> 4) % span), z0: m + ((hash >>> 8) % span) };
+}
+
+/**
+ * Locate the deephold hosted by chunk (cx, cz), or null when the chunk rolls
+ * none. Returns the WORLD coordinates of the great hall's interior centre
+ * (y at the hall floor's first air cell), same contract as dungeonFor — pure,
+ * shared with the carver, and used to post guardians in the halls. The carver
+ * still self-bails under oceans or thin cover.
+ */
+export function deepholdFor(
+  deepholdSeedInt: number,
+  cx: number,
+  cz: number,
+): { x: number; y: number; z: number } | null {
+  const roll = rollDeephold(deepholdSeedInt, cx, cz);
+  if (roll === null) return null;
+  return {
+    x: cx * CHUNK_SIZE + roll.x0 + 4,
+    y: deepholdY(roll.hash) + 1,
+    z: cz * CHUNK_SIZE + roll.z0 + 6,
+  };
+}
+
+/**
+ * Carve a buried deephold — an abandoned underfolk village the mobs have
+ * claimed. A great hall (8x5x6 interior, mossstone floor, plank long-table,
+ * hanging lanterns) is flanked by north and south chambers and an east annex,
+ * each punched through the shared wall with a 2-tall doorway. Three chests
+ * (hall, north chamber, annex) seed loot on first open; glowmoss tufts and
+ * emberrock corners keep the halls dimly lit for the hostiles that own them
+ * now (the under-y-50 spawn band runs at full cadence here, and guardians
+ * post up via the deepholdFor locator). Shell cells only replace solid
+ * non-bedrock ground so caves open into the halls naturally; bails when the
+ * probe above any ceiling finds open air, so it never breaches the surface.
+ */
+export function tryCarveDeephold(data: Uint8Array, hash: number, x0: number, z0: number): void {
+  const y0 = deepholdY(hash);
+  // Stay buried: probe above the hall centre and each side room.
+  for (const [px, pz] of [[x0 + 4, z0 + 6], [x0 + 4, z0 + 1], [x0 + 4, z0 + 12], [x0 + 11, z0 + 6]] as const) {
+    if ((data[blockIndex(px, y0 + 7, pz)] ?? Block.air) === Block.air) return;
+  }
+
+  // One shelled box: air interior, cobblestone shell over a mossstone floor.
+  const box = (bx0: number, by0: number, bz0: number, bx1: number, by1: number, bz1: number): void => {
+    for (let y = by0; y <= by1; y++) {
+      for (let z = bz0; z <= bz1; z++) {
+        for (let x = bx0; x <= bx1; x++) {
+          const i = blockIndex(x, y, z);
+          const cur = data[i] ?? Block.air;
+          if (cur === Block.bedrock) continue;
+          const edge = x === bx0 || x === bx1 || y === by0 || y === by1 || z === bz0 || z === bz1;
+          if (!edge) data[i] = Block.air;
+          else if (cur !== Block.air) data[i] = y === by0 ? Block.mossstone : Block.cobblestone;
+        }
+      }
+    }
+  };
+
+  box(x0, y0, z0 + 3, x0 + 9, y0 + 6, z0 + 10); // great hall: 8x5x6 interior
+  box(x0 + 2, y0, z0, x0 + 7, y0 + 4, z0 + 3); // south chamber
+  box(x0 + 2, y0, z0 + 10, x0 + 7, y0 + 4, z0 + 13); // north chamber
+  box(x0 + 9, y0, z0 + 4, x0 + 13, y0 + 4, z0 + 8); // east annex
+  // Doorways: 2-tall gaps punched through each shared wall.
+  for (const x of [x0 + 4, x0 + 5]) {
+    for (let y = y0 + 1; y <= y0 + 2; y++) {
+      data[blockIndex(x, y, z0 + 3)] = Block.air; // hall <-> south
+      data[blockIndex(x, y, z0 + 10)] = Block.air; // hall <-> north
+    }
+  }
+  for (let y = y0 + 1; y <= y0 + 2; y++) data[blockIndex(x0 + 9, y, z0 + 6)] = Block.air; // hall <-> annex
+
+  // The hall: a plank long-table with lanterns above, emberrock corners.
+  for (let x = x0 + 3; x <= x0 + 6; x++) data[blockIndex(x, y0 + 1, z0 + 6)] = Block.planks;
+  data[blockIndex(x0 + 3, y0 + 5, z0 + 6)] = Block.lantern;
+  data[blockIndex(x0 + 6, y0 + 5, z0 + 6)] = Block.lantern;
+  data[blockIndex(x0 + 1, y0 + 2, z0 + 4)] = Block.emberrock;
+  data[blockIndex(x0 + 8, y0 + 2, z0 + 9)] = Block.emberrock;
+  // Glowmoss tufts on chamber floors; a crystal glints in the south chamber.
+  data[blockIndex(x0 + 3, y0 + 1, z0 + 12)] = Block.glowmoss;
+  data[blockIndex(x0 + 11, y0 + 1, z0 + 7)] = Block.glowmoss;
+  data[blockIndex(x0 + 6, y0 + 1, z0 + 2)] = Block.crystal;
+  // The hoard: three chests scattered through the hold.
+  data[blockIndex(x0 + 1, y0 + 1, z0 + 9)] = Block.chest;
+  data[blockIndex(x0 + 6, y0 + 1, z0 + 12)] = Block.chest;
+  data[blockIndex(x0 + 12, y0 + 1, z0 + 5)] = Block.chest;
 }
 
 /** A local-space footprint: [x0, z0, width, depth]. */

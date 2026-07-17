@@ -379,3 +379,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] The hoard: titan heart trophy + the earthshaker maul (heaviest melee in the game at 16, apex tier-7 mining) + a landslide of iron, gems and crystal
 - [x] Boss bar, aim outline and melee scaling all read the live boss's spec (the Colossus' taller hitbox highlights correctly)
 - [x] 490 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.12 TITANS ROAM
+
+## Post-spec: v0.13 DEEPHOLDS — buried mob villages
+
+- [x] Deepholds: ~1 chunk in 130 buries an abandoned underfolk village at y 16-30 — a great hall (8-wide mossstone-floored interior with a plank long-table and hanging lanterns) flanked by north/south chambers and an east annex, doorways punched through every shared wall
+- [x] The mobs own them: deepholds sit inside the under-y-50 anytime-spawn band, and dungeon guardians now post up in deephold halls too (one composed locator — dungeon or deephold, first in the chunk wins)
+- [x] Triple hoards: three loot chests per hold (hall, north chamber, annex) plus a crystal and glowmoss/emberrock mood lighting
+- [x] Same burial invariants as dungeons: dry land only, 8+ blocks of cover, caves open into the halls naturally, bedrock survives
+- [x] Pure deepholdFor locator (village/dungeon contract) + carver unit tests; 494 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.13 DEEPHOLDS
