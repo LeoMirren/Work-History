@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.21 THE ARMORY — vest · helm · boots for every metal';
+export const BUILD_TAG = 'v0.22 OLD STONES — watchtowers · stone circles · shadows underfoot · underwater murk';

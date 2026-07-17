@@ -23,7 +23,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
-import { hideMaterial } from './skins';
+import { hideMaterial, shadowBlob } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const GUARDIAN_HALF_WIDTH = 0.42;
@@ -124,6 +124,7 @@ function makeGuardianMesh(): {
   torso.name = 'entity';
   torso.position.set(0, LEG_LEN + 0.33, 0);
   group.add(torso);
+  group.add(shadowBlob(0.62));
 
   // Shoulder slabs with a small head sunk in the gap between them.
   for (const sx of [-1, 1]) {

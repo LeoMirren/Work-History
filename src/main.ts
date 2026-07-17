@@ -879,10 +879,26 @@ async function boot(): Promise<void> {
       viewModel.setBrightness(envBrightness); // the hand stops glowing at night
       // Terrain fog fades into the sky-dome horizon, so the distance blends
       // seamlessly instead of cutting against a mismatched fog wall.
-      if (session?.dimension !== 'underworld') {
-        const horizon = skyColors(envBrightness).horizon;
+      // Underwater the world drowns in a close blue-green murk; storms pull
+      // the fog wall inward so heavy rain feels heavy.
+      const range = settings.renderDistance * 16;
+      if (player.eyesUnderwater) {
         for (const m of materialList) {
-          m.uniforms.fogColor.value.setRGB(horizon[0], horizon[1], horizon[2]);
+          m.uniforms.fogColor.value.setRGB(0.09 * envBrightness + 0.02, 0.2 * envBrightness + 0.03, 0.28 * envBrightness + 0.05);
+          m.uniforms.fogNear.value = 4;
+          m.uniforms.fogFar.value = 26;
+        }
+      } else {
+        const clear = 1 - weather.intensity * 0.45;
+        for (const m of materialList) {
+          m.uniforms.fogNear.value = range * 0.55 * clear;
+          m.uniforms.fogFar.value = range * 0.95 * clear;
+        }
+        if (session?.dimension !== 'underworld') {
+          const horizon = skyColors(envBrightness).horizon;
+          for (const m of materialList) {
+            m.uniforms.fogColor.value.setRGB(horizon[0], horizon[1], horizon[2]);
+          }
         }
       }
       // Sky dome / sun / moon / stars follow the player and the clock. (In the

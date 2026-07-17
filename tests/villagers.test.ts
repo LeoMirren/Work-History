@@ -229,8 +229,9 @@ describe('picking & rig', () => {
       w.group.traverse((obj) => {
         if (!(obj instanceof THREE.Mesh)) return;
         expect(obj.name).toBe('entity');
-        if (obj.material instanceof THREE.MeshBasicMaterial) {
-          // The only unlit parts are the two-layer eyes: warm white sclera + dark pupil.
+        if (obj.material instanceof THREE.MeshBasicMaterial && !obj.material.transparent) {
+          // The only opaque unlit parts are the two-layer eyes: warm white
+          // sclera + dark pupil. (The transparent blob shadow is exempt.)
           const hex = parseInt(obj.material.color.getHexString(), 16);
           expect(hex === 0xf2efe6 || hex < 0x404040).toBe(true);
         }

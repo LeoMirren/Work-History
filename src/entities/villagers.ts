@@ -24,7 +24,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
-import { hideMaterial } from './skins';
+import { hideMaterial, shadowBlob } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const VILLAGER_HALF_WIDTH = 0.3;
@@ -170,6 +170,7 @@ function makeVillagerMesh(tunicColor: number, apron: boolean): {
   head.name = 'entity';
   head.position.set(0, LEG_LEN + TORSO_H + HEAD_S / 2, 0);
   group.add(torso, head);
+  group.add(shadowBlob(0.5));
 
   // Hood: a slightly larger box behind the head, plus a brim over the crown.
   const hood = detail(new THREE.BoxGeometry(HEAD_S + 0.08, HEAD_S + 0.04, 0.2), hoodCloth, head);

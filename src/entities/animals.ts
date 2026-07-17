@@ -29,7 +29,7 @@ import {
 } from '../player/physics';
 import type { WorldView } from '../player/controller';
 import { Biome } from '../world/worldgen';
-import { hideMaterial } from './skins';
+import { hideMaterial, shadowBlob } from './skins';
 
 export type BiomeFn = (wx: number, wz: number) => number;
 
@@ -453,6 +453,7 @@ function makeAnimalMesh(
   headMesh.name = 'entity';
   headMesh.position.set(0, headY, def.headZ);
   group.add(torso, headMesh);
+  group.add(shadowBlob(Math.max(tw, td) * 0.7)); // grounded, not floating
 
   // FACE: two-layer eyes (white + pupil) that actually read at distance, a
   // species-toned muzzle with a dark nose tip, and a thin mouth line — all

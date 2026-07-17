@@ -91,3 +91,44 @@ export function hideMaterial(color: THREE.Color | number, kind: SkinKind): THREE
   if (tex) material.map = tex;
   return material;
 }
+
+/** Shared radial-gradient shadow texture (built once; null without a DOM). */
+let shadowTexture: THREE.Texture | null | undefined;
+
+function getShadowTexture(): THREE.Texture | null {
+  if (shadowTexture !== undefined) return shadowTexture;
+  if (!hasDOM) return (shadowTexture = null);
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return (shadowTexture = null);
+  const g = ctx.createRadialGradient(16, 16, 2, 16, 16, 15);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(0.75, 'rgba(0,0,0,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  shadowTexture = new THREE.CanvasTexture(canvas);
+  return shadowTexture;
+}
+
+/**
+ * A soft blob shadow to sit at an entity group's feet — THE fix for mobs
+ * reading as floating cardboard. A flat plane just off the ground, radial
+ * gradient, never writing depth. Attach to the group at local y≈0.02 (the
+ * group origin rides the body's feet). Headless: an invisible placeholder
+ * mesh so rig child-counts and the material sweep stay consistent.
+ */
+export function shadowBlob(radius: number): THREE.Mesh {
+  const tex = getShadowTexture();
+  const material = tex
+    ? new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+    : new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const blob = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), material);
+  blob.name = 'entity';
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.set(0, 0.02, 0);
+  blob.renderOrder = 1;
+  return blob;
+}

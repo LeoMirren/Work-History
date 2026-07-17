@@ -97,6 +97,8 @@ const ALTAR_SIZE = 7; // shrine footprint (7x7 shell, 5x5 interior)
 // Deephold footprint: a great hall flanked by north/south chambers and an
 // east annex — 14x14 columns, 8 cells tall (floor y0 .. probe y0+7).
 const DEEPHOLD_SIZE = 14;
+const TOWER_SIZE = 5; // ruined watchtower footprint
+const CIRCLE_SIZE = 9; // ancient stone circle footprint
 const HAMLET_W = 12; // two hut footprints with a 2-column gap between them
 const HAMLET_D = 8; // hut rows plus the well row south of them
 /** Village grid: chunk space is partitioned into square regions this many chunks per side. */
@@ -934,6 +936,16 @@ function createOverworld(seed: string): Generator {
       } else if (cbiome === Biome.jungle || cbiome === Biome.forest) {
         const [x0, z0] = originFor(SHRINE_SIZE);
         tryPlantShrine(data, heights, x0, z0);
+      } else {
+        // Plains/savanna landmarks alternate on the hash: ruined watchtowers
+        // (climbable, chest at the broken top) and ancient stone circles.
+        if (((shash >>> 20) & 1) === 0) {
+          const [x0, z0] = originFor(TOWER_SIZE);
+          tryPlantWatchtower(data, heights, shash, x0, z0);
+        } else {
+          const [x0, z0] = originFor(CIRCLE_SIZE);
+          tryPlantStoneCircle(data, heights, shash, x0, z0);
+        }
       }
     }
 
@@ -1459,6 +1471,95 @@ export function tryCarveAltarShrine(data: Uint8Array, hash: number, x0: number, 
   data[blockIndex(x0 + 3, y0 + 2, z0 + 3)] = Block.altar;
   data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.emberrock;
   data[blockIndex(x0 + 5, y0 + 1, z0 + 5)] = Block.emberrock;
+}
+
+/**
+ * A ruined watchtower: a hollow 5x5 cobblestone shaft rising RUINED-height
+ * stories, its top ragged (per-column hash-crumbled crenellation), stone
+ * steps spiralling the inner wall to a lantern-lit lookout with a chest.
+ * Bails on unfit ground like every planter.
+ */
+export function tryPlantWatchtower(
+  data: Uint8Array,
+  heights: Int32Array,
+  hash: number,
+  x0: number,
+  z0: number,
+): void {
+  const baseY = fitFootprint(data, heights, x0, z0, TOWER_SIZE, TOWER_SIZE, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, TOWER_SIZE, TOWER_SIZE, baseY, Block.cobblestone);
+  const floorY = baseY + 1;
+  const height = 9 + ((hash >>> 16) % 4); // 9-12 blocks of tower
+  if (floorY + height + 2 >= CHUNK_HEIGHT) return;
+  const last = TOWER_SIZE - 1;
+  for (let dz = 0; dz < TOWER_SIZE; dz++) {
+    for (let dx = 0; dx < TOWER_SIZE; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      data[blockIndex(x, floorY, z)] = Block.cobblestone; // floor slab
+      const edge = dx === 0 || dz === 0 || dx === last || dz === last;
+      // Walls rise with a ragged, hash-crumbled top; interior stays hollow.
+      const crumble = (hash2(hash, dx, dz) >>> 8) % 4; // 0-3 missing blocks
+      const top = floorY + height - (edge ? crumble : 0);
+      for (let y = floorY + 1; y <= top; y++) {
+        data[blockIndex(x, y, z)] = edge ? Block.cobblestone : Block.air;
+      }
+    }
+  }
+  // Door gap on the -z face, and a spiral of jutting inner steps.
+  const doorX = x0 + (TOWER_SIZE >> 1);
+  data[blockIndex(doorX, floorY + 1, z0)] = Block.air;
+  data[blockIndex(doorX, floorY + 2, z0)] = Block.air;
+  const ring: ReadonlyArray<readonly [number, number]> = [
+    [1, 1], [2, 1], [3, 1], [3, 2], [3, 3], [2, 3], [1, 3], [1, 2],
+  ];
+  for (let step = 0; step < height - 3; step++) {
+    const at = ring[step % ring.length];
+    if (!at) continue;
+    data[blockIndex(x0 + at[0], floorY + 1 + step, z0 + at[1])] = Block.planks;
+  }
+  // The lookout: a stone deck near the top with a lantern and the prize.
+  const deckY = floorY + height - 3;
+  for (let dz = 1; dz < last; dz++) {
+    for (let dx = 1; dx < last; dx++) {
+      data[blockIndex(x0 + dx, deckY, z0 + dz)] = Block.cobblestone;
+    }
+  }
+  data[blockIndex(x0 + 1, deckY + 1, z0 + 1)] = Block.chest;
+  data[blockIndex(x0 + 3, deckY + 1, z0 + 3)] = Block.lantern;
+}
+
+/**
+ * An ancient stone circle: monoliths ringing a low mossstone plinth with a
+ * glowing crystal heart — pure landmark, a place that feels old. Monolith
+ * heights roll 2-4 from the hash. Bails on unfit ground.
+ */
+export function tryPlantStoneCircle(
+  data: Uint8Array,
+  heights: Int32Array,
+  hash: number,
+  x0: number,
+  z0: number,
+): void {
+  const baseY = fitFootprint(data, heights, x0, z0, CIRCLE_SIZE, CIRCLE_SIZE, BUILD_DRIFT);
+  if (baseY === null) return;
+  const floorY = baseY + 1;
+  if (floorY + 6 >= CHUNK_HEIGHT) return;
+  const c = (CIRCLE_SIZE - 1) / 2;
+  // Eight monoliths on the ring.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const mx = x0 + c + Math.round(Math.cos(a) * c * 0.9);
+    const mz = z0 + c + Math.round(Math.sin(a) * c * 0.9);
+    const h = 2 + ((hash2(hash, i, 7) >>> 6) % 3); // 2-4 tall
+    for (let y = 0; y < h; y++) data[blockIndex(mx, floorY + y, mz)] = Block.cobblestone;
+  }
+  // Mossstone plinth and the crystal heart.
+  for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    data[blockIndex(x0 + c + dx, floorY, z0 + c + dz)] = Block.mossstone;
+  }
+  data[blockIndex(x0 + c, floorY + 1, z0 + c)] = Block.crystal;
 }
 
 /**

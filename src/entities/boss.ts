@@ -23,7 +23,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
-import { hideMaterial } from './skins';
+import { hideMaterial, shadowBlob } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const BOSS_HALF_WIDTH = 0.9;
@@ -230,6 +230,7 @@ function makeBossMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.M
   torso.name = 'entity';
   torso.position.set(0, 1.9, 0);
   group.add(torso);
+  group.add(shadowBlob(1.2));
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 0.9), hide);
   head.name = 'entity';
@@ -293,6 +294,7 @@ function makeColossusMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THR
   torso.name = 'entity';
   torso.position.set(0, 2.5, 0);
   group.add(torso);
+  group.add(shadowBlob(1.5));
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), granite);
   head.name = 'entity';
@@ -360,6 +362,7 @@ function makeTyrantMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE
   torso.name = 'entity';
   torso.position.set(0, 2.1, 0);
   group.add(torso);
+  group.add(shadowBlob(1.1));
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 0.7), shroud);
   head.name = 'entity';
@@ -419,6 +422,7 @@ function makeMonarchMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THRE
   torso.name = 'entity';
   torso.position.set(0, 3.1, 0);
   group.add(torso);
+  group.add(shadowBlob(1.8));
   // The molten core burning through the chest.
   const core = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.1), monarchCoreMaterial);
   core.name = 'entity';

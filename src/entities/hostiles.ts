@@ -18,7 +18,7 @@ import {
   type Body,
   type MoveResult,
 } from '../player/physics';
-import { hideMaterial } from './skins';
+import { hideMaterial, shadowBlob } from './skins';
 import type { WorldView } from '../player/controller';
 
 export const STALKER_HALF_WIDTH = 0.3;
@@ -165,6 +165,7 @@ function makeStalkerMesh(ranged: boolean): {
   head.name = 'entity';
   head.position.set(0, 1.62, 0);
   group.add(torso, head);
+  group.add(shadowBlob(0.55));
 
   // FACE: big glowing eyes under a heavy brow, a dark jaw slab and a mouth
   // gash with teeth — a hostile you can read from across a clearing.

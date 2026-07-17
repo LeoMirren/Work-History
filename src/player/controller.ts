@@ -54,6 +54,8 @@ export class PlayerController {
   pitch = 0;
   flying = false;
   inWater = false;
+  /** True when the camera itself is submerged (drives the underwater look). */
+  eyesUnderwater = false;
   /** True while sprint speed applies (drives the FOV kick). */
   sprinting = false;
   mode: GameMode = 'creative';
@@ -177,6 +179,7 @@ export class PlayerController {
     const feetBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + 0.05), Math.floor(body.z));
     const eyeBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + EYE_HEIGHT), Math.floor(body.z));
     this.inWater = feetBlock === Block.water || eyeBlock === Block.water;
+    this.eyesUnderwater = eyeBlock === Block.water;
 
     if (this.flying) {
       const vertical = (input.isDown('Space') ? 1 : 0) - (sneaking ? 1 : 0);

@@ -460,3 +460,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Ten new armor pieces: iron/gold/silver/gem/dusksteel helms (4 ingots) and boots (3 ingots), all craftable, all with procedural tiles
 - [x] Protection stacks across worn pieces with a hard 85% ceiling (a full dusk set: 78+40+27 raw -> capped) — the death of one-shot cave deaths, not invincibility
 - [x] 525 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.21 THE ARMORY
+
+## Post-spec: v0.22 OLD STONES — landmarks and atmosphere
+
+- [x] Ruined watchtowers: 9-12 block cobble shafts with hash-crumbled ragged tops, a door, spiralling inner steps, and a lantern-lit lookout deck holding a loot chest — plains/savanna landmarks you steer toward from far away
+- [x] Ancient stone circles: eight monoliths (2-4 tall) ringing a mossstone plinth with a glowing crystal heart
+- [x] Blob shadows under EVERY creature (animals, hostiles, villagers, guardians, all four bosses) — the single biggest "floating cardboard" fix; soft radial gradient, sized per rig
+- [x] Underwater murk: submerge the camera and the world drowns in close blue-green fog (4-26 block wall) — swimming finally looks like swimming
+- [x] Storm fog: heavy weather pulls the fog wall in by up to 45%, so rain feels like weather instead of a screen effect
+- [x] 528 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.22 OLD STONES
