@@ -40,6 +40,14 @@ export const Item = {
   // The Stone Colossus' hoard.
   titanHeart: 129, // trophy of the felled titan
   earthshaker: 130, // the Colossus' maul: heaviest blow in the game, apex mining
+  // Deep-metal chains: silver (armor/economy) and dusksteel (blades), plus
+  // ember shards mined from the underworld's burning seams.
+  silverIngot: 131,
+  duskIngot: 132,
+  emberShard: 133,
+  silverVest: 134,
+  duskVest: 135,
+  duskblade: 136, // craftable apex blade (boss weapons still hit harder)
 } as const;
 
 /**
@@ -71,7 +79,9 @@ export function isThrowable(id: number): boolean {
 const ARMOR_REDUCTION: Record<number, number> = {
   [Item.ironVest]: 0.35,
   [Item.goldVest]: 0.5,
+  [Item.silverVest]: 0.6,
   [Item.gemVest]: 0.7,
+  [Item.duskVest]: 0.78,
 };
 
 export function isArmor(id: number): boolean {
@@ -167,6 +177,12 @@ const ITEM_TILE: Record<number, number> = {
   [Item.crown]: Tiles.crown,
   [Item.titanHeart]: Tiles.titanHeart,
   [Item.earthshaker]: Tiles.earthshaker,
+  [Item.silverIngot]: Tiles.silverIngot,
+  [Item.duskIngot]: Tiles.duskIngot,
+  [Item.emberShard]: Tiles.emberShard,
+  [Item.silverVest]: Tiles.silverVest,
+  [Item.duskVest]: Tiles.duskVest,
+  [Item.duskblade]: Tiles.duskblade,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -207,6 +223,12 @@ const ITEM_NAME: Record<number, string> = {
   [Item.crown]: 'sunken crown',
   [Item.titanHeart]: 'titan heart',
   [Item.earthshaker]: 'earthshaker maul',
+  [Item.silverIngot]: 'silver ingot',
+  [Item.duskIngot]: 'dusksteel ingot',
+  [Item.emberShard]: 'ember shard',
+  [Item.silverVest]: 'silver vest',
+  [Item.duskVest]: 'dusksteel vest',
+  [Item.duskblade]: 'duskblade',
 };
 
 export function itemName(id: number): string {
@@ -230,6 +252,7 @@ export function usageHintFor(id: number): string {
   if (id === Item.crown) return 'a trophy of the fallen king';
   if (id === Item.titanHeart) return 'a trophy carved from the fallen Colossus';
   if (id === Item.earthshaker) return 'hold a mouse button: the heaviest blow in the game — also mines at the apex tier';
+  if (id === Item.duskblade) return 'hold a mouse button: the sharpest craftable blade (12 damage)';
   if (isArmor(id)) return 'open the inventory (E) and drop it into the armor slot';
   if (isToolId(id)) return 'hold a mouse button: mine — fast on stone and ore';
   if (id === Block.bed) return 'right-click: place · right-click a placed bed: sleep & set respawn';
@@ -279,6 +302,12 @@ export const ORES: ReadonlyMap<number, OreInfo> = new Map<number, OreInfo>([
   [Block.ore, { drop: { id: Block.ore, count: 1 }, requiredTier: 2 }],
   [Block.copperOre, { drop: { id: Block.copperOre, count: 1 }, requiredTier: 2 }],
   [Block.goldOre, { drop: { id: Block.goldOre, count: 1 }, requiredTier: 4 }],
+  // Silver runs shallower than gold but wants a copper pick; dusk ore hides
+  // in the deepest seams and only yields to a gem pick. Ember ore burns in
+  // the underworld's walls and drops its shard directly (no smelting).
+  [Block.silverOre, { drop: { id: Block.silverOre, count: 1 }, requiredTier: 3 }],
+  [Block.duskOre, { drop: { id: Block.duskOre, count: 1 }, requiredTier: 6 }],
+  [Block.emberOre, { drop: { id: Item.emberShard, count: 1 }, requiredTier: 4 }],
   // Geode crystal: needs a stone-tier pickaxe; drops 1-2 gems handled below.
   [Block.crystal, { drop: { id: Item.gem, count: 1 }, requiredTier: 2 }],
 ]);

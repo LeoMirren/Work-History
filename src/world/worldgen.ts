@@ -26,6 +26,11 @@ const COPPER_THRESHOLD = 0.78;
 const COPPER_MAX_Y = 46;
 const GOLD_THRESHOLD = 0.84; // rare, deep
 const GOLD_MAX_Y = 28;
+const SILVER_THRESHOLD = 0.8; // between copper and gold in rarity
+const SILVER_MAX_Y = 22;
+const DUSK_THRESHOLD = 0.86; // the rarest seam, only in the deepest dark
+const DUSK_MAX_Y = 10;
+const UW_EMBERORE_THRESHOLD = 0.9; // the hottest ember seams crystallize to ore
 const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
 // Cave biomes: three underground zone themes, each chosen by its own
 // low-frequency 3D noise so a zone spans many chunks. Zones only DECORATE
@@ -215,7 +220,9 @@ function createUnderworld(seed: string): Generator {
             // Solid ashstone except where the cavern noise opens space.
             const open = Math.abs(cavern(wx / 34, y / 30, wz / 34)) < UW_CAVERN_THRESHOLD;
             if (!open) {
-              id = ember(wx / 16, y / 16, wz / 16) > UW_EMBER_THRESHOLD ? Block.emberrock : Block.ashstone;
+              // The hottest heart of an ember seam crystallizes into ore.
+              const e = ember(wx / 16, y / 16, wz / 16);
+              id = e > UW_EMBERORE_THRESHOLD ? Block.emberOre : e > UW_EMBER_THRESHOLD ? Block.emberrock : Block.ashstone;
             }
           }
           if (id !== Block.air) data[blockIndex(x, y, z)] = id;
@@ -415,6 +422,8 @@ function createOverworld(seed: string): Generator {
   const coalN: NoiseFunction3D = seededNoise3D(seed, 'coal');
   const copperN: NoiseFunction3D = seededNoise3D(seed, 'copper');
   const goldN: NoiseFunction3D = seededNoise3D(seed, 'gold');
+  const silverN: NoiseFunction3D = seededNoise3D(seed, 'silver');
+  const duskN: NoiseFunction3D = seededNoise3D(seed, 'dusk');
   const treeSeed = cyrb128(`${seed} trees`)[0];
   const caveDecorSeed = cyrb128(`${seed} cavebiomes`)[0];
   const floraSeed = cyrb128(`${seed} flora`)[0];
@@ -479,12 +488,17 @@ function createOverworld(seed: string): Generator {
         const subsurface = beach ? Block.sand : BIOME_DEFS[biome]?.subsurface ?? Block.dirt;
         for (let y = 1; y < h - 4; y++) data[blockIndex(x, y, z)] = Block.stone;
         // Ore veins replace stone where the 3D noise spikes, by depth band.
-        // Priority: rarer/deeper ores win the cell (gold > copper > iron > coal).
+        // Priority: rarer/deeper ores win the cell
+        // (dusk > gold > silver > copper > iron > coal).
         const oreTop = Math.min(COAL_MAX_Y, h - 5);
         for (let y = ORE_MIN_Y; y <= oreTop; y++) {
           let placed = 0;
-          if (y <= GOLD_MAX_Y && goldN(wx / 13, y / 13, wz / 13) > GOLD_THRESHOLD) {
+          if (y <= DUSK_MAX_Y && duskN(wx / 11, y / 11, wz / 11) > DUSK_THRESHOLD) {
+            placed = Block.duskOre;
+          } else if (y <= GOLD_MAX_Y && goldN(wx / 13, y / 13, wz / 13) > GOLD_THRESHOLD) {
             placed = Block.goldOre;
+          } else if (y <= SILVER_MAX_Y && silverN(wx / 14, y / 14, wz / 14) > SILVER_THRESHOLD) {
+            placed = Block.silverOre;
           } else if (y <= COPPER_MAX_Y && copperN(wx / 16, y / 16, wz / 16) > COPPER_THRESHOLD) {
             placed = Block.copperOre;
           } else if (y <= IRON_MAX_Y && ore(wx / 18, y / 18, wz / 18) > IRON_THRESHOLD) {

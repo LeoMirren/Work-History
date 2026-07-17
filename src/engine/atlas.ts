@@ -98,6 +98,16 @@ export const Tiles = {
   // The Stone Colossus' hoard.
   titanHeart: 79,
   earthshaker: 80,
+  // Deep-metal ores and their gear.
+  silverOre: 81,
+  duskOre: 82,
+  emberOre: 83,
+  silverIngot: 84,
+  duskIngot: 85,
+  emberShard: 86,
+  silverVest: 87,
+  duskVest: 88,
+  duskblade: 89,
 } as const;
 
 type Rng = () => number;
@@ -1247,6 +1257,46 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** A jagged ember shard: molten amber crystal splinter on a transparent tile. */
+const paintEmberShard: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // A slanted splinter from bottom-left to top-right, hot core, darker rim.
+  for (let i = 0; i < 10; i++) {
+    const x = 3 + i;
+    const y = 12 - i;
+    const n = jitter(rng, 14);
+    set(x, y, 255, 150 + n, 52);
+    set(x + 1, y, 236 + n * 0.3, 120 + n, 44);
+    if (i % 3 === 1) set(x, y - 1, 255, 196, 96); // white-hot glints
+  }
+  set(4, 13, 176, 84, 36);
+  set(12, 3, 176, 84, 36);
+};
+
+/** The duskblade: a slim violet-dark sword with a bright edge and gem pommel. */
+const paintDuskblade: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Blade: a diagonal from upper-right down to the guard.
+  for (let i = 0; i < 9; i++) {
+    const x = 13 - i;
+    const y = 2 + i;
+    const n = jitter(rng, 10);
+    set(x, y, 96 + n, 82 + n, 152 + n); // dark violet body
+    set(x + 1, y, 168 + n, 156 + n, 224 + n); // bright edge
+  }
+  // Guard and grip.
+  set(5, 10, 138, 122, 200);
+  set(4, 11, 138, 122, 200);
+  set(6, 11, 138, 122, 200);
+  set(3, 12, 70, 54, 40); // leather grip
+  set(2, 13, 70, 54, 40);
+  set(1, 14, 150, 96, 220); // gem pommel
+};
+
 /** A cracked stone heart with a molten amber core burning through the seams. */
 const paintTitanHeart: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -1380,6 +1430,15 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.crown, 'crown', paintCrown],
   [Tiles.titanHeart, 'titanHeart', paintTitanHeart],
   [Tiles.earthshaker, 'earthshaker', paintEarthshaker],
+  [Tiles.silverOre, 'silverOre', paintOreTile(212, 216, 228)],
+  [Tiles.duskOre, 'duskOre', paintOreTile(104, 86, 168)],
+  [Tiles.emberOre, 'emberOre', paintOreTile(255, 138, 46)],
+  [Tiles.silverIngot, 'silverIngot', paintBar(208, 212, 224, 242, 246, 252)],
+  [Tiles.duskIngot, 'duskIngot', paintBar(92, 78, 148, 138, 122, 200)],
+  [Tiles.emberShard, 'emberShard', paintEmberShard],
+  [Tiles.silverVest, 'silverVest', paintVest(212, 216, 228)],
+  [Tiles.duskVest, 'duskVest', paintVest(112, 96, 176)],
+  [Tiles.duskblade, 'duskblade', paintDuskblade],
 ];
 
 /**

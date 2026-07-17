@@ -47,6 +47,10 @@ export const Block = {
   wildgrass: 39,
   sunwisp: 40,
   duskbell: 41,
+  // The deep-metal ores (and the underworld's ember ore).
+  silverOre: 42,
+  duskOre: 43,
+  emberOre: 44,
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -124,6 +128,9 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.wildgrass, name: 'wildgrass', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.wildgrass) },
   { id: Block.sunwisp, name: 'sunwisp', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.sunwisp) },
   { id: Block.duskbell, name: 'duskbell', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.duskbell) },
+  { id: Block.silverOre, name: 'silverOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.silverOre) },
+  { id: Block.duskOre, name: 'duskOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 4, tiles: tiles(T.duskOre) },
+  { id: Block.emberOre, name: 'emberOre', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 3.5, tiles: tiles(T.emberOre) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */

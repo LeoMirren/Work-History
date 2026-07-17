@@ -387,3 +387,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Triple hoards: three loot chests per hold (hall, north chamber, annex) plus a crystal and glowmoss/emberrock mood lighting
 - [x] Same burial invariants as dungeons: dry land only, 8+ blocks of cover, caves open into the halls naturally, bedrock survives
 - [x] Pure deepholdFor locator (village/dungeon contract) + carver unit tests; 494 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.13 DEEPHOLDS
+
+## Post-spec: v0.14 DEEP METALS — silver, dusksteel, ember ore
+
+- [x] Three new ores: silver (y<=22, copper-pick gate, between copper and gold in rarity), dusk ore (y<=10, gem-pick gate, the rarest overworld seam) and ember ore (the white-hot heart of underworld ember seams, drops ember shards directly)
+- [x] Smith chains: smelt silver/dusksteel ingots; craft the silver vest (60% reduction, between gold and gem), the dusksteel vest (78%, the best armor in the game) and the duskblade (12 damage — the sharpest craftable blade; boss weapons still hit harder); ember shards craft 6-packs of torches
+- [x] Ore priority chain in the vein carver now dusk > gold > silver > copper > iron > coal; 9 new atlas tiles (ores, ingots, shard, vests, blade)
+- [x] New ore census tests (vein presence in generated terrain, tier gates, armor ladder, recipes); 499 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.14 DEEP METALS

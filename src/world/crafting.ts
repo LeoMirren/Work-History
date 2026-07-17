@@ -132,10 +132,26 @@ export const RECIPES: readonly Recipe[] = [
       { id: Item.stick, count: 2 },
     ],
   },
+  // Deep-metal gear: silver armors, dusksteel cuts.
+  { name: 'silver vest', station: 'craft', output: Item.silverVest, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 5 }] },
+  { name: 'dusksteel vest', station: 'craft', output: Item.duskVest, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 5 }] },
+  {
+    name: 'duskblade',
+    station: 'craft',
+    output: Item.duskblade,
+    outputCount: 1,
+    inputs: [
+      { id: Item.duskIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  { name: 'ember torches', station: 'craft', output: Block.torch, outputCount: 6, inputs: [{ id: Item.emberShard, count: 1 }, { id: Item.stick, count: 1 }] },
   // Smelting (furnace + fuel).
   { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
   { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },
   { name: 'gold ingot', station: 'smelt', output: Item.goldIngot, outputCount: 1, inputs: [{ id: Block.goldOre, count: 1 }] },
+  { name: 'silver ingot', station: 'smelt', output: Item.silverIngot, outputCount: 1, inputs: [{ id: Block.silverOre, count: 1 }] },
+  { name: 'dusksteel ingot', station: 'smelt', output: Item.duskIngot, outputCount: 1, inputs: [{ id: Block.duskOre, count: 1 }] },
   { name: 'cooked meat', station: 'smelt', output: Item.cookedMeat, outputCount: 1, inputs: [{ id: Item.meat, count: 1 }] },
   { name: 'charcoal', station: 'smelt', output: Item.charcoal, outputCount: 1, inputs: [{ id: Block.log, count: 1 }] },
   { name: 'glass', station: 'smelt', output: Block.glass, outputCount: 1, inputs: [{ id: Block.sand, count: 1 }] },

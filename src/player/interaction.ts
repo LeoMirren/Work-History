@@ -350,7 +350,11 @@ export class Interaction {
     // Weapon-scaled melee: the King's greataxe hits hardest, tools middling.
     const held = this.heldId(hotbar);
     this.currentMeleeDamage =
-      held === Item.earthshaker ? 16 : held === Item.kingsplitter ? 14 : isToolId(held) ? 6 : 3;
+      held === Item.earthshaker ? 16
+      : held === Item.kingsplitter ? 14
+      : held === Item.duskblade ? 12
+      : isToolId(held) ? 6
+      : 3;
     if (this.mode === 'survival' && hotbar.inventory) {
       this.updateTimedBreaking(input, world, dt, hotbar.inventory, hotbar);
       // Every queued click swings at the aimed entity (blocks mine via hold).
