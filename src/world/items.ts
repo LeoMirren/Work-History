@@ -54,6 +54,9 @@ export const Item = {
   // The Ashen Monarch's hoard — the end of the game.
   nightsever: 139, // THE weapon: 100 damage, one-shots everything that walks
   ashcrown: 140, // trophy of the fallen Monarch
+  // Late-game kitchen.
+  heartyStew: 141, // cooked meat + grain, the best campfire meal
+  goldenLoaf: 142, // bread baked with gold — decadent, and it shows
 } as const;
 
 /**
@@ -111,6 +114,8 @@ const FOOD: Record<number, number> = {
   [Item.meat]: MEAT_FOOD,
   [Item.cookedMeat]: 10, // cooking nearly doubles the value
   [Item.bread]: 8, // farmed staple: renewable, no hunting required
+  [Item.heartyStew]: 14, // the kitchen chain's reward
+  [Item.goldenLoaf]: 16, // decadence itself
 };
 
 export function isFood(id: number): boolean {
@@ -194,6 +199,8 @@ const ITEM_TILE: Record<number, number> = {
   [Item.heartstone]: Tiles.heartstone,
   [Item.nightsever]: Tiles.nightsever,
   [Item.ashcrown]: Tiles.ashcrown,
+  [Item.heartyStew]: Tiles.heartyStew,
+  [Item.goldenLoaf]: Tiles.goldenLoaf,
 };
 
 /** Atlas tile for any id (block side tile or item tile). */
@@ -244,6 +251,8 @@ const ITEM_NAME: Record<number, string> = {
   [Item.heartstone]: 'heartstone',
   [Item.nightsever]: 'the Nightsever',
   [Item.ashcrown]: 'ash crown',
+  [Item.heartyStew]: 'hearty stew',
+  [Item.goldenLoaf]: 'golden loaf',
 };
 
 export function itemName(id: number): string {

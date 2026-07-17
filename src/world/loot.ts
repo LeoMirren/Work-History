@@ -25,6 +25,8 @@ const POOL: ReadonlyArray<{ id: number; min: number; max: number; weight: number
   { id: Block.torch, min: 2, max: 6, weight: 2 },
   { id: Item.goldIngot, min: 1, max: 2, weight: 1 },
   { id: Item.gem, min: 1, max: 1, weight: 1 },
+  { id: Item.silverIngot, min: 1, max: 2, weight: 1 },
+  { id: Item.emberShard, min: 1, max: 1, weight: 1 },
 ];
 
 const TOTAL_WEIGHT = POOL.reduce((sum, entry) => sum + entry.weight, 0);

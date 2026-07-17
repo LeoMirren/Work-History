@@ -480,9 +480,9 @@ export class GuardianSystem {
    * resist, taking it at half strength. The slain body then plays a brief
    * shrinking death pop before fixedUpdate removes it, freeing its slot.
    */
-  hurt(guardian: Guardian, kx = 0, kz = 0): { id: number; count: number } | null {
+  hurt(guardian: Guardian, kx = 0, kz = 0, damage = 2): { id: number; count: number } | null {
     if (guardian.dying > 0) return null; // already slain — no double loot
-    guardian.hp -= 2;
+    guardian.hp -= damage;
     guardian.body.vy = 3; // a heavy flinch — brutes barely leave the floor
     if (guardian.hp <= 0) {
       guardian.dying = DYING_S;

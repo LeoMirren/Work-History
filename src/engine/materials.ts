@@ -18,10 +18,12 @@ varying vec2 vUv;
 varying vec3 vColor;
 varying vec2 vLight;
 varying float vDepth;
+varying vec3 vPos;
 void main() {
   vUv = uv;
   vColor = color;
   vLight = light;
+  vPos = position;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vDepth = -mv.z;
   gl_Position = projectionMatrix * mv;
@@ -41,12 +43,13 @@ varying vec2 vUv;
 varying vec3 vColor;
 varying vec2 vLight;
 varying float vDepth;
+varying vec3 vPos;
 void main() {
   vec4 tex = texture2D(map, vUv);
 ${kind === 'cutout' ? '  if (tex.a < 0.5) discard;' : ''}
   float lit = max(vLight.y, vLight.x * uBrightness);
   lit = max(lit, 0.04);
-${kind === 'water' ? '  // Moving diagonal shimmer bands make still water read as liquid.\n  lit *= 0.93 + 0.07 * sin(uTime * 2.1 + (vUv.x + vUv.y) * 900.0);' : ''}
+${kind === 'water' ? '  // Rolling shimmer anchored to mesh space (not UVs), so waves travel\n  // across the surface instead of stamping one stripe onto every face.\n  lit *= 0.92 + 0.05 * sin(uTime * 1.7 + (vPos.x + vPos.z) * 0.9) + 0.03 * sin(uTime * 2.6 - vPos.x * 1.3 + vPos.z * 0.7);' : ''}
   vec3 col = tex.rgb * vColor * lit;
   // Warm torch/lantern glow: where block light beats the (dimmed) sky light,
   // shift the palette toward firelight — caves and nights get golden pools.

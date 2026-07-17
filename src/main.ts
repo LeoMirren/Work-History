@@ -244,7 +244,12 @@ async function boot(): Promise<void> {
   const slainTitans = new Set<string>();
   boss.onSlain = (kind) => {
     if (kind === 'stoneColossus' && currentTitanKey) slainTitans.add(currentTitanKey);
-    if (kind === 'ashenMonarch') signalGoal({ kind: 'kill', what: 'monarch' });
+    const what =
+      kind === 'sunkenKing' ? 'king'
+      : kind === 'stoneColossus' ? 'titan'
+      : kind === 'hollowTyrant' ? 'tyrant'
+      : 'monarch';
+    signalGoal({ kind: 'kill', what });
   };
   const TITAN_ENGAGE_DIST = 40;
   function tryEngageTitan(px: number, py: number, pz: number): void {
@@ -279,6 +284,8 @@ async function boot(): Promise<void> {
   // Slain elite stalkers shower a loot burst of world drops.
   // Venom bolts shed a green wake as they fly.
   hostiles.onProjectileTrail = (tx, ty, tz) => particles.puff(tx, ty, tz, 0.45, 0.85, 0.3);
+  // Red flecks confirm every landed melee strike at the point of impact.
+  interaction.onMobHit = (hx, hy, hz) => particles.puff(hx, hy, hz, 0.85, 0.16, 0.12, 4);
   hostiles.onEliteLoot = (x, y, z, drops) => {
     for (const d of drops) itemDrops.spawn(d.id, d.count, x, y, z);
   };
@@ -831,6 +838,7 @@ async function boot(): Promise<void> {
       const envBrightness = (session?.dimension === 'underworld' ? 0.14 : brightnessAt(dayNight.time)) * stormDim;
       hemiLight.intensity = 0.25 + 0.95 * envBrightness;
       sunLight.intensity = 0.65 * envBrightness;
+      viewModel.setBrightness(envBrightness); // the hand stops glowing at night
       // Terrain fog fades into the sky-dome horizon, so the distance blends
       // seamlessly instead of cutting against a mismatched fog wall.
       if (session?.dimension !== 'underworld') {

@@ -421,3 +421,16 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] CAVE VILLAGES: every deephold hall now houses 2 UNDERFOLK TRADERS — full barter books (same deterministic offers contract as surface wardens), standing by the long-table under the lanterns; the halls are worth fighting the guardians for
 - [x] Fixed a latent spawn-scan cap that would have kept villagers off high terrain
 - [x] 511 tests green (12 files retuned for the new bands), strict tsc, clean build, headless boot verified at y=119; BUILD_TAG bumped to v0.17 THE GREAT DEEPENING
+
+## Post-spec: v0.18 SHARPENED — the audit-driven polish pass
+
+- [x] Weapons finally matter against EVERYTHING: melee damage threads into hostiles, guardians and animals (scaled so bare fists keep the old baselines) — the duskblade cleaves, the earthshaker crushes, and the Nightsever one-shots every stalker, elite and guardian in the game
+- [x] Species drops: bramblehorn stags feed a family (2-3 meat), the weird trio (thornback/puffle/stiltback) sometimes carries a gem, cinderpups bleed ember shards
+- [x] Skittish wildlife: stags, dustpuffs and stiltbacks bolt when the player closes within 5 blocks — no more walking up and standing on a deer
+- [x] Visible sunburn: stalkers smoulder orange, ramping to a blaze, before the dawn takes them (no more silent pop-out)
+- [x] Boss stride fix: limb swing now integrates a walk phase (no more frozen legs on diagonal approaches)
+- [x] Living light: emissive blocks (lanterns, torches, glowmoss, altars, the emberthrone) now glow at their own brightness instead of borrowing their neighbour's dimmer light; water shimmer re-anchored to mesh space so waves travel instead of stamping one stripe per face; the held item dims with the night instead of glowing like a flashlight
+- [x] Hit feedback: red flecks burst at the exact impact point of every landed melee strike
+- [x] Economy threads: the silversmith trades silver<->gems, ember curios and dusk-metal-for-gemVest offers; chests can hold silver ingots and ember shards; hearty stew (14) and golden loaf (16) top the food chain
+- [x] Boss ledger: King Slayer, Titan Feller, Tyrant Ender and Realm Sovereign goals — 18 goals total, each great boss now counts
+- [x] 519 tests green, strict tsc, clean build, headless boot verified; BUILD_TAG bumped to v0.18 SHARPENED

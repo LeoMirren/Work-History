@@ -12,7 +12,7 @@
  *    at the vertex (the same cells AO samples). The shader combines them with
  *    the day/night brightness so lanterns keep glowing at night.
  */
-import { Block, FACE_TILES, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE, PLANT } from './blocks';
+import { Block, FACE_TILES, LIGHT_EMIT, OPAQUE, PASS, PASS_CUTOUT, PASS_NONE, PASS_OPAQUE, PLANT } from './blocks';
 import { CHUNK_HEIGHT, CHUNK_SIZE } from './chunk';
 import { computeLight, MAX_LIGHT, snapIndex } from './lighting';
 import { hash2 } from './noise';
@@ -432,7 +432,8 @@ export function meshChunk(
         if (PLANT[id] === 1) {
           const li = snapIndex(sx, y, sz);
           const sky = (light.sky[li] ?? 0) / MAX_LIGHT;
-          const blk = (light.block[li] ?? 0) / MAX_LIGHT;
+          // Glowing flora is never dimmer than the light it casts.
+          const blk = Math.max((light.block[li] ?? 0) / MAX_LIGHT, (LIGHT_EMIT[id] ?? 0) / MAX_LIGHT);
           const t = FACE_TILES[id * 6] ?? 0;
           const lo = 0.15;
           const hi = 0.85;
@@ -533,6 +534,15 @@ export function meshChunk(
             colR *= BIOME_WATER_FLAT[bt] ?? 1;
             colG *= BIOME_WATER_FLAT[bt + 1] ?? 1;
             colB *= BIOME_WATER_FLAT[bt + 2] ?? 1;
+          }
+          // Emissive faces glow at their own emit level: a lantern's shell is
+          // never dimmer than the light it throws on the neighbours.
+          const emit = LIGHT_EMIT[id] ?? 0;
+          if (emit > 0) {
+            const glowFloor = emit / MAX_LIGHT;
+            for (let v = 0; v < 4; v++) {
+              if ((vertexLightScratch[v * 2 + 1] ?? 0) < glowFloor) vertexLightScratch[v * 2 + 1] = glowFloor;
+            }
           }
           sink.pushQuad(
             x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,

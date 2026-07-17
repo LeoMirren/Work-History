@@ -201,6 +201,8 @@ export interface Boss {
   attackCd: number;
   summonCd: number;
   phase: 1 | 2 | 3;
+  /** Integrated stride phase — position-independent, so no diagonal freeze. */
+  walkPhase: number;
   lunge: number;
   flash: number;
   dying: number;
@@ -539,6 +541,7 @@ export class BossSystem {
       attackCd: 1.5,
       summonCd: SUMMON_COOLDOWN_S,
       phase: 1,
+      walkPhase: 0,
       lunge: 0,
       flash: 0,
       dying: 0,
@@ -639,7 +642,8 @@ export class BossSystem {
 
   private animate(b: Boss, dt: number): void {
     const speed = Math.hypot(b.body.vx, b.body.vz);
-    const swing = Math.sin((b.body.x + b.body.z) * 1.4) * Math.min(0.6, speed * 0.3);
+    b.walkPhase += speed * dt * 2.2;
+    const swing = Math.sin(b.walkPhase) * Math.min(0.6, speed * 0.3);
     b.limbs[0]?.rotation.set(swing, 0, 0);
     b.limbs[1]?.rotation.set(-swing, 0, 0);
     b.limbs[2]?.rotation.set(-swing * 0.7, 0, 0);

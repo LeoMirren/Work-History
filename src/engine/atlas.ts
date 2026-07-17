@@ -117,6 +117,9 @@ export const Tiles = {
   ashbloom: 94,
   nightsever: 95,
   ashcrown: 96,
+  // Late-game kitchen.
+  heartyStew: 97,
+  goldenLoaf: 98,
 } as const;
 
 type Rng = () => number;
@@ -1266,6 +1269,49 @@ const paintCrown: TilePainter = (set, rng) => {
   set(11, 4, 96, 190, 224);
 };
 
+/** A steaming bowl of stew: dark rim, rich brown broth, rising wisps. */
+const paintHeartyStew: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  // Bowl.
+  for (let y = 8; y <= 13; y++) {
+    for (let x = 3; x <= 12; x++) {
+      if (y === 13 && (x < 5 || x > 10)) continue;
+      const n = jitter(rng, 10);
+      set(x, y, 96 + n, 66 + n, 42 + n);
+    }
+  }
+  // Broth with meat chunks and grain flecks.
+  for (let x = 4; x <= 11; x++) {
+    const n = jitter(rng, 12);
+    set(x, 8, 150 + n, 84 + n, 40 + n);
+  }
+  set(6, 8, 190, 120, 70);
+  set(9, 8, 214, 190, 110);
+  // Steam wisps.
+  set(6, 6, 236, 236, 240);
+  set(9, 5, 236, 236, 240);
+  set(7, 4, 220, 220, 228);
+};
+
+/** A golden loaf: bread's silhouette dipped in gleaming gilt. */
+const paintGoldenLoaf: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) set(x, y, 0, 0, 0, 0);
+  }
+  for (let y = 6; y <= 11; y++) {
+    for (let x = 2; x <= 13; x++) {
+      if ((y === 6 || y === 11) && (x < 4 || x > 11)) continue;
+      const n = jitter(rng, 14);
+      set(x, y, 226 + n, 186 + n, 74 + n * 0.5);
+    }
+  }
+  // Score lines and a hot glint.
+  for (const sx of [5, 8, 11]) set(sx, 7, 190, 150, 54);
+  set(4, 7, 255, 232, 150);
+};
+
 /** The Monarch's throne: obsidian shot through with a molten cross of seams. */
 const paintEmberthrone: TilePainter = (set, rng) => {
   for (let y = 0; y < TILE_PX; y++) {
@@ -1584,6 +1630,8 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.ashbloom, 'ashbloom', paintFlower(224, 62, 58, 255, 176, 64)],
   [Tiles.nightsever, 'nightsever', paintNightsever],
   [Tiles.ashcrown, 'ashcrown', paintAshcrown],
+  [Tiles.heartyStew, 'heartyStew', paintHeartyStew],
+  [Tiles.goldenLoaf, 'goldenLoaf', paintGoldenLoaf],
 ];
 
 /**

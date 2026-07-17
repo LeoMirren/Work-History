@@ -91,8 +91,8 @@ describe('offersFor', () => {
     expect(books.size).toBeGreaterThan(1);
   });
 
-  it('prices gear only in gems or gold, never in cheap goods', () => {
-    const precious = new Set<number>([Item.gem, Item.goldIngot]);
+  it('prices gear only in precious metal, never in cheap goods', () => {
+    const precious = new Set<number>([Item.gem, Item.goldIngot, Item.duskIngot]);
     const gear = new Set<number>([
       Item.gemPickaxe,
       Item.ironVest,

@@ -15,7 +15,7 @@ export type GoalEvent =
   | { kind: 'sleep' }
   | { kind: 'depth'; y: number }
   | { kind: 'dimension'; dimension: string }
-  | { kind: 'kill'; what: 'hostile' | 'guardian' | 'monarch' }
+  | { kind: 'kill'; what: 'hostile' | 'guardian' | 'king' | 'titan' | 'tyrant' | 'monarch' }
   | { kind: 'harvest'; id: number }
   | { kind: 'catch' };
 
@@ -118,6 +118,24 @@ export const GOALS: readonly Goal[] = [
     title: 'Vault Breaker',
     text: 'Defeat a vault guardian.',
     test: (e) => e.kind === 'kill' && e.what === 'guardian',
+  },
+  {
+    id: 'king-slayer',
+    title: 'King Slayer',
+    text: 'Fell the Sunken King in the deep dark.',
+    test: (e) => e.kind === 'kill' && e.what === 'king',
+  },
+  {
+    id: 'titan-feller',
+    title: 'Titan Feller',
+    text: 'Bring down a roaming Stone Colossus.',
+    test: (e) => e.kind === 'kill' && e.what === 'titan',
+  },
+  {
+    id: 'tyrant-ender',
+    title: 'Tyrant Ender',
+    text: 'Silence the Hollow Tyrant at its own altar.',
+    test: (e) => e.kind === 'kill' && e.what === 'tyrant',
   },
   {
     id: 'realm-sovereign',

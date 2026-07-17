@@ -99,6 +99,22 @@ const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
 /** The ash-born species of the underworld (spawned only in that realm). */
 export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Species.ashcrawler];
 
+/** Skittish species bolt when the player closes within FLEE_RADIUS. */
+const SKITTISH = new Set<SpeciesId>([Species.bramblehorn, Species.dustpuff, Species.stiltback]);
+const FLEE_RADIUS = 5;
+
+/**
+ * Species-special lethal drops: hearty stags, treasure-bearing oddities and
+ * ember-blooded cinderpups. Everything else falls through to plain meat.
+ */
+const SPECIES_DROP: Partial<Record<SpeciesId, (r: () => number) => { id: number; count: number }>> = {
+  [Species.bramblehorn]: (r) => ({ id: Item.meat, count: 2 + (r() < 0.5 ? 1 : 0) }),
+  [Species.thornback]: (r) => (r() < 0.3 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
+  [Species.puffle]: (r) => (r() < 0.3 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
+  [Species.stiltback]: (r) => (r() < 0.3 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
+  [Species.cinderpup]: () => ({ id: Item.emberShard, count: 1 }),
+};
+
 interface SpeciesDef {
   readonly torso: readonly [number, number, number];
   readonly head: readonly [number, number, number];
@@ -765,6 +781,18 @@ export class AnimalSystem {
         this.animals.splice(i, 1);
         continue;
       }
+      // Skittish species notice an approaching player and bolt away —
+      // stags, dustpuffs and stiltbacks can no longer be walked up to.
+      if (
+        SKITTISH.has(animal.species) &&
+        animal.timer < PANIC_S && // don't re-steer an already-fleeing animal
+        dx * dx + dz * dz < FLEE_RADIUS * FLEE_RADIUS
+      ) {
+        animal.yaw = Math.atan2(-dx, -dz); // away from the player (panic convention)
+        animal.moving = true;
+        animal.timer = PANIC_S;
+        animal.graze = 0;
+      }
       this.step(animal, world, dt);
       animal.group.position.set(body.x, body.y, body.z);
       animal.group.rotation.set(0, animal.yaw, 0);
@@ -919,12 +947,13 @@ export class AnimalSystem {
    * Drops are yielded on the lethal hit itself; the body then plays a brief
    * shrinking death pop before fixedUpdate removes it from scene and array.
    */
-  hurt(animal: Animal, kx = 0, kz = 0): { id: number; count: number } | null {
+  hurt(animal: Animal, kx = 0, kz = 0, damage = 1): { id: number; count: number } | null {
     if (animal.dying > 0) return null; // already slain — no double drops
-    animal.hp--;
+    animal.hp -= damage;
     if (animal.hp <= 0) {
       animal.dying = DYING_S;
-      return { id: Item.meat, count: 1 + (this.random() < 0.5 ? 1 : 0) };
+      const special = SPECIES_DROP[animal.species];
+      return special ? special(this.random) : { id: Item.meat, count: 1 + (this.random() < 0.5 ? 1 : 0) };
     }
     animal.body.vy = 5; // flinch hop
     animal.flash = 0.22;

@@ -188,6 +188,8 @@ export class Interaction {
   onSummonThroneBoss: ((bx: number, by: number, bz: number) => boolean) | null = null;
   /** A hostile or guardian died to the player's melee (goal tracking). */
   onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
+  /** A melee strike landed on a creature at (x, y, z) — hit feedback. */
+  onMobHit: ((x: number, y: number, z: number) => void) | null = null;
   /** A fish was caught by melee (goal tracking). */
   onCatch: (() => void) | null = null;
   /** Edit notification hook (block-tap audio). */
@@ -549,19 +551,23 @@ export class Interaction {
     }
     if (kind === null) return false;
     if (this.hasTarget && this.hit.distance < dist) return false;
+    // Weapon damage reaches EVERY creature now, scaled so bare fists keep
+    // the old baselines (mobs 2, prey 1) and the Nightsever one-shots all.
+    const mobDamage = Math.max(1, Math.round((this.currentMeleeDamage * 2) / 3));
+    const preyDamage = Math.max(1, Math.round(this.currentMeleeDamage / 3));
     if (kind === 'boss' && bossHit) {
       if (this.boss?.hurt(bossHit.boss, this.currentMeleeDamage, dx, dz)) this.onKill?.('guardian');
     } else if (kind === 'hostile' && hostileHit) {
-      if (this.hostiles?.hurt(hostileHit.stalker, dx, dz)) this.onKill?.('hostile');
+      if (this.hostiles?.hurt(hostileHit.stalker, dx, dz, mobDamage)) this.onKill?.('hostile');
     } else if (kind === 'guardian' && guardianHit) {
-      const loot = this.guardians?.hurt(guardianHit.guardian, dx, dz) ?? null;
+      const loot = this.guardians?.hurt(guardianHit.guardian, dx, dz, mobDamage) ?? null;
       if (loot) {
         const b = guardianHit.guardian.body;
         if (inventory) this.award(inventory, loot.id, loot.count, b.x, b.y + 0.6, b.z);
         this.onKill?.('guardian');
       }
     } else if (kind === 'animal' && animalHit) {
-      const drops = this.animals?.hurt(animalHit.animal, dx, dz) ?? null;
+      const drops = this.animals?.hurt(animalHit.animal, dx, dz, preyDamage) ?? null;
       if (drops && inventory) {
         const b = animalHit.animal.body;
         this.award(inventory, drops.id, drops.count, b.x, b.y + 0.4, b.z);
@@ -576,6 +582,8 @@ export class Interaction {
     } else if (kind === 'villager' && villagerHit) {
       this.villagers?.startle(villagerHit.villager, dx, dz); // no drops, ever
     }
+    // Visible confirmation at the impact point (main puffs red flecks there).
+    this.onMobHit?.(ox + dx * dist, oy + dy * dist, oz + dz * dist);
     this.onEdit?.('break', Item.meat); // thud
     return true;
   }

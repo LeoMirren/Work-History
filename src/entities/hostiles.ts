@@ -407,6 +407,12 @@ export class HostileSystem {
         this.stalkers.splice(i, 1);
         continue;
       }
+      // Visible sunburn: smoulder hotter and hotter until the sun takes them,
+      // so the dawn cull reads as burning instead of a silent pop-out.
+      if (s.sunTimer > 0 && s.flash <= 0) {
+        const burn = Math.min(1, s.sunTimer / SUNBURN_S);
+        for (const m of s.mats) m.emissive.setRGB(burn * 0.9, burn * 0.35, 0);
+      }
       this.step(s, world, dt, px, py, pz, distSq, hitPlayer);
       s.group.position.set(s.body.x, s.body.y, s.body.z);
       s.group.rotation.set(0, s.yaw, 0);
@@ -631,9 +637,9 @@ export class HostileSystem {
    * hit reports the kill immediately; the body then plays a brief shrinking
    * death pop before fixedUpdate removes it from scene and array.
    */
-  hurt(stalker: Stalker, kx = 0, kz = 0): boolean {
+  hurt(stalker: Stalker, kx = 0, kz = 0, damage = 2): boolean {
     if (stalker.dying > 0) return false; // already slain and popping
-    stalker.hp -= 2;
+    stalker.hp -= damage;
     stalker.body.vy = 4; // knock-up
     if (stalker.hp <= 0) {
       stalker.dying = DYING_S;

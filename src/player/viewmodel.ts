@@ -113,6 +113,16 @@ export class ViewModel {
     this.rig.add(this.cube);
   }
 
+  /**
+   * Follow the scene's lighting: the held item dims with the day/night
+   * cycle (plus a floor so it never goes pitch black in hand).
+   */
+  setBrightness(b: number): void {
+    const level = 0.35 + 0.65 * Math.max(0, Math.min(1, b));
+    this.cubeMaterial.color.setScalar(level);
+    (this.sprite.material as THREE.MeshBasicMaterial).color.setScalar(level);
+  }
+
   /** Cached UV-pinned cube geometry per block id. */
   private cubeGeometryFor(blockId: number): THREE.BufferGeometry {
     let geometry = this.cubeGeometries.get(blockId);

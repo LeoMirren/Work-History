@@ -48,6 +48,10 @@ const POOL: readonly PoolEntry[] = [
   { weight: 2, offer: barter(Item.gem, 3, Item.gemPickaxe, 1) }, // tools cost gems
   { weight: 2, offer: barter(Item.goldIngot, 3, Item.ironVest, 1) }, // armor costs gold
   { weight: 1, offer: barter(Item.gem, 5, Item.goldVest, 1) }, // the rarest fitting
+  { weight: 2, offer: barter(Item.silverIngot, 8, Item.gem, 1) }, // the silversmith
+  { weight: 2, offer: barter(Item.gem, 2, Item.silverIngot, 3) }, // ...deals both ways
+  { weight: 1, offer: barter(Item.emberShard, 4, Item.gem, 2) }, // underworld curios
+  { weight: 1, offer: barter(Item.duskIngot, 2, Item.gemVest, 1) }, // dusk metal buys the best
 ];
 
 const TOTAL_WEIGHT = POOL.reduce((sum, entry) => sum + entry.weight, 0);
