@@ -54,7 +54,7 @@ import { TradeScreen } from './ui/tradeScreen';
 import { CropGrowth } from './world/farming';
 import { rollLoot } from './world/loot';
 import { Menus, DEFAULT_SETTINGS, type Settings } from './ui/menu';
-import { altarFor, Biome, createGenerator, deepholdFor, dungeonFor, findSafeSpawnY, nearestThroneChunk, SEA_LEVEL, titanAnchorFor, TITAN_REGION_BLOCKS, VILLAGE_REGION, villageCenterFor, type Dimension } from './world/worldgen';
+import { altarFor, Biome, createGenerator, deepholdFor, dungeonFor, findSafeSpawnY, nearestThroneChunk, SEA_LEVEL, throneArrival, titanAnchorFor, TITAN_REGION_BLOCKS, VILLAGE_REGION, villageCenterFor, type Dimension } from './world/worldgen';
 import { findWorldSpawn } from './world/spawn';
 import { World, type ChunkPersistence } from './world/world';
 import { WorkerPool } from './workers/pool';
@@ -539,9 +539,12 @@ async function boot(): Promise<void> {
       // Underworld arrivals land AT the Monarch's citadel: the rift routes
       // you straight to the endgame instead of an anonymous ash plain.
       const throne = nearestThroneChunk(seed, 0, 0);
-      const tx = throne.cx * 16 + 10; // beside the dais, not on it
-      const tz = throne.cz * 16 + 8;
-      spawn = { x: tx + 0.5, y: findSafeSpawnY(seed, dimension, tx, tz), z: tz + 0.5 };
+      spawn = throneArrival(seed, throne.cx, throne.cz);
+      if (!spawn) {
+        const tx = throne.cx * 16 + 10;
+        const tz = throne.cz * 16 + 8;
+        spawn = { x: tx + 0.5, y: findSafeSpawnY(seed, dimension, tx, tz), z: tz + 0.5 };
+      }
     }
     const spawnX = spawn.x;
     const spawnY = spawn.y;

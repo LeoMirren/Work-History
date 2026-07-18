@@ -337,6 +337,29 @@ export function nearestThroneChunk(
 }
 
 /**
+ * Exact arrival spot beside the throne of citadel chunk (cx, cz): generates
+ * the real chunk, finds the emberthrone block, and returns the platform tile
+ * two blocks east of it — rift arrivals land IN the hall, facing the fight,
+ * never in some other cavern layer of the same column. Null if the chunk
+ * hosts no throne (callers fall back to findSafeSpawnY).
+ */
+export function throneArrival(
+  seed: string,
+  cx: number,
+  cz: number,
+): { x: number; y: number; z: number } | null {
+  const data = createGenerator(seed, 'underworld').generateChunk(cx, cz);
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] !== Block.emberthrone) continue;
+    const lx = i & 15;
+    const y = i >> 8;
+    const lz = (i >> 4) & 15;
+    return { x: cx * CHUNK_SIZE + lx + 2.5, y, z: cz * CHUNK_SIZE + lz + 0.5 };
+  }
+  return null;
+}
+
+/**
  * Raise the Monarch's throne hall around local centre (8, 8): a 9x9 platform
  * (emberrock rim, ashstone floor) under a cleared 6-tall hall, four ember
  * pillars, the blazing emberthrone at the centre and glowmoss at its feet.
