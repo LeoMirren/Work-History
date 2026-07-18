@@ -800,6 +800,12 @@ async function boot(): Promise<void> {
   setInterval(() => void saveWorld(), AUTOSAVE_INTERVAL_MS);
   window.addEventListener('beforeunload', () => void saveWorld());
 
+  // Dev-only debug seam for headless visual probes (screenshot tours aim the
+  // camera at real entities through this). Absent from production builds.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>)['__voxDebug'] = { player, animals, hostiles, boss };
+  }
+
   if (import.meta.env.DEV) {
     // §5 M5 acceptance: no per-chunk materials may ever exist.
     setInterval(() => {
