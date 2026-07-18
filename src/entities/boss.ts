@@ -218,6 +218,26 @@ const crownGeometry = new THREE.BoxGeometry(0.7, 0.18, 0.7);
 const crownMaterial = new THREE.MeshBasicMaterial({ color: 0xe6be4a });
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb060e0 });
 
+/** Terse detail-mesh helper shared by every boss rig. */
+function part(
+  parent: THREE.Object3D,
+  material: THREE.Material,
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+  rz = 0,
+): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.name = 'entity';
+  m.position.set(x, y, z);
+  if (rz !== 0) m.rotation.z = rz;
+  parent.add(m);
+  return m;
+}
+
 /** Build the King's rig: a colossal crowned brute, ~3.2 blocks tall. */
 function makeBossMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.Mesh[]; mats: THREE.MeshLambertMaterial[] } {
   const hide = hideMaterial(0x4a4658, 'stone'); // deep violet-grey
@@ -277,6 +297,16 @@ function makeBossMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE.M
     fist.position.set(0, -1.6, 0);
     arm.add(fist);
   }
+  // DEFINITION pass: a royal violet chest sigil, gold trim bands, spiked
+  // pauldrons and a tattered back-cape slab — a drowned king in regalia.
+  part(group, eyeMaterial, 0.5, 0.5, 0.05, 0, 2.0, -0.53); // glowing sigil
+  part(group, crownRim, 1.75, 0.14, 1.05, 0, 2.72, 0); // gold collar
+  part(group, crownRim, 1.72, 0.12, 1.02, 0, 1.2, 0); // gold belt
+  for (const sx of [-1, 1]) {
+    part(group, limbMat, 0.55, 0.28, 0.7, sx * 1.06, 2.85, 0); // pauldrons
+    part(group, crownRim, 0.14, 0.45, 0.14, sx * 1.18, 3.2, 0, sx * 0.3); // gold spikes
+  }
+  part(group, limbMat, 1.3, 1.7, 0.14, 0, 2.0, 0.58); // tattered cape slab
   return { group, torso, limbs, mats: [hide, limbMat, crownRim] };
 }
 
@@ -345,6 +375,17 @@ function makeColossusMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THR
     fist.position.set(0, -2.15, 0);
     arm.add(fist);
   }
+  // DEFINITION pass: amber rune-cracks glow through the granite, moss drapes
+  // hang off the flanks, and a rubble ridge runs down the spine.
+  part(group, colossusEyeMaterial, 0.1, 1.2, 0.05, -0.5, 2.6, -0.68); // rune crack L
+  part(group, colossusEyeMaterial, 0.1, 0.9, 0.05, 0.6, 2.4, -0.68, -0.15); // rune crack R
+  part(group, colossusEyeMaterial, 0.9, 0.1, 0.05, 0, 1.75, -0.68); // belt rune
+  for (const sx of [-1, 1]) {
+    part(group, moss, 0.18, 1.1, 1.0, sx * 1.18, 2.4, 0); // moss drapes
+  }
+  for (let i = 0; i < 3; i++) {
+    part(group, limbMat, 0.35, 0.4 + i * 0.15, 0.35, 0, 3.55 + i * 0.28, 0.62 - i * 0.08); // spine rubble
+  }
   return { group, torso, limbs, mats: [granite, limbMat, moss] };
 }
 
@@ -404,6 +445,17 @@ function makeTyrantMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THREE
     claw.position.set(0, -1.85, 0);
     arm.add(claw);
   }
+  // DEFINITION pass: pale rib slats over the shroud, ragged skirt tatters,
+  // and bone shoulder knobs — a starved horror, not a plain shade.
+  for (let i = 0; i < 3; i++) {
+    part(group, bone, 0.85 - i * 0.12, 0.07, 0.05, 0, 2.45 - i * 0.28, -0.37); // rib slats
+  }
+  for (const sx of [-1, 1]) {
+    part(group, bone, 0.3, 0.22, 0.34, sx * 0.7, 3.0, 0); // shoulder knobs
+    part(group, limbMat, 0.26, 0.7, 0.1, sx * 0.35, 1.05, -0.28, sx * 0.12); // skirt tatters F
+    part(group, limbMat, 0.26, 0.6, 0.1, sx * 0.3, 1.0, 0.28, sx * -0.1); // skirt tatters B
+  }
+  part(group, tyrantEyeMaterial, 0.4, 0.06, 0.05, 0, 2.1, -0.37); // pale waist gleam
   return { group, torso, limbs, mats: [shroud, limbMat, bone] };
 }
 
@@ -479,6 +531,22 @@ function makeMonarchMesh(): { group: THREE.Group; torso: THREE.Mesh; limbs: THRE
     emberKnuckle.name = 'entity';
     emberKnuckle.position.set(0, -2.55, -0.56);
     arm.add(emberKnuckle);
+  }
+  // DEFINITION pass: molten seams crack the whole body, spiked pauldrons
+  // crown the shoulders, a jagged back-ridge rises behind the head, and
+  // plate ridges band the torso — an emperor, not a box, from any angle.
+  part(group, monarchCoreMaterial, 0.14, 2.2, 0.06, -0.7, 3.1, -0.79); // torso seam L
+  part(group, monarchCoreMaterial, 0.14, 1.7, 0.06, 0.75, 3.0, -0.79, 0.12); // torso seam R
+  part(group, monarchCoreMaterial, 1.6, 0.12, 0.06, 0, 2.25, -0.79); // belt seam
+  part(group, cinder, 2.9, 0.22, 1.55, 0, 4.15, 0); // collar plate
+  part(group, cinder, 2.85, 0.18, 1.52, 0, 2.6, 0); // waist plate
+  for (const sx of [-1, 1]) {
+    part(group, cinder, 0.95, 0.35, 1.1, sx * 1.75, 4.42, 0); // pauldrons
+    part(group, limbMat, 0.2, 0.75, 0.2, sx * 1.95, 4.95, 0, sx * 0.35); // pauldron spikes
+    part(group, monarchCoreMaterial, 0.1, 0.5, 0.05, sx * 0.72, 1.35, -0.5); // leg seams
+  }
+  for (let i = 0; i < 3; i++) {
+    part(group, limbMat, 0.22, 0.6 + i * 0.25, 0.22, (i - 1) * 0.55, 4.35 + i * 0.12, 0.75, (i - 1) * 0.2); // back ridge
   }
   return { group, torso, limbs, mats: [obsidian, limbMat, cinder] };
 }

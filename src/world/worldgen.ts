@@ -525,6 +525,7 @@ function createOverworld(seed: string): Generator {
   const treeSeed = cyrb128(`${seed} trees`)[0];
   const caveDecorSeed = cyrb128(`${seed} cavebiomes`)[0];
   const floraSeed = cyrb128(`${seed} flora`)[0];
+  const scatterSeed = cyrb128(`${seed} scatter`)[0];
   const geodeSeed = cyrb128(`${seed} geodes`)[0];
   const hutSeed = cyrb128(`${seed} huts`)[0];
   const structSeed = cyrb128(`${seed} structures`)[0];
@@ -987,6 +988,36 @@ function createOverworld(seed: string): Generator {
       if (minH >= SEA_LEVEL + 2 && deepholdY(hhash) + 7 <= minH - 8) {
         tryCarveDeephold(data, hhash, x0, z0);
         plantCairn(data, heights, x0 + 4, z0 + 6, Block.lantern);
+      }
+    }
+
+    // Wilderness scatter: boulders and fallen logs break up the open ground
+    // so plains and forests read as PLACES, not lawns. Up to two pieces per
+    // chunk on flat grass, each fully inside the chunk.
+    const scatterHash = hash2(scatterSeed, cx, cz);
+    for (let piece = 0; piece < 2; piece++) {
+      const ph = hash2(scatterHash, piece, 0);
+      if (ph % 3 !== 0) continue; // ~2/3 of rolls skip: pieces stay special
+      const sx0 = 2 + ((ph >>> 4) % 11);
+      const sz0 = 2 + ((ph >>> 10) % 11);
+      const h = heights[sz0 * CHUNK_SIZE + sx0] ?? -1;
+      if (h < SEA_LEVEL + 2 || h + 4 >= CHUNK_HEIGHT) continue;
+      if (data[blockIndex(sx0, h, sz0)] !== Block.grass) continue;
+      if ((ph >>> 16) % 2 === 0) {
+        // Boulder: a 2x2 cobble base with 1-2 caps, if the pad is level.
+        if (heights[sz0 * CHUNK_SIZE + sx0 + 1] !== h || heights[(sz0 + 1) * CHUNK_SIZE + sx0] !== h) continue;
+        data[blockIndex(sx0, h + 1, sz0)] = Block.cobblestone;
+        data[blockIndex(sx0 + 1, h + 1, sz0)] = Block.cobblestone;
+        data[blockIndex(sx0, h + 1, sz0 + 1)] = Block.cobblestone;
+        data[blockIndex(sx0, h + 2, sz0)] = Block.cobblestone;
+        if ((ph >>> 20) & 1) data[blockIndex(sx0 + 1, h + 2, sz0)] = Block.cobblestone;
+      } else {
+        // Fallen log: a 3-4 block run along x, only over level ground.
+        const len = 3 + ((ph >>> 20) & 1);
+        let level = true;
+        for (let i = 1; i < len; i++) if (heights[sz0 * CHUNK_SIZE + sx0 + i] !== h) level = false;
+        if (!level) continue;
+        for (let i = 0; i < len; i++) data[blockIndex(sx0 + i, h + 1, sz0)] = Block.log;
       }
     }
 

@@ -76,8 +76,12 @@ export class PlayerController {
   /** Auto-run (T): run forward hands-free so the mouse is free to steer —
    * sidesteps OS "disable touchpad while typing" entirely. S or T cancels. */
   autoRun = false;
-  /** Steer mode: A/D rotate instead of strafing (trackpad-proof turning). */
-  steerMode = false;
+  /**
+   * Steer mode (DEFAULT ON): A/D rotate instead of strafing, like steering a
+   * vehicle — so turning while running needs no mouse at all. Y switches to
+   * classic strafing for mouse-look players.
+   */
+  steerMode = true;
   private sprintLatch = false;
   private lastForwardTap = -Infinity;
   private time = 0;

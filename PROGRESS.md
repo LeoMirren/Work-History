@@ -469,3 +469,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Underwater murk: submerge the camera and the world drowns in close blue-green fog (4-26 block wall) — swimming finally looks like swimming
 - [x] Storm fog: heavy weather pulls the fog wall in by up to 45%, so rain feels like weather instead of a screen effect
 - [x] 528 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.22 OLD STONES
+
+## Post-spec: v0.23 DEFINITION — steering by default, regal bosses, a lived-in world
+
+- [x] TURNING FIXED AT THE ROOT: A/D now TURN by default (steer like a car) — running turns need zero mouse and zero setup; Y toggles back to classic strafing; W/S run, arrows also turn
+- [x] Boss definition pass on all four: the Sunken King gains a glowing royal sigil, gold collar/belt/spiked pauldrons and a tattered cape; the Colossus cracks with amber rune-seams and moss drapes over a rubble spine; the Tyrant shows pale rib slats, bone shoulder knobs and ragged skirts; the Monarch erupts with molten body seams, collar/waist plates, spiked pauldrons and a jagged back-ridge
+- [x] Projectiles: thrown stones 50% bigger with a three-tone tumble glint; venom bolts 40% bigger with a white-hot core, faster spin and a denser trail
+- [x] Wilderness scatter: boulders and fallen logs seed the open ground (~2/3-gated rolls, level-pad checks) — plains and forests read as places, not lawns
+- [x] 526 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.23 DEFINITION

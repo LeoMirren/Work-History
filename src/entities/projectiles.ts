@@ -44,10 +44,14 @@ interface Stone {
 
 // A chipped two-tone rock: a grey core with a darker offset chip box, so the
 // tumble is readable in flight (a flat cube reads as a static dot).
+// DEFINITION pass: thrown stones are chunky three-tone rocks you can track
+// mid-flight, with a pale glint face so the tumble reads.
 const stoneMaterial = new THREE.MeshBasicMaterial({ color: 0x9a9ca6 });
 const stoneChipMaterial = new THREE.MeshBasicMaterial({ color: 0x6f7280 });
-const stoneGeometry = new THREE.BoxGeometry(0.2, 0.16, 0.18);
-const stoneChipGeometry = new THREE.BoxGeometry(0.12, 0.1, 0.12);
+const stoneGlintMaterial = new THREE.MeshBasicMaterial({ color: 0xd8dae2 });
+const stoneGeometry = new THREE.BoxGeometry(0.3, 0.24, 0.27);
+const stoneChipGeometry = new THREE.BoxGeometry(0.18, 0.15, 0.18);
+const stoneGlintGeometry = new THREE.BoxGeometry(0.1, 0.08, 0.1);
 
 export class ThrownProjectiles {
   private readonly stones: Stone[] = [];
@@ -71,8 +75,12 @@ export class ThrownProjectiles {
     mesh.position.set(x, y, z);
     const chip = new THREE.Mesh(stoneChipGeometry, stoneChipMaterial);
     chip.name = 'entity';
-    chip.position.set(0.05, 0.04, -0.04);
+    chip.position.set(0.07, 0.06, -0.06);
     mesh.add(chip);
+    const glint = new THREE.Mesh(stoneGlintGeometry, stoneGlintMaterial);
+    glint.name = 'entity';
+    glint.position.set(-0.09, -0.05, 0.07);
+    mesh.add(glint);
     this.scene.add(mesh);
     this.stones.push({
       x,

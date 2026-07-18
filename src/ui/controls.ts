@@ -1,6 +1,7 @@
 /** Single source of truth for the control scheme (shown in panel + guide). */
 export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
-  ['W A S D', 'move'],
+  ['W / S', 'run forward / back'],
+  ['A / D', 'TURN left / right (steer like a car)'],
   ['Space', 'jump / swim / fly up'],
   ['Shift', 'sneak / fly down'],
   ['Ctrl / 2×W', 'sprint'],
@@ -8,7 +9,7 @@ export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Mouse', 'look'],
   ['Arrow keys', 'turn / look (no mouse needed)'],
   ['T', 'auto-run toggle (S stops)'],
-  ['Y', 'steer mode: A/D turn (trackpad fix)'],
+  ['Y', 'toggle A/D between turn and strafe'],
   ['LMB / RMB', 'break / hunt (either button)'],
   ['U', 'use: place · talk · open · eat · throw'],
   ['1-9, wheel', 'hotbar select'],

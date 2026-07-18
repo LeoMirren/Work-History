@@ -124,12 +124,14 @@ interface Projectile {
 
 // Venom bolt: a bright core inside a darker translucent shell, spinning in
 // flight and shedding a green wake (see onProjectileTrail).
-const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xd6f06a });
-const projectileShellMaterial = new THREE.MeshBasicMaterial({ color: 0x4a7a22, transparent: true, opacity: 0.55 });
-const projectileGeometry = new THREE.BoxGeometry(0.16, 0.16, 0.16);
-const projectileShellGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-const PROJECTILE_TRAIL_S = 0.08;
-const PROJECTILE_SPIN = 8;
+// DEFINITION pass: venom bolts are half again bigger with a white-hot core,
+// a denser trail cadence and a faster spin — unmissable incoming fire.
+const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xeaff8a });
+const projectileShellMaterial = new THREE.MeshBasicMaterial({ color: 0x4a7a22, transparent: true, opacity: 0.6 });
+const projectileGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+const projectileShellGeometry = new THREE.BoxGeometry(0.44, 0.44, 0.44);
+const PROJECTILE_TRAIL_S = 0.05;
+const PROJECTILE_SPIN = 11;
 // Eyes glow via unlit materials — visible in the dark, which is the point.
 const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
 const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
