@@ -94,11 +94,13 @@ export const Species = {
   tuskbeast: 11, // a hulking shaggy bruiser of the plains and savanna
   mosshare: 12, // a quick long-eared bounder of forest and jungle floors
   glimmerback: 13, // weird: a dusk-grey grazer with a crystal-bright saddle
+  skydrifter: 14, // a broad-winged glider that floats down from any fall
+  gravemimic: 15, // weird: a living boulder that only moves when you're close
 } as const;
 export type SpeciesId = (typeof Species)[keyof typeof Species];
 
 /** The weird species, spawned rarely regardless of biome ("everywhere"). */
-export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback, Species.glimmerback];
+export const WEIRD_SPECIES: readonly SpeciesId[] = [Species.thornback, Species.puffle, Species.stiltback, Species.glimmerback, Species.gravemimic];
 const WEIRD_CHANCE = 0.16; // per spawn attempt, roll a weird one instead
 
 /** The ash-born species of the underworld (spawned only in that realm). */
@@ -130,6 +132,7 @@ const SPECIES_DROP: Partial<Record<SpeciesId, (r: () => number) => { id: number;
   [Species.cinderpup]: () => ({ id: Item.emberShard, count: 1 }),
   [Species.tuskbeast]: (r) => ({ id: Item.meat, count: 3 + (r() < 0.5 ? 1 : 0) }),
   [Species.glimmerback]: (r) => (r() < 0.5 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
+  [Species.gravemimic]: (r) => (r() < 0.4 ? { id: Item.gem, count: 1 } : { id: Item.meat, count: 2 }),
 };
 
 interface SpeciesDef {
@@ -317,6 +320,30 @@ const SPECIES: Record<SpeciesId, SpeciesDef> = {
     patchColor: 0xb9e8ec,
     gait: 1.1,
   },
+  // Skydrifter: slate-blue with broad wing slabs — falls become glides.
+  [Species.skydrifter]: {
+    torso: [0.5, 0.3, 0.6],
+    head: [0.28, 0.24, 0.26],
+    headZ: -0.38,
+    legLen: 0.24,
+    legW: 0.09,
+    bodyColor: 0x5f7a94,
+    headColor: 0x4e6478,
+    patchColor: 0xc8d8e4,
+    gait: 1.2,
+  },
+  // Gravemimic: a mossy living boulder — stone-still until you're close.
+  [Species.gravemimic]: {
+    torso: [0.78, 0.6, 0.78],
+    head: [0.3, 0.22, 0.24],
+    headZ: -0.4,
+    legLen: 0.12,
+    legW: 0.16,
+    bodyColor: 0x84868c,
+    headColor: 0x74767c,
+    patchColor: 0x5e7a48,
+    gait: 0.9,
+  },
 };
 
 /**
@@ -340,7 +367,7 @@ export function speciesForBiome(biome: number, random: () => number): SpeciesId 
     return roll < 0.4 ? Species.dustpuff : roll < 0.6 ? Species.tuskbeast : roll < 0.85 ? Species.woolly : Species.trundler;
   }
   const roll = random();
-  return roll < 0.55 ? Species.trundler : roll < 0.8 ? Species.woolly : Species.tuskbeast;
+  return roll < 0.5 ? Species.trundler : roll < 0.7 ? Species.woolly : roll < 0.85 ? Species.tuskbeast : Species.skydrifter;
 }
 
 export interface Animal {
@@ -651,6 +678,23 @@ function makeAnimalMesh(
     }
     tail = detail(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat(0xdfe8d2), group);
     tail.position.set(0, torsoY + th * 0.2, td / 2 + 0.04);
+  } else if (species === Species.skydrifter) {
+    // Broad wing slabs riding the shoulders — the glide made visible.
+    for (const sx of [-1, 1]) {
+      const wing = detail(new THREE.BoxGeometry(0.55, 0.06, 0.5), mat(tinted(def.patchColor, 0.95)), torso);
+      wing.position.set(sx * (tw / 2 + 0.22), th * 0.3, 0);
+      wing.rotation.z = sx * -0.12;
+    }
+    tail = detail(new THREE.BoxGeometry(0.1, 0.06, 0.26), head, group);
+    tail.position.set(0, torsoY + th * 0.2, td / 2 + 0.1);
+  } else if (species === Species.gravemimic) {
+    // The boulder shell: a craggy stone cap that hides everything at rest.
+    const shellMat = hideMaterial(0x7d8086, 'stone');
+    mats.push(shellMat);
+    const cap = detail(new THREE.BoxGeometry(tw + 0.14, th * 0.5, td + 0.14), shellMat, torso);
+    cap.position.set(0, th * 0.35, 0);
+    const mossTuft = detail(new THREE.BoxGeometry(0.3, 0.08, 0.3), mat(0x5e7a48), torso);
+    mossTuft.position.set(0.12, th * 0.62, 0.1);
   } else if (species === Species.glimmerback) {
     // The crystal saddle: a bright faceted ridge along the spine (unlit, so
     // it glitters even in dusk light) — the treasure you spot from afar.
@@ -951,6 +995,18 @@ export class AnimalSystem {
         animal.graze = 0;
       }
       this.step(animal, world, dt);
+      // Skydrifters GLIDE: any fall slows to a drift on spread wings.
+      if (animal.species === Species.skydrifter && body.vy < -2.2) body.vy = -2.2;
+      // Gravemimics play statue: stone-still until the player closes in,
+      // then the boulder stands up and ambles off.
+      if (animal.species === Species.gravemimic && !animal.tamed) {
+        const nearSq = dx * dx + dz * dz;
+        if (nearSq > 16) {
+          animal.moving = false;
+          animal.timer = Math.max(animal.timer, 0.4); // pin the wander AI
+          animal.graze = 0;
+        }
+      }
       // Signature gaits: puffles BOUNCE along instead of trotting.
       if (animal.species === Species.puffle && animal.moving && body.onGround && Math.sin(animal.phase) > 0.95) {
         body.vy = 3.2;

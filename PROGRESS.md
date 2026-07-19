@@ -519,3 +519,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Village WATCHPOSTS: lantern-lit pillar-and-deck lookouts with spiral plank steps and a parapet now rise on village outskirts — settlements under night raids look like they know it
 - [x] Block art finish: grass tops gain bright blade flecks and worn soil peeks; log bark gains knots and horizontal cracks — with stone/dirt/sand from v0.28, every core block now has features
 - [x] 535 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.29 THE GARRISON
+
+## Post-spec: v0.30 SKY & STONE — gliders, mimics, and the bestiary
+
+- [x] SKYDRIFTERS: slate-blue gliders with broad wing slabs — every fall slows to a wing-spread drift (vy clamped at glide speed); they share the open plains with the herds
+- [x] GRAVEMIMICS: living boulders — a craggy stone cap and moss tuft over hidden legs; stone-still statues until the player closes within 4 blocks, then the rock stands up and ambles off (weird-species pool, 40% gem drop)
+- [x] 16 animal species; BESTIARY chapter in the guide (G): herds, oddities, the five night silhouettes, the keepers and all four great bosses in six readable entries
+- [x] 537 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.30 SKY & STONE

@@ -30,6 +30,11 @@ const HOW_TO: ReadonlyArray<readonly [string, string]> = [
   ['Deepholds', 'Buried mob villages (y 80-94): lantern-lit halls holding three loot chests, two underfolk traders with full barter books... and the guardians that claimed the place.'],
   ['The great bosses', 'The Sunken King answers a crafted totem deep underground. The Stone Colossus roams the wilds — walk up to a red map dot. The Hollow Tyrant rises when you use (U) a shrine altar; it drops HEARTSTONES (+1 max heart each, forever).'],
   ['The end of the game', 'Take a rift to the underworld. Find an emberthrone hall, use (U) the throne, and the ASHEN MONARCH rises — the biggest fight there is. It drops the Nightsever: 100 damage, one-shots everything that walks.'],
+  ['Bestiary: herds', 'Trundlers and woollies graze temperate ground; striders roam deserts, hoppers the jungles, bramblehorn stags the forests; dustpuffs, hulking tuskbeasts and gliding skydrifters share the open plains; mossharen bound through the woods.'],
+  ['Bestiary: oddities', 'Rare anywhere: spiked thornbacks, bouncing puffles, high-stepping stiltbacks, gem-saddled glimmerbacks — and gravemimics, living boulders that only move once you are close. Oddities often carry gems.'],
+  ['Bestiary: the night', 'Five hostile silhouettes: dark STALKERS strike in melee, hooded SPITTERS lob venom, pale SHRIEKER packs swarm, earth BURROWERS erupt from cave floors, and slate SHELLBACKS chip frontal blows — flank them. Gold-banded ELITES walk day and night and burst loot.'],
+  ['Bestiary: keepers', 'Vault guardians haunt dungeons and deephold halls. Villages hold traders (U to barter) — underfolk traders wait in the deepholds too. Meat can befriend cinderpups, mossharen and puffles into companions.'],
+  ['Bestiary: the great four', 'The Sunken King (totem, deep dark) · The Stone Colossus (roams red map dots) · The Hollow Tyrant (shrine altars; drops heartstones) · The Ashen Monarch (underworld throne; drops the Nightsever). All telegraph their blows — dodge the lean.'],
 ];
 
 export class Guide {

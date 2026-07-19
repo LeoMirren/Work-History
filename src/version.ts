@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.29 THE GARRISON — shellbacks · village watchposts · living wood & turf';
+export const BUILD_TAG = 'v0.30 SKY & STONE — gliding skydrifters · living boulders · the bestiary';
