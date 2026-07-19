@@ -547,3 +547,11 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Faces at silhouette scale: eyes now span ~32% of the head width with an ABSOLUTE size floor for small species; sclera is unlit pure white (eye-shine in the dark); hostiles wear a full-width visor band with huge glowing eyes and a full-width fanged jaw
 - [x] IDENTITY FROM EVERY ANGLE: hostiles gain ear fins on the head's sides and a glowing 3-stud spine down the BACK (venom-green on spitters, red elsewhere); guardians gain a violet back rune — a monster walking away from you now reads as a monster
 - [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.33 EVERY ANGLE
+
+## Post-spec: v0.34 NO MORE VOIDS — hostiles stop reading as black masses
+
+- [x] Diagnosed from a player screenshot (elite from behind = a near-black blob with a few red studs + a gold band): the old hostile hides were near-black slabs (`0x2b2f3a`/`0x232733`/…) that crush to a featureless silhouette under overhead noon light — and were near-invisible at night, where mobs actually spawn. Confirmed with a daylight front-¾/back photo probe that freezes the sim via `__voxDebug` and poses each archetype
+- [x] Per-archetype MID-TONE palettes (`HostilePalette`): steel-blue stalker, olive spitter, warm-clay burrower, pale-armored shellback, bone-white shrieker — each a textured hide `base`/`head`/`limb` plus a contrasting bone/chitin `plate` tone, replacing the old near-black + accent-dots look
+- [x] A real PLATING layer on every hostile: a chest slab, shoulder pauldrons, a head crest, bony ear fins and a raked DORSAL FIN RIDGE whose glowing cores sit in visible fins (not floating studs on black) — front, side and back all carry material contrast now
+- [x] Emissive self-glow floor (`bakeFloor`, 20% of each material's own colour) baked into every hide/plate: a hostile backlit by a low sun, or lurking in a dark cave, no longer crushes to black; it never lights the world, just stays legible. Hurt-flash now settles back to the floor instead of pure black. Elites wear gold-touched plating to match their brow band
+- [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.34 NO MORE VOIDS

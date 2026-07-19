@@ -192,24 +192,77 @@ const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
 const eliteBandMaterial = new THREE.MeshBasicMaterial({ color: 0xe6be4a });
 // Bone-white fangs shared by every melee stalker's jaw.
 const fangMaterial = new THREE.MeshBasicMaterial({ color: 0xe8e2d2 });
+// Molten amber glare for burrowers — eyes like coals in the dug earth.
+const burrowerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffb43a });
+
+/**
+ * A faint self-glow (a fraction of each body material's own colour) baked into
+ * every hostile hide/plate. THE fix for the "black void" look: a monster
+ * backlit by a low sun — or lurking in a dark cave, where it actually spawns —
+ * no longer crushes to a featureless silhouette. It never lights the world
+ * (emissive casts nothing); it just keeps the creature legible in any light.
+ */
+const HOSTILE_EMISSIVE_FLOOR = 0.2;
+function bakeFloor(m: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
+  m.emissive.copy(m.color).multiplyScalar(HOSTILE_EMISSIVE_FLOOR);
+  return m;
+}
+
+/**
+ * Per-archetype colour scheme. Bodies are deliberately MID-TONE — not the old
+ * near-black slabs that read as voids in scene light: a textured hide `base`,
+ * a contrasting bone/chitin `plate` tone for the chest, shoulders, crest and
+ * dorsal ridge, and an unlit `eye` glow. Every surface — front, side and back
+ * — now carries real material contrast instead of accent dots on black.
+ */
+interface HostilePalette {
+  base: number;
+  head: number;
+  limb: number;
+  plate: number;
+  eye: THREE.MeshBasicMaterial;
+}
+
+const PALETTE: Record<'stalker' | 'spitter' | 'burrower' | 'shelled' | 'swift', HostilePalette> = {
+  // Ashen slate predator: steel-blue hide, warm bone plating, red glare.
+  // Deliberately light: overhead noon sun grazes vertical faces, so a darker
+  // base would still read as a shadowed void — this stays blue-grey lit or not.
+  stalker: { base: 0x828da8, head: 0x9aa4bb, limb: 0x717c98, plate: 0xcbc0a2, eye: stalkerEyeMaterial },
+  // Venom spitter: sickly olive hide, pale membrane crest, acid-green glow.
+  spitter: { base: 0x647738, head: 0x8cbb4c, limb: 0x556430, plate: 0xc2ce7c, eye: spitterEyeMaterial },
+  // Clay digger: warm earthen body, sandy claw-plates, molten amber eyes.
+  burrower: { base: 0x7f6140, head: 0x8e6f48, limb: 0x6b5034, plate: 0xb7a06e, eye: burrowerEyeMaterial },
+  // Shellback: warm leather under-body beneath a pale slate carapace.
+  shelled: { base: 0x8a7659, head: 0x97836a, limb: 0x746150, plate: 0xbfc4cc, eye: stalkerEyeMaterial },
+  // Shrieker: bleached bone swarmer, near-white hide, red pinprick eyes.
+  swift: { base: 0xc7bea7, head: 0xd7ceb9, limb: 0xb3a98f, plate: 0xe6dfcb, eye: stalkerEyeMaterial },
+};
 
 const LEG_LEN = 0.72;
 const ARM_LEN = 0.66;
 
 /**
- * Humanoid: torso, head, glowing eyes, two hip legs and two shoulder arms.
- * Melee stalkers add shoulder spikes and arm-end claws; spitters add a wide
- * hood/frill behind the head and a venom-lit throat sac.
+ * Humanoid: a mid-tone textured body (torso, head, hip legs, shoulder arms)
+ * dressed in a contrasting bone/chitin PLATING layer — a chest slab, shoulder
+ * pauldrons, a head crest and a raked dorsal fin ridge lit by glowing cores —
+ * so the creature reads as a detailed monster from every angle, not a dark box
+ * with a few dots. Melee stalkers add shoulder spikes and arm claws; spitters
+ * add a wide venom-lit hood and throat sac. All colour comes from `palette`.
  */
-function makeStalkerMesh(ranged: boolean): {
+function makeStalkerMesh(ranged: boolean, palette: HostilePalette): {
   group: THREE.Group;
   torso: THREE.Mesh;
   limbs: THREE.Mesh[];
   mats: THREE.MeshLambertMaterial[];
 } {
-  const torsoMat = hideMaterial(ranged ? 0x2f3a2b : 0x2b2f3a, 'hide');
-  const headMat = hideMaterial(ranged ? 0x66a04a : 0x3a4150, 'hide');
-  const limbMat = hideMaterial(ranged ? 0x27301f : 0x232733, 'hide');
+  const torsoMat = bakeFloor(hideMaterial(palette.base, 'hide'));
+  const headMat = bakeFloor(hideMaterial(palette.head, 'hide'));
+  const limbMat = bakeFloor(hideMaterial(palette.limb, 'hide'));
+  const plateMat = bakeFloor(hideMaterial(palette.plate, 'scale'));
+  const eyeMat = palette.eye;
+  // Recessed face: a darkened tint of the HEAD colour (a shadowed eye band),
+  // not a universal near-black slab — the face belongs to the creature.
+  const faceDark = new THREE.MeshLambertMaterial({ color: new THREE.Color(palette.head).multiplyScalar(0.42) });
   const group = new THREE.Group();
   group.name = 'entity';
 
@@ -222,24 +275,39 @@ function makeStalkerMesh(ranged: boolean): {
   group.add(torso, head);
   group.add(shadowBlob(0.55));
 
-  // FACE: big glowing eyes under a heavy brow, a dark jaw slab and a mouth
-  // gash with teeth — a hostile you can read from across a clearing.
-  // GAMEPLAY-DISTANCE face: a full-width dark visor band carrying two HUGE
-  // glowing eyes (~45% of the head each) over a full-width fanged jaw —
-  // readable across a whole clearing, not just in close-up.
-  const faceDark = new THREE.MeshBasicMaterial({ color: 0x14161c });
+  // PLATING — the contrast layer. A chest slab, shoulder pauldrons and a head
+  // crest in the bone/chitin `plate` tone give the front and sides real
+  // light-catching detail, so the body is never a flat dark mass.
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.07), plateMat);
+  chest.name = 'entity';
+  chest.position.set(0, 1.14, -0.18);
+  group.add(chest);
+  for (const sx of [-1, 1]) {
+    const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.3), plateMat);
+    pauldron.name = 'entity';
+    pauldron.position.set(sx * 0.33, 1.5, 0);
+    pauldron.rotation.z = sx * -0.15;
+    group.add(pauldron);
+  }
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.34), plateMat);
+  crest.name = 'entity';
+  crest.position.set(0, 1.81, 0.02);
+  group.add(crest);
+
+  // FACE: a full-width recessed band carrying two big glowing eyes over a
+  // fanged jaw — readable clear across a clearing, not just in close-up.
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.03), faceDark);
   visor.name = 'entity';
   visor.position.set(0, 1.68, -0.215);
   group.add(visor);
   for (const ex of [-0.115, 0.115]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.17, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.17, 0.03), eyeMat);
     eye.name = 'entity';
     eye.position.set(ex, 1.68, -0.228);
     group.add(eye);
     const brow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.05), faceDark);
     brow.name = 'entity';
-    brow.position.set(ex, 1.81, -0.23);
+    brow.position.set(ex, 1.79, -0.23);
     brow.rotation.z = ex > 0 ? -0.3 : 0.3; // angled scowl
     group.add(brow);
   }
@@ -247,28 +315,33 @@ function makeStalkerMesh(ranged: boolean): {
   jaw.name = 'entity';
   jaw.position.set(0, 1.46, -0.22);
   group.add(jaw);
-  // IDENTITY FROM EVERY ANGLE: ear fins on the head's sides and a glowing
-  // stud-spine down the back — a monster reads as a monster even walking
-  // away from you, instead of a plain box.
+  for (const tx of [-0.14, 0, 0.14]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.035), ranged ? eyeMat : fangMaterial);
+    tooth.name = 'entity';
+    tooth.position.set(tx, 1.535, -0.232);
+    group.add(tooth);
+  }
+  // EAR FINS on the head's sides — bony plate, angled out (identity in profile).
   for (const sx of [-1, 1]) {
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.16), faceDark);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.16), plateMat);
     fin.name = 'entity';
     fin.position.set(sx * 0.24, 1.74, 0.02);
     fin.rotation.z = sx * -0.25;
     group.add(fin);
   }
-  const spineMat = ranged ? spitterEyeMaterial : stalkerEyeMaterial;
-  for (let i = 0; i < 3; i++) {
-    const stud = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.05), spineMat);
-    stud.name = 'entity';
-    stud.position.set(0, 1.38 - i * 0.24, 0.185);
-    group.add(stud);
-  }
-  for (const tx of [-0.14, 0, 0.14]) {
-    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.035), ranged ? spitterEyeMaterial : fangMaterial);
-    tooth.name = 'entity';
-    tooth.position.set(tx, 1.535, -0.232);
-    group.add(tooth);
+  // DORSAL RIDGE down the back: raked bony fins each lit by a glowing core, so
+  // the creature reads as a spined monster even walking away from you.
+  for (let i = 0; i < 4; i++) {
+    const ry = 1.56 - i * 0.2;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.17, 0.06), plateMat);
+    fin.name = 'entity';
+    fin.position.set(0, ry, 0.17);
+    fin.rotation.x = 0.6; // raked backward
+    group.add(fin);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.09, 0.04), eyeMat);
+    core.name = 'entity';
+    core.position.set(0, ry, 0.2);
+    group.add(core);
   }
 
   if (ranged) {
@@ -278,18 +351,18 @@ function makeStalkerMesh(ranged: boolean): {
     hood.name = 'entity';
     hood.position.set(0, 1.66, 0.24);
     hood.rotation.x = -0.15; // crest leans forward over the crown
-    const sac = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.1), spitterEyeMaterial);
+    const sac = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.1), eyeMat);
     sac.name = 'entity';
     sac.position.set(0, 1.38, -0.16);
     group.add(hood, sac);
   } else {
-    // Stalker: spike nubs jutting off the shoulders (claws ride the arms).
+    // Stalker: bony spike nubs jutting off the pauldrons (claws ride the arms).
     const spikeGeo = new THREE.BoxGeometry(0.09, 0.2, 0.09);
     spikeGeo.translate(0, 0.1, 0); // pivot at the base
     for (const sx of [-1, 1]) {
-      const spike = new THREE.Mesh(spikeGeo, limbMat);
+      const spike = new THREE.Mesh(spikeGeo, plateMat);
       spike.name = 'entity';
-      spike.position.set(sx * 0.26, LEG_LEN + 0.7, 0);
+      spike.position.set(sx * 0.28, LEG_LEN + 0.78, 0);
       spike.rotation.z = sx * -0.35; // splayed outward
       group.add(spike);
     }
@@ -316,19 +389,19 @@ function makeStalkerMesh(ranged: boolean): {
     limbs.push(armMesh);
   }
   if (!ranged) {
-    // Long claw boxes on the arm ends — children of the arms, so they swing.
+    // Long bone claws on the arm ends — children of the arms, so they swing.
     const clawGeo = new THREE.BoxGeometry(0.045, 0.24, 0.05);
     clawGeo.translate(0, -0.12, 0); // hangs from the arm end
     for (const arm of [limbs[2], limbs[3]]) {
       for (const cx of [-0.04, 0.04]) {
-        const claw = new THREE.Mesh(clawGeo, limbMat);
+        const claw = new THREE.Mesh(clawGeo, plateMat);
         claw.name = 'entity';
         claw.position.set(cx, -ARM_LEN, -0.03);
         arm?.add(claw);
       }
     }
   }
-  return { group, torso, limbs, mats: [torsoMat, headMat, limbMat] };
+  return { group, torso, limbs, mats: [torsoMat, headMat, limbMat, plateMat] };
 }
 
 export class HostileSystem {
@@ -371,11 +444,22 @@ export class HostileSystem {
 
   spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false, burrower = false, shelled = false): Stalker {
     const isRanged = swift || burrower || shelled ? false : ranged ?? this.random() < RANGED_CHANCE;
-    const parts = makeStalkerMesh(isRanged);
+    const base = shelled
+      ? PALETTE.shelled
+      : burrower
+        ? PALETTE.burrower
+        : swift
+          ? PALETTE.swift
+          : isRanged
+            ? PALETTE.spitter
+            : PALETTE.stalker;
+    // Elites wear gold-touched plating to match their brow band.
+    const palette: HostilePalette = elite ? { ...base, plate: 0xccb066 } : base;
+    const parts = makeStalkerMesh(isRanged, palette);
     if (shelled) {
-      // Slate-grey armor: a front carapace slab, a brow plate and pauldron
-      // ridges — unmistakably "hit me from behind".
-      const shellMat = hideMaterial(0x9aa0aa, 'stone');
+      // Pale slate carapace over the leather under-body: a front slab, a helm
+      // brow and pauldron ridges — unmistakably "hit me from behind".
+      const shellMat = bakeFloor(hideMaterial(0xc4cad4, 'stone'));
       parts.mats.push(shellMat);
       const plate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.1), shellMat);
       plate.name = 'entity';
@@ -393,22 +477,17 @@ export class HostileSystem {
       }
     }
     if (burrower) {
-      // Earth-toned, claws-first, born from the floor itself.
-      const earth = [0x5a4630, 0x4a3a28, 0x3d2f20];
-      parts.mats.forEach((m, i) => m.color.set(earth[Math.min(i, 2)] ?? 0x5a4630));
       parts.group.scale.set(1, 0.12, 1); // still buried; eruption grows it
     }
     if (swift) {
-      // Shrieker: small, bleached-pale, all mouth.
       parts.group.scale.set(SWIFT_SCALE, SWIFT_SCALE, SWIFT_SCALE);
-      for (const m of parts.mats) m.color.multiplyScalar(1.55);
     }
     if (elite) {
       parts.group.scale.set(ELITE_SCALE, ELITE_SCALE, ELITE_SCALE);
       // A gold brow band marks the walking boss from across a field.
       const band = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.46), eliteBandMaterial);
       band.name = 'entity';
-      band.position.set(0, 1.86, 0);
+      band.position.set(0, 1.9, 0);
       parts.group.add(band);
     }
     const stalker: Stalker = {
@@ -590,7 +669,12 @@ export class HostileSystem {
     if (s.flash > 0) {
       s.flash -= dt;
       const on = s.flash > 0;
-      for (const m of s.mats) m.emissive.setRGB(on ? 0.55 : 0, 0, 0);
+      // Flash bright red on the hit; then settle BACK to the self-glow floor
+      // (not pure black) so the body stays legible afterwards.
+      for (const m of s.mats) {
+        if (on) m.emissive.setRGB(0.55, 0, 0);
+        else bakeFloor(m);
+      }
     }
   }
 

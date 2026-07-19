@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.33 EVERY ANGLE — faces that read at distance · spines · ear fins';
+export const BUILD_TAG = 'v0.34 NO MORE VOIDS — mid-tone hostiles, bone plating, self-lit in the dark';
