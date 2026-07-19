@@ -1141,13 +1141,16 @@ async function boot(): Promise<void> {
         gr.camera.position.y += Math.sin(bobPhase * 2) * 0.035;
         gr.camera.rotation.z = Math.sin(bobPhase) * 0.004;
       }
-      // Water shimmer clock (only the water shader reads it).
+      // The world clock: water shimmer AND the wind (grass/flower/leaf sway)
+      // read it, so every pass gets the time.
       elapsedSeconds += frameDt;
       materials.water.uniforms.uTime.value = elapsedSeconds;
+      materials.cutout.uniforms.uTime.value = elapsedSeconds;
+      materials.opaque.uniforms.uTime.value = elapsedSeconds;
       // Minimap follows the player (north-up); depth goal fires once deep.
       if (session) {
         minimap.update(player.body.x, player.body.z, player.yaw);
-        if (player.body.y < 24) signalGoal({ kind: 'depth', y: Math.floor(player.body.y) });
+        if (player.body.y < 44) signalGoal({ kind: 'depth', y: Math.floor(player.body.y) });
       }
       session?.world.update(player.body.x, player.body.z);
       gr.render();

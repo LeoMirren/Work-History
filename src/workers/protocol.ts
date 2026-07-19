@@ -54,6 +54,7 @@ export function meshTransferables(mesh: ChunkMeshData, out: ArrayBuffer[]): Arra
       pass.uvs.buffer as ArrayBuffer,
       pass.colors.buffer as ArrayBuffer,
       pass.lights.buffer as ArrayBuffer,
+      pass.sways.buffer as ArrayBuffer,
       pass.indices.buffer as ArrayBuffer,
     );
   }

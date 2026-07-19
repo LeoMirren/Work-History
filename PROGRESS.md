@@ -533,3 +533,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Cave realms are unmistakable now: mossy-hollow floors ~1/5 mossstone with 2x the glowblooms, crystal grottoes ~2x the wall crystals and stubs, cinder deeps ~2x emberrock and cindercaps, the abyss ~2x glowmoss and duskbells
 - [x] Save v4: worlds regenerate with the dense themes (villages already carry roads, plazas, guaranteed heart well + watchposts; deepholds already house underfolk traders — all present after the regen)
 - [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.31 THE RULE OF THE DARK
+
+## Post-spec: v0.32 THE WIND — the world finally moves
+
+- [x] WIND SWAY: a per-vertex sway weight baked at mesh time flows through the whole pipeline (mesher -> worker transfer -> geometry attribute -> shader). Grass tufts and flowers bend from anchored roots, leaf canopies shimmer at 0.55 weight, and rigid geometry (stone, glass, buildings) never moves — two drifting sine waves in the vertex shader, zero per-frame CPU cost
+- [x] The world clock now feeds all three chunk materials (the wind blows everywhere, not just on water)
+- [x] Fixed the deep-delver goal gate left at pre-Deepening depth (24 -> 44)
+- [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.32 THE WIND

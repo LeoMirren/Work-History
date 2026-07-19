@@ -238,6 +238,8 @@ export interface MeshArrays {
   colors: Float32Array;
   /** Per-vertex (sky, block) light, 0..1. */
   lights: Float32Array;
+  /** Per-vertex wind-sway weight (0 rigid; >0 bends with uTime). */
+  sways: Float32Array;
   indices: Uint32Array;
   /** Geometry extents in chunk-local coords, for bounding volumes. */
   bounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number };
@@ -254,6 +256,7 @@ class QuadSink {
   uvs: number[] = [];
   colors: number[] = [];
   lights: number[] = [];
+  sways: number[] = [];
   indices: number[] = [];
   minX = Infinity;
   minY = Infinity;
@@ -282,6 +285,7 @@ class QuadSink {
     colR: number,
     colG: number,
     colB: number,
+    sway = 0,
   ): void {
     const base = this.positions.length / 3;
     const tu = (tile % ATLAS_TILES) / ATLAS_TILES;
@@ -299,6 +303,7 @@ class QuadSink {
       const lit = shade * (AO_BRIGHTNESS[ao] ?? 1);
       this.colors.push(lit * colR, lit * colG, lit * colB);
       this.lights.push(vertexLight[c * 2] ?? 1, vertexLight[c * 2 + 1] ?? 0);
+      this.sways.push(sway);
       if (vx < this.minX) this.minX = vx;
       if (vy < this.minY) this.minY = vy;
       if (vz < this.minZ) this.minZ = vz;
@@ -344,6 +349,7 @@ class QuadSink {
       const p = corners[c] ?? c0;
       const uv = cuv[c] ?? [0, 0];
       this.positions.push(p[0], p[1], p[2]);
+      this.sways.push(c >= 2 ? 1 : 0); // tops bend in the wind, roots hold
       this.uvs.push(tu + (uv[0] ?? 0) * step, tv + (uv[1] ?? 0) * step);
       this.colors.push(1, 1, 1);
       this.lights.push(sky, blk);
@@ -361,6 +367,7 @@ class QuadSink {
     if (this.indices.length === 0) return null;
     return {
       positions: Float32Array.from(this.positions),
+      sways: Float32Array.from(this.sways),
       uvs: Float32Array.from(this.uvs),
       colors: Float32Array.from(this.colors),
       lights: Float32Array.from(this.lights),
@@ -547,6 +554,7 @@ export function meshChunk(
           sink.pushQuad(
             x, y, z, face, FACE_TILES[id * 6 + f] ?? 0, FACE_SHADE[f] ?? 1,
             ao0, ao1, ao2, ao3, vertexLightScratch, colR, colG, colB,
+            id === Block.leaves ? 0.55 : 0, // canopies shimmer in the wind
           );
         }
       }

@@ -10,10 +10,12 @@ const VERTEX = `
 precision highp float;
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
+uniform float uTime;
 attribute vec3 position;
 attribute vec2 uv;
 attribute vec3 color;
 attribute vec2 light;
+attribute float sway;
 varying vec2 vUv;
 varying vec3 vColor;
 varying vec2 vLight;
@@ -24,7 +26,15 @@ void main() {
   vColor = color;
   vLight = light;
   vPos = position;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  // THE WIND: sway-weighted vertices (grass tops, flowers, leaf canopies)
+  // bend on two drifting waves; rigid geometry (sway 0) never moves.
+  vec3 p = position;
+  if (sway > 0.0) {
+    float g = uTime * 1.6 + position.x * 0.9 + position.z * 0.7 + position.y * 0.35;
+    p.x += (sin(g) * 0.06 + sin(g * 2.3 + 1.7) * 0.025) * sway;
+    p.z += (cos(g * 0.8 + 0.6) * 0.05 + sin(g * 1.9) * 0.02) * sway;
+  }
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vDepth = -mv.z;
   gl_Position = projectionMatrix * mv;
 }

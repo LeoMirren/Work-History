@@ -526,6 +526,7 @@ export class World {
     geometry.setAttribute('uv', new THREE.BufferAttribute(arrays.uvs, 2));
     geometry.setAttribute('color', new THREE.BufferAttribute(arrays.colors, 3));
     geometry.setAttribute('light', new THREE.BufferAttribute(arrays.lights, 2));
+    geometry.setAttribute('sway', new THREE.BufferAttribute(arrays.sways, 1));
     geometry.setIndex(new THREE.BufferAttribute(arrays.indices, 1));
     const b = arrays.bounds;
     geometry.boundingSphere = new THREE.Sphere(
