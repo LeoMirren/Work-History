@@ -9,7 +9,7 @@
  * citadels): worlds regenerate so every buried hall gets its surface cairn.
  * Old-version worlds are discarded on load and regenerate on their seed.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4; // 4 = the Rule of the Dark + dense cave themes
 
 export interface WorldMeta {
   version: number;

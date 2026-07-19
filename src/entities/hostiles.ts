@@ -7,7 +7,7 @@
  * shrinking "death pop" before leaving the scene.
  */
 import * as THREE from 'three';
-import { Block, SOLID } from '../world/blocks';
+import { Block, LIGHT_EMIT, SOLID } from '../world/blocks';
 import { Item } from '../world/items';
 import { rayAABB } from '../world/raycast';
 import {
@@ -90,6 +90,25 @@ const PROJECTILE_DAMAGE = 2;
 const PROJECTILE_LIFE_S = 3;
 const PLAYER_HALF_WIDTH = 0.3;
 const PLAYER_HEIGHT = 1.8;
+
+/** Spawns are cancelled within this radius of a placed light source. */
+const LIGHT_SAFE_RADIUS = 7;
+const LIGHT_SAFE_EMIT = 8; // emitters at least this bright ward the dark
+
+/**
+ * True when a strong light source (torch, lantern, glowmoss, altar…) burns
+ * near (x, y, z) — THE rule of the dark: light keeps every monster away.
+ */
+function isLitArea(world: WorldView, x: number, y: number, z: number): boolean {
+  for (let dy = -2; dy <= 3; dy++) {
+    for (let dz = -LIGHT_SAFE_RADIUS; dz <= LIGHT_SAFE_RADIUS; dz++) {
+      for (let dx = -LIGHT_SAFE_RADIUS; dx <= LIGHT_SAFE_RADIUS; dx++) {
+        if ((LIGHT_EMIT[world.getBlock(x + dx, y + dy, z + dz)] ?? 0) >= LIGHT_SAFE_EMIT) return true;
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Loot burst an elite showers on death (pure): a handful of valuables and
@@ -423,6 +442,9 @@ export class HostileSystem {
       const id = world.getBlock(x, y, z);
       if (id === Block.air || id === Block.water) continue;
       if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
+        // THE RULE OF THE DARK: nothing spawns beside a burning light.
+        // Torch your camp, lantern your halls — the night respects it.
+        if (isLitArea(world, x, y + 1, z)) return;
         if (burrow) {
           this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, true);
         } else if (!underground0 && !forceElite && !elite && this.random() < SHELLBACK_CHANCE) {

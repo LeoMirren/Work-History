@@ -526,3 +526,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] GRAVEMIMICS: living boulders — a craggy stone cap and moss tuft over hidden legs; stone-still statues until the player closes within 4 blocks, then the rock stands up and ambles off (weird-species pool, 40% gem drop)
 - [x] 16 animal species; BESTIARY chapter in the guide (G): herds, oddities, the five night silhouettes, the keepers and all four great bosses in six readable entries
 - [x] 537 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.30 SKY & STONE
+
+## Post-spec: v0.31 THE RULE OF THE DARK — light wards spawns, dense cave realms
+
+- [x] THE RULE OF THE DARK: no hostile of ANY kind spawns within 7 blocks of a placed light source (torch, lantern, glowmoss, altar...) — torch your camp and the night respects it; unlit ground crawls as before
+- [x] Cave realms are unmistakable now: mossy-hollow floors ~1/5 mossstone with 2x the glowblooms, crystal grottoes ~2x the wall crystals and stubs, cinder deeps ~2x emberrock and cindercaps, the abyss ~2x glowmoss and duskbells
+- [x] Save v4: worlds regenerate with the dense themes (villages already carry roads, plazas, guaranteed heart well + watchposts; deepholds already house underfolk traders — all present after the regen)
+- [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.31 THE RULE OF THE DARK
