@@ -406,7 +406,7 @@ export interface Animal {
 
 /** Shared face materials/geometry — never flash, so one instance serves all. */
 const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
-const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xf6f3ea });
+const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff }); // unlit pure white: eye-shine in the dark
 const eyeRimMaterial = new THREE.MeshBasicMaterial({ color: 0x17151a });
 const noseMaterial = new THREE.MeshBasicMaterial({ color: 0x241d18 });
 // FACES v2: eyes ~45% bigger with a dark outline ring behind the sclera, so
@@ -498,9 +498,10 @@ function makeAnimalMesh(
   // children of the head so idle tilts and grazes carry the whole face.
   // (Puffles wear their face on the torso instead; see their branch.)
   if (species !== Species.puffle) {
-    // Eyes scale with the head so every species — tiny dustpuff to broad
-    // trundler — carries proportionally LARGE, outlined, readable eyes.
-    const eyeScale = Math.min(1.25, Math.max(0.55, hw / 0.3));
+    // GAMEPLAY-DISTANCE faces: each eye spans ~32% of the head's width with
+    // an ABSOLUTE floor (panel verdict: small dark species' eyes vanished at
+    // night), so every face reads at 10+ blocks.
+    const eyeScale = Math.max(hw * 0.32, 0.11) / 0.16;
     for (const ex of [-1, 1]) {
       const rim = detail(eyeRimGeometry, eyeRimMaterial, headMesh);
       rim.position.set(ex * (hw / 2 - 0.04), 0.04, -hd / 2 - 0.008);

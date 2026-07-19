@@ -540,3 +540,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] The world clock now feeds all three chunk materials (the wind blows everywhere, not just on water)
 - [x] Fixed the deep-delver goal gate left at pre-Deepening depth (24 -> 44)
 - [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.32 THE WIND
+
+## Post-spec: v0.33 EVERY ANGLE — the face problem, actually solved
+
+- [x] Diagnosed the recurring "no faces" report with evidence: close-up portraits always passed, but (a) at 8+ gameplay blocks small dark species' eyes shrank to invisible pixels, and (b) from BEHIND every mob was a featureless box (all features were front-only) — confirmed by a 3-judge screenshot panel on an 8-block distance gallery
+- [x] Faces at silhouette scale: eyes now span ~32% of the head width with an ABSOLUTE size floor for small species; sclera is unlit pure white (eye-shine in the dark); hostiles wear a full-width visor band with huge glowing eyes and a full-width fanged jaw
+- [x] IDENTITY FROM EVERY ANGLE: hostiles gain ear fins on the head's sides and a glowing 3-stud spine down the BACK (venom-green on spitters, red elsewhere); guardians gain a violet back rune — a monster walking away from you now reads as a monster
+- [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.33 EVERY ANGLE

@@ -224,30 +224,50 @@ function makeStalkerMesh(ranged: boolean): {
 
   // FACE: big glowing eyes under a heavy brow, a dark jaw slab and a mouth
   // gash with teeth — a hostile you can read from across a clearing.
+  // GAMEPLAY-DISTANCE face: a full-width dark visor band carrying two HUGE
+  // glowing eyes (~45% of the head each) over a full-width fanged jaw —
+  // readable across a whole clearing, not just in close-up.
   const faceDark = new THREE.MeshBasicMaterial({ color: 0x14161c });
-  for (const ex of [-0.12, 0.12]) {
-    const socket = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.17, 0.025), faceDark);
-    socket.name = 'entity';
-    socket.position.set(ex, 1.66, -0.215);
-    group.add(socket);
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.13, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.03), faceDark);
+  visor.name = 'entity';
+  visor.position.set(0, 1.68, -0.215);
+  group.add(visor);
+  for (const ex of [-0.115, 0.115]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.17, 0.03), ranged ? spitterEyeMaterial : stalkerEyeMaterial);
     eye.name = 'entity';
-    eye.position.set(ex, 1.66, -0.225);
+    eye.position.set(ex, 1.68, -0.228);
     group.add(eye);
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.06, 0.045), faceDark);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.05), faceDark);
     brow.name = 'entity';
-    brow.position.set(ex, 1.755, -0.23);
+    brow.position.set(ex, 1.81, -0.23);
     brow.rotation.z = ex > 0 ? -0.3 : 0.3; // angled scowl
     group.add(brow);
   }
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.13, 0.045), faceDark);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.15, 0.045), faceDark);
   jaw.name = 'entity';
-  jaw.position.set(0, 1.47, -0.22);
+  jaw.position.set(0, 1.46, -0.22);
   group.add(jaw);
-  for (const tx of [-0.11, 0, 0.11]) {
-    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.07, 0.035), ranged ? spitterEyeMaterial : fangMaterial);
+  // IDENTITY FROM EVERY ANGLE: ear fins on the head's sides and a glowing
+  // stud-spine down the back — a monster reads as a monster even walking
+  // away from you, instead of a plain box.
+  for (const sx of [-1, 1]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.16), faceDark);
+    fin.name = 'entity';
+    fin.position.set(sx * 0.24, 1.74, 0.02);
+    fin.rotation.z = sx * -0.25;
+    group.add(fin);
+  }
+  const spineMat = ranged ? spitterEyeMaterial : stalkerEyeMaterial;
+  for (let i = 0; i < 3; i++) {
+    const stud = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.05), spineMat);
+    stud.name = 'entity';
+    stud.position.set(0, 1.38 - i * 0.24, 0.185);
+    group.add(stud);
+  }
+  for (const tx of [-0.14, 0, 0.14]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.035), ranged ? spitterEyeMaterial : fangMaterial);
     tooth.name = 'entity';
-    tooth.position.set(tx, 1.53, -0.232);
+    tooth.position.set(tx, 1.535, -0.232);
     group.add(tooth);
   }
 
