@@ -21,7 +21,7 @@ import { isCrop, plantResult, tillResult } from '../world/farming';
 import { forEachTreeBlock } from '../world/worldgen';
 import { blockIntersectsBody, EYE_HEIGHT, MAX_HUNGER, type Body } from './physics';
 import type { Input } from '../engine/input';
-import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, type AnimalSystem } from '../entities/animals';
+import { ANIMAL_HALF_WIDTH, ANIMAL_HEIGHT, TAMEABLE, type AnimalSystem } from '../entities/animals';
 import { STALKER_HALF_WIDTH, STALKER_HEIGHT, type HostileSystem } from '../entities/hostiles';
 import type { FishSystem } from '../entities/fish';
 import { VILLAGER_HALF_WIDTH, VILLAGER_HEIGHT, type Villager, type VillagerSystem } from '../entities/villagers';
@@ -72,6 +72,8 @@ const FEEDBACK_ALTAR_WAKES = 'the altar goes dark — something rises';
 const FEEDBACK_THRONE_WAKES = 'the throne cracks open — the MONARCH rises';
 const FEEDBACK_ALTAR_BUSY = 'another great foe still walks — finish it first';
 const FEEDBACK_HEART_BOUND = 'the heartstone melts into you — +1 heart, forever';
+const FEEDBACK_TAMED = 'it trusts you now — a companion for the road';
+const FEEDBACK_TAME_NIBBLE = 'it takes the meat warily... offer another';
 const FEEDBACK_HEART_FULL = 'your heart can hold no more';
 /** Heartstones stop working at this max HP (10 bonus hearts). */
 export const BOOSTED_HP_CAP = 40;
@@ -190,6 +192,8 @@ export class Interaction {
   onKill: ((what: 'hostile' | 'guardian') => void) | null = null;
   /** A melee strike landed on a creature at (x, y, z) — hit feedback. */
   onMobHit: ((x: number, y: number, z: number) => void) | null = null;
+  /** A taming morsel was accepted at (x, y, z) — heart-puff feedback. */
+  onTamed: ((x: number, y: number, z: number) => void) | null = null;
   /** A fish was caught by melee (goal tracking). */
   onCatch: (() => void) | null = null;
   /** Edit notification hook (block-tap audio). */
@@ -385,6 +389,7 @@ export class Interaction {
           !this.tryUseBucket(world, hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.tryFarm(world, hotbar) &&
           !this.tryUseBoost(player, hotbar) &&
+          !this.tryTame(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.tryEat(player, hotbar) &&
           !this.tryThrow(hotbar, body.x, eyeY, body.z, dirX, dirY, dirZ) &&
           !this.trySummonTotem(player, hotbar)
@@ -460,6 +465,38 @@ export class Interaction {
     } else {
       this.setFeedback(FEEDBACK_ALTAR_BUSY);
     }
+    return true;
+  }
+
+  /**
+   * Offer meat to the animal under the crosshair: tameable species have a
+   * 40% chance per morsel to become companions (collar, follows, protected).
+   * Runs BEFORE tryEat so aiming at a friend feeds them, not you.
+   */
+  private tryTame(
+    hotbar: HotbarState,
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+  ): boolean {
+    const inventory = hotbar.inventory;
+    const stack = inventory?.slots[hotbar.slot];
+    if (!inventory || !stack || (stack.id !== Item.meat && stack.id !== Item.cookedMeat)) return false;
+    const hit = this.animals?.raycastNearest(ox, oy, oz, dx, dy, dz, REACH) ?? null;
+    if (!hit || hit.animal.tamed || !TAMEABLE.has(hit.animal.species)) return false;
+    if (!inventory.consumeOne(hotbar.slot)) return false;
+    const b = hit.animal.body;
+    if (Math.random() < 0.4 && this.animals?.tame(hit.animal)) {
+      this.onTamed?.(b.x, b.y + 0.8, b.z);
+      this.setFeedback(FEEDBACK_TAMED);
+    } else {
+      this.onTamed?.(b.x, b.y + 0.5, b.z); // it liked the snack, at least
+      this.setFeedback(FEEDBACK_TAME_NIBBLE);
+    }
+    this.onEdit?.('place', stack.id);
     return true;
   }
 

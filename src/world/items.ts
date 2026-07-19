@@ -325,6 +325,7 @@ export function itemName(id: number): string {
  */
 export function usageHintFor(id: number): string {
   if (id <= 0) return 'left-click: punch · E: inventory & crafting';
+  if (id === Item.meat || id === Item.cookedMeat) return 'U: eat — or offer it to a small creature to befriend it';
   if (isFood(id)) return 'right-click: eat';
   if (id === Item.seeds) return 'right-click farmland: plant (till grass with a hoe first)';
   if (id === Item.hoe) return 'right-click grass or dirt: till farmland';

@@ -565,11 +565,32 @@ export type AddSpawner = (x: number, y: number, z: number) => void;
 /** Callback: drop one loot stack at (x, y, z). */
 export type LootDropper = (id: number, count: number, x: number, y: number, z: number) => void;
 
+/** A burning floor patch the Ashen Monarch leaves behind (phase 2+). */
+interface EmberHazard {
+  x: number;
+  y: number;
+  z: number;
+  ttl: number;
+  /** Seconds until the next damage tick for a player standing in it. */
+  tick: number;
+  /** Seconds until the next particle emission. */
+  emit: number;
+}
+
+const HAZARD_TTL_S = 6;
+const HAZARD_RADIUS = 1.7;
+const HAZARD_DAMAGE = 2;
+const HAZARD_TICK_S = 0.8;
+const HAZARD_EMIT_S = 0.12;
+
 export class BossSystem {
   private boss: Boss | null = null;
   private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
+  private hazards: EmberHazard[] = [];
   /** Fired the moment a lethal blow lands (before the collapse finishes). */
   onSlain: ((kind: BossKind) => void) | null = null;
+  /** A hazard smoulders at (x, y, z) — main puffs embers there. */
+  onHazard: ((x: number, y: number, z: number) => void) | null = null;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -634,6 +655,7 @@ export class BossSystem {
   clear(): void {
     if (this.boss) this.scene.remove(this.boss.group);
     this.boss = null;
+    this.hazards = [];
   }
 
   fixedUpdate(
@@ -646,6 +668,29 @@ export class BossSystem {
     spawnAdd: AddSpawner,
     dropLoot: LootDropper,
   ): void {
+    // Ember hazards burn on even while the boss is mid-collapse.
+    for (let i = this.hazards.length - 1; i >= 0; i--) {
+      const h = this.hazards[i];
+      if (!h) continue;
+      h.ttl -= dt;
+      if (h.ttl <= 0) {
+        this.hazards.splice(i, 1);
+        continue;
+      }
+      h.emit -= dt;
+      if (h.emit <= 0) {
+        h.emit = HAZARD_EMIT_S;
+        this.onHazard?.(h.x + (this.random() - 0.5) * 2, h.y + 0.2, h.z + (this.random() - 0.5) * 2);
+      }
+      h.tick -= dt;
+      const hdx = px - h.x;
+      const hdz = pz - h.z;
+      if (h.tick <= 0 && hdx * hdx + hdz * hdz < HAZARD_RADIUS * HAZARD_RADIUS && Math.abs(py - h.y) < 2.2) {
+        hitPlayer(HAZARD_DAMAGE);
+        h.tick = HAZARD_TICK_S;
+      }
+    }
+
     const b = this.boss;
     if (!b) return;
 
@@ -691,6 +736,11 @@ export class BossSystem {
           b.attackCd = enraged ? b.spec.enragedCooldown : b.spec.slamCooldown;
         } else {
           b.attackCd = 0.6;
+        }
+        // CATACLYSM: from phase 2 the Monarch's slams crack the floor into
+        // burning ember patches — the arena itself becomes the hazard.
+        if (b.kind === 'ashenMonarch' && b.phase >= 2) {
+          this.hazards.push({ x: px, y: py, z: pz, ttl: HAZARD_TTL_S, tick: 0.4, emit: 0 });
         }
       }
     } else if (b.attackCd <= 0 && distSq < b.spec.slamRange * b.spec.slamRange && Math.abs(b.body.y - py) < 3) {

@@ -299,6 +299,10 @@ async function boot(): Promise<void> {
     audio.voice('squeal');
   };
   hostiles.onSpit = () => audio.voice('spit');
+  // Taming feedback: a puff of warm rose motes where the morsel landed.
+  interaction.onTamed = (tx, ty, tz) => particles.puff(tx, ty, tz, 0.95, 0.5, 0.62, 5);
+  // Monarch ember hazards smoulder with orange motes.
+  boss.onHazard = (hx, hy, hz) => particles.puff(hx, hy, hz, 1.0, 0.5, 0.16, 2);
   hostiles.onEliteLoot = (x, y, z, drops) => {
     for (const d of drops) itemDrops.spawn(d.id, d.count, x, y, z);
   };

@@ -493,3 +493,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] ITEM DEFINITION PASS: every item sprite in the game (tools, food, armor, trophies, drops) gains an automatic crisp 1px dark outline — the whole inventory, hotbar and every dropped item instantly reads against any background; ground flora gets crisp cutout edges too
 - [x] Ember skies: clouds warm toward rose-gold through dawn and dusk instead of just greying out
 - [x] 527 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.25 LIVING WORLD
+
+## Post-spec: v0.26 COMPANIONS & CATACLYSM — pets and burning arenas
+
+- [x] TAMING: offer meat (U) to a cinderpup, mosshare or puffle — 40% per morsel to befriend it. Companions wear a red collar, follow at heel (blink to your side if left 30+ blocks behind), never despawn, and are protected from your own swings; rose-mote puff + feedback lines on every offer
+- [x] CATACLYSM: from phase 2 the Ashen Monarch's slams crack the floor into burning ember patches (6s, orange mote fountains) that tick 2 damage — the arena itself becomes the fight
+- [x] Meat usage hint teaches taming; 530 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.26 COMPANIONS & CATACLYSM

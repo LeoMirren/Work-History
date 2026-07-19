@@ -106,6 +106,11 @@ export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Spec
 
 /** Below this y the overworld's cave wildlife starts appearing. */
 const CAVE_WILDLIFE_Y = 100;
+/** Species that meat can befriend into companions. */
+export const TAMEABLE = new Set<SpeciesId>([Species.cinderpup, Species.mosshare, Species.puffle]);
+const FOLLOW_NEAR = 4; // tamed: content to idle inside this range
+const FOLLOW_TELEPORT = 30; // tamed: blink to the player beyond this
+
 /** A player inside this range draws heads toward them (look-at). */
 const LOOK_RADIUS = 8;
 
@@ -351,6 +356,8 @@ export interface Animal {
   graze: number;
   /** Eased local head yaw toward a near player (0 = straight ahead). */
   headLook: number;
+  /** True once befriended: follows the player, protected, never strays. */
+  tamed: boolean;
   /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
   dying: number;
   /** Hurt-flash seconds remaining (materials glow red while > 0). */
@@ -764,6 +771,7 @@ export class AnimalSystem {
       phase: 0,
       graze: 0,
       headLook: 0,
+      tamed: false,
       dying: 0,
       flash: 0,
       kbX: 0,
@@ -903,14 +911,35 @@ export class AnimalSystem {
       const body = animal.body;
       const dx = body.x - px;
       const dz = body.z - pz;
-      if (dx * dx + dz * dz > DESPAWN_DIST * DESPAWN_DIST || body.y < -10) {
+      if (!animal.tamed && (dx * dx + dz * dz > DESPAWN_DIST * DESPAWN_DIST || body.y < -10)) {
         this.scene.remove(animal.group);
         this.animals.splice(i, 1);
         continue;
       }
+      // Companions follow: trot after the player beyond FOLLOW_NEAR, blink
+      // to their side when hopelessly left behind, and never despawn.
+      if (animal.tamed) {
+        const distSq = dx * dx + dz * dz;
+        if (distSq > FOLLOW_TELEPORT * FOLLOW_TELEPORT || body.y < -10) {
+          body.x = px + 1.5;
+          body.y = py + 1;
+          body.z = pz + 1.5;
+          body.vx = 0;
+          body.vy = 0;
+          body.vz = 0;
+        } else if (distSq > FOLLOW_NEAR * FOLLOW_NEAR) {
+          animal.yaw = Math.atan2(-(px - body.x), -(pz - body.z));
+          animal.moving = true;
+          animal.timer = Math.max(animal.timer, 0.3);
+          animal.graze = 0;
+        } else if (animal.timer > 0.5 && animal.moving && distSq < 4) {
+          animal.moving = false; // settled at heel
+        }
+      }
       // Skittish species notice an approaching player and bolt away —
       // stags, dustpuffs and stiltbacks can no longer be walked up to.
       if (
+        !animal.tamed &&
         SKITTISH.has(animal.species) &&
         animal.timer < PANIC_S && // don't re-steer an already-fleeing animal
         dx * dx + dz * dz < FLEE_RADIUS * FLEE_RADIUS
@@ -1093,8 +1122,33 @@ export class AnimalSystem {
    * Drops are yielded on the lethal hit itself; the body then plays a brief
    * shrinking death pop before fixedUpdate removes it from scene and array.
    */
+  /**
+   * Befriend an animal: collar it, bind it to the player, protect it from
+   * stray swings. Returns false if the species can't be tamed.
+   */
+  tame(animal: Animal): boolean {
+    if (!TAMEABLE.has(animal.species) || animal.tamed || animal.dying > 0) return false;
+    animal.tamed = true;
+    // A little red collar so companions read at a glance.
+    const collar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.08, 0.3),
+      new THREE.MeshBasicMaterial({ color: 0xd23f3f }),
+    );
+    collar.name = 'entity';
+    const def = SPECIES[animal.species];
+    collar.position.set(0, def.legLen + def.torso[1] * 0.9, def.headZ * 0.5);
+    animal.group.add(collar);
+    return true;
+  }
+
   hurt(animal: Animal, kx = 0, kz = 0, damage = 1): { id: number; count: number } | null {
     if (animal.dying > 0) return null; // already slain — no double drops
+    if (animal.tamed) {
+      // Companions are protected: a swing only startles them, never wounds.
+      animal.flash = 0.22;
+      animal.body.vy = 4;
+      return null;
+    }
     animal.hp -= damage;
     if (animal.hp <= 0) {
       animal.dying = DYING_S;
