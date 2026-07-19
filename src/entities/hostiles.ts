@@ -48,6 +48,14 @@ export const ELITE_SCALE = 1.7;
 // packs of three, fast and fragile, nipping for 1 a bite.
 export const SWIFT_SCALE = 0.62;
 export const SWIFT_HP = 2;
+// Burrowers: the fourth archetype — earth-toned lurkers that ERUPT from the
+// cave floor right beside an underground player.
+export const BURROWER_HP = 7;
+const BURROWER_DAMAGE = 3;
+const BURROWER_CHANCE = 0.25; // fraction of underground spawns
+const BURROWER_NEAR = 4; // eruption distance band: this close...
+const BURROWER_FAR = 9; // ...to this far from the player
+const ERUPT_S = 0.45; // seconds spent clawing out of the ground
 const SWIFT_SPEED_MULT = 1.8;
 const SWIFT_DAMAGE = 1;
 const SWIFT_PACK = 3;
@@ -95,6 +103,10 @@ export function eliteLoot(random: () => number): Array<{ id: number; count: numb
 export interface Stalker {
   /** Shrieker pack-swarmer: small, fast, fragile (see SWIFT_*). */
   readonly swift: boolean;
+  /** Burrower: erupts from cave floors beside the player (see BURROWER_*). */
+  readonly burrower: boolean;
+  /** Eruption seconds remaining — rising from the ground, no AI yet. */
+  erupting: number;
   readonly body: Body;
   readonly ranged: boolean;
   /** Oversized roaming mini-boss: day-proof, harder-hitting, loot-bursting. */
@@ -310,9 +322,15 @@ export class HostileSystem {
     return this.projectiles.length;
   }
 
-  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false): Stalker {
-    const isRanged = swift ? false : ranged ?? this.random() < RANGED_CHANCE;
+  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false, burrower = false): Stalker {
+    const isRanged = swift || burrower ? false : ranged ?? this.random() < RANGED_CHANCE;
     const parts = makeStalkerMesh(isRanged);
+    if (burrower) {
+      // Earth-toned, claws-first, born from the floor itself.
+      const earth = [0x5a4630, 0x4a3a28, 0x3d2f20];
+      parts.mats.forEach((m, i) => m.color.set(earth[Math.min(i, 2)] ?? 0x5a4630));
+      parts.group.scale.set(1, 0.12, 1); // still buried; eruption grows it
+    }
     if (swift) {
       // Shrieker: small, bleached-pale, all mouth.
       parts.group.scale.set(SWIFT_SCALE, SWIFT_SCALE, SWIFT_SCALE);
@@ -331,8 +349,10 @@ export class HostileSystem {
       ranged: isRanged,
       elite,
       swift,
+      burrower,
+      erupting: burrower ? ERUPT_S : 0,
       yaw: this.random() * Math.PI * 2,
-      hp: elite ? ELITE_HP : swift ? SWIFT_HP : STALKER_HP,
+      hp: elite ? ELITE_HP : swift ? SWIFT_HP : burrower ? BURROWER_HP : STALKER_HP,
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
@@ -356,8 +376,12 @@ export class HostileSystem {
   private trySpawn(px: number, py: number, pz: number, forceElite = false): void {
     const world = this.world;
     if (!world || this.stalkers.length >= MAX_STALKERS) return;
+    const underground0 = py < UNDERGROUND_SPAWN_Y;
+    const burrow = underground0 && !forceElite && this.random() < BURROWER_CHANCE;
     const angle = this.random() * Math.PI * 2;
-    const dist = SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
+    const dist = burrow
+      ? BURROWER_NEAR + this.random() * (BURROWER_FAR - BURROWER_NEAR)
+      : SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
     const x = Math.floor(px + Math.cos(angle) * dist);
     const z = Math.floor(pz + Math.sin(angle) * dist);
     const elite = forceElite || this.random() < ELITE_CHANCE;
@@ -370,7 +394,9 @@ export class HostileSystem {
       const id = world.getBlock(x, y, z);
       if (id === Block.air || id === Block.water) continue;
       if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
-        if (!forceElite && !elite && this.random() < SWIFT_CHANCE) {
+        if (burrow) {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, true);
+        } else if (!forceElite && !elite && this.random() < SWIFT_CHANCE) {
           // A shrieker pack: three tiny swarmers, scattered a step apart.
           for (let n = 0; n < SWIFT_PACK && this.stalkers.length < MAX_STALKERS; n++) {
             const ox = ((n % 2) * 2 - 1) * (1 + n * 0.5);
@@ -448,6 +474,18 @@ export class HostileSystem {
       if (s.sunTimer > 0 && s.flash <= 0) {
         const burn = Math.min(1, s.sunTimer / SUNBURN_S);
         for (const m of s.mats) m.emissive.setRGB(burn * 0.9, burn * 0.35, 0);
+      }
+      if (s.erupting > 0) {
+        // Clawing out of the floor: scale up, shed dirt, no AI yet.
+        s.erupting -= dt;
+        const t = Math.max(0, Math.min(1, 1 - s.erupting / ERUPT_S));
+        s.group.scale.y = 0.12 + 0.88 * t;
+        if (this.onErupt && this.random() < 0.5) {
+          this.onErupt(s.body.x + (this.random() - 0.5), s.body.y + 0.3, s.body.z + (this.random() - 0.5));
+        }
+        if (s.erupting <= 0) s.group.scale.y = 1;
+        s.group.position.set(s.body.x, s.body.y, s.body.z);
+        continue;
       }
       this.step(s, world, dt, px, py, pz, distSq, hitPlayer);
       s.group.position.set(s.body.x, s.body.y, s.body.z);
@@ -558,7 +596,7 @@ export class HostileSystem {
       s.windup -= dt;
       if (s.windup <= 0) {
         if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
-          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : ATTACK_DAMAGE);
+          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : s.burrower ? BURROWER_DAMAGE : ATTACK_DAMAGE);
           s.attackCd = ATTACK_COOLDOWN_S;
         } else {
           s.attackCd = WHIFF_RECOVERY_S; // dodged: a short stagger
@@ -572,6 +610,8 @@ export class HostileSystem {
 
   /** A spitter loosed a bolt (main plays the launch voice). */
   onSpit: (() => void) | null = null;
+  /** A burrower is clawing out at (x, y, z) — main puffs dirt there. */
+  onErupt: ((x: number, y: number, z: number) => void) | null = null;
 
   /** Launch a projectile from the spitter's head toward the player's chest. */
   private fire(s: Stalker, px: number, py: number, pz: number): void {

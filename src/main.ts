@@ -299,6 +299,8 @@ async function boot(): Promise<void> {
     audio.voice('squeal');
   };
   hostiles.onSpit = () => audio.voice('spit');
+  // Burrower eruptions kick up a dirt shower.
+  hostiles.onErupt = (bx2, by2, bz2) => particles.puff(bx2, by2, bz2, 0.5, 0.38, 0.24, 3);
   // Taming feedback: a puff of warm rose motes where the morsel landed.
   interaction.onTamed = (tx, ty, tz) => particles.puff(tx, ty, tz, 0.95, 0.5, 0.62, 5);
   // Monarch ember hazards smoulder with orange motes.

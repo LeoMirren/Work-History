@@ -148,6 +148,25 @@ const paintStone: TilePainter = (set, rng) => {
       set(x, y, l, l, l + 2);
     }
   }
+  // DEFINITION: two meandering cracks and a few embedded pebbles give the
+  // face real geology instead of uniform static.
+  for (let c = 0; c < 2; c++) {
+    let cx2 = Math.floor(rng() * TILE_PX);
+    let cy = c === 0 ? 0 : Math.floor(rng() * 6);
+    const len = 9 + Math.floor(rng() * 6);
+    for (let i = 0; i < len && cy < TILE_PX; i++) {
+      set(Math.max(0, Math.min(15, cx2)), cy, 88, 88, 92);
+      cx2 += rng() < 0.5 ? -1 : 1;
+      cy += rng() < 0.75 ? 1 : 0;
+    }
+  }
+  for (let p = 0; p < 3; p++) {
+    const px2 = 1 + Math.floor(rng() * 13);
+    const py = 1 + Math.floor(rng() * 13);
+    const l = 150 + jitter(rng, 12);
+    set(px2, py, l, l, l + 2);
+    set(px2 + 1, py, l - 18, l - 18, l - 16);
+  }
 };
 
 const paintDirt: TilePainter = (set, rng) => {
@@ -155,6 +174,22 @@ const paintDirt: TilePainter = (set, rng) => {
     for (let x = 0; x < TILE_PX; x++) {
       const n = jitter(rng, 28);
       set(x, y, 134 + n, 96 + n * 0.8, 67 + n * 0.6);
+    }
+  }
+  // DEFINITION: buried pebbles and dark root threads — soil, not brown fuzz.
+  for (let p = 0; p < 4; p++) {
+    const px2 = 1 + Math.floor(rng() * 14);
+    const py = 1 + Math.floor(rng() * 14);
+    set(px2, py, 152, 138, 116);
+    if (rng() < 0.5) set(px2 + 1, py, 118, 104, 84);
+  }
+  for (let r = 0; r < 2; r++) {
+    let rx = Math.floor(rng() * TILE_PX);
+    let ry = Math.floor(rng() * 10);
+    for (let i = 0; i < 5; i++) {
+      set(Math.max(0, Math.min(15, rx)), Math.min(15, ry), 96, 66, 44);
+      rx += rng() < 0.5 ? 1 : 0;
+      ry += 1;
     }
   }
 };
@@ -189,6 +224,17 @@ const paintSand: TilePainter = (set, rng) => {
       set(x, y, 218 + n, 206 + n, 160 + n * 0.8);
     }
   }
+  // DEFINITION: wind-ripple shadows drift across the face, plus a shell fleck.
+  for (let r = 0; r < 3; r++) {
+    const ry = 2 + r * 5 + Math.floor(rng() * 2);
+    let drift = Math.floor(rng() * 3);
+    for (let x = 0; x < TILE_PX; x++) {
+      if (rng() < 0.2) drift += rng() < 0.5 ? -1 : 1;
+      const y = Math.max(0, Math.min(15, ry + drift));
+      set(x, y, 198, 186, 142);
+    }
+  }
+  set(2 + Math.floor(rng() * 12), 2 + Math.floor(rng() * 12), 240, 234, 210);
 };
 
 export const WATER_ALPHA = 166; // 0.65 * 255, baked into the tile

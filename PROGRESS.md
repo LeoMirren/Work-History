@@ -505,3 +505,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] PHOTO AUDIT: built a portrait booth (dev probe spawns each creature and parks the camera in its face) and shot all 14 species + hostiles; verified faces render and fixed what the camera caught — muzzles now brighten (1.35x) instead of darkening, so they read on dark coats
 - [x] SHRIEKERS: a third hostile archetype — tiny bleached-pale swarmers at 0.62 scale that hunt in packs of three, fast (1.8x chase) and fragile (2 HP), nipping for 1 — ~20% of night spawns now come as a pack; melee-only, scaled hitboxes
 - [x] 532 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.27 THE MENAGERIE
+
+## Post-spec: v0.28 EARTH & STONE — burrower ambushes, geological block art
+
+- [x] BURROWERS: the FOURTH hostile archetype — earth-toned lurkers that ERUPT from the cave floor 4-9 blocks from an underground player, clawing up out of the ground over half a second in a shower of dirt (new onErupt particle hook) before hunting; 7 HP, 3 damage, ~25% of underground spawns
+- [x] Block definition pass: stone gains meandering cracks and embedded pebbles, dirt gains buried pebbles and dark root threads, sand gains drifting wind-ripple shadows and shell flecks — the three most-seen blocks in the game now have geology instead of static
+- [x] Four hostile silhouettes now roam (stalker / spitter / shrieker / burrower) plus elites, guardians and four bosses
+- [x] 534 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.28 EARTH & STONE

@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.27 THE MENAGERIE — photo-audited faces · shrieker packs · brighter muzzles';
+export const BUILD_TAG = 'v0.28 EARTH & STONE — burrower ambushes · geological block art';
