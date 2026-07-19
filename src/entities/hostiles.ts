@@ -44,6 +44,14 @@ const SUNBURN_S = 4;
 const ELITE_CHANCE = 0.1; // fraction of night spawns upgraded to elite
 const ELITE_DAY_INTERVAL_S = 9; // a lone elite prowls even in daylight
 export const ELITE_SCALE = 1.7;
+// Shriekers: the third hostile archetype — tiny pale swarmers that hunt in
+// packs of three, fast and fragile, nipping for 1 a bite.
+export const SWIFT_SCALE = 0.62;
+export const SWIFT_HP = 2;
+const SWIFT_SPEED_MULT = 1.8;
+const SWIFT_DAMAGE = 1;
+const SWIFT_PACK = 3;
+const SWIFT_CHANCE = 0.2;
 export const ELITE_HP = 24;
 const ELITE_DAMAGE = 4;
 /** Below this y the world counts as "underground": hostiles spawn any hour. */
@@ -85,6 +93,8 @@ export function eliteLoot(random: () => number): Array<{ id: number; count: numb
 }
 
 export interface Stalker {
+  /** Shrieker pack-swarmer: small, fast, fragile (see SWIFT_*). */
+  readonly swift: boolean;
   readonly body: Body;
   readonly ranged: boolean;
   /** Oversized roaming mini-boss: day-proof, harder-hitting, loot-bursting. */
@@ -300,9 +310,14 @@ export class HostileSystem {
     return this.projectiles.length;
   }
 
-  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false): Stalker {
-    const isRanged = ranged ?? this.random() < RANGED_CHANCE;
+  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false): Stalker {
+    const isRanged = swift ? false : ranged ?? this.random() < RANGED_CHANCE;
     const parts = makeStalkerMesh(isRanged);
+    if (swift) {
+      // Shrieker: small, bleached-pale, all mouth.
+      parts.group.scale.set(SWIFT_SCALE, SWIFT_SCALE, SWIFT_SCALE);
+      for (const m of parts.mats) m.color.multiplyScalar(1.55);
+    }
     if (elite) {
       parts.group.scale.set(ELITE_SCALE, ELITE_SCALE, ELITE_SCALE);
       // A gold brow band marks the walking boss from across a field.
@@ -315,8 +330,9 @@ export class HostileSystem {
       body: createBody(x, y, z),
       ranged: isRanged,
       elite,
+      swift,
       yaw: this.random() * Math.PI * 2,
-      hp: elite ? ELITE_HP : STALKER_HP,
+      hp: elite ? ELITE_HP : swift ? SWIFT_HP : STALKER_HP,
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
@@ -354,7 +370,15 @@ export class HostileSystem {
       const id = world.getBlock(x, y, z);
       if (id === Block.air || id === Block.water) continue;
       if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
-        this.spawnAt(x + 0.5, y + 1, z + 0.5, undefined, elite);
+        if (!forceElite && !elite && this.random() < SWIFT_CHANCE) {
+          // A shrieker pack: three tiny swarmers, scattered a step apart.
+          for (let n = 0; n < SWIFT_PACK && this.stalkers.length < MAX_STALKERS; n++) {
+            const ox = ((n % 2) * 2 - 1) * (1 + n * 0.5);
+            this.spawnAt(x + 0.5 + ox, y + 1, z + 0.5 + (n - 1), false, false, true);
+          }
+        } else {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, undefined, elite);
+        }
       }
       return;
     }
@@ -489,8 +513,9 @@ export class HostileSystem {
       }
     } else if (aggro) {
       s.yaw = Math.atan2(px - body.x, pz - body.z); // face the player
-      body.vx = ((px - body.x) / horiz) * MOVE_SPEED;
-      body.vz = ((pz - body.z) / horiz) * MOVE_SPEED;
+      const chase = MOVE_SPEED * (s.swift ? SWIFT_SPEED_MULT : 1);
+      body.vx = ((px - body.x) / horiz) * chase;
+      body.vz = ((pz - body.z) / horiz) * chase;
     } else {
       s.wanderTimer -= dt;
       if (s.wanderTimer <= 0) {
@@ -533,7 +558,7 @@ export class HostileSystem {
       s.windup -= dt;
       if (s.windup <= 0) {
         if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
-          hitPlayer(s.elite ? ELITE_DAMAGE : ATTACK_DAMAGE);
+          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : ATTACK_DAMAGE);
           s.attackCd = ATTACK_COOLDOWN_S;
         } else {
           s.attackCd = WHIFF_RECOVERY_S; // dodged: a short stagger
@@ -644,8 +669,8 @@ export class HostileSystem {
       if (s.dying > 0) continue; // corpses mid-pop can't be targeted
       const b = s.body;
       // Elites are visually 1.7x: the hitbox matches what you see.
-      const hw = s.elite ? STALKER_HALF_WIDTH * ELITE_SCALE : STALKER_HALF_WIDTH;
-      const hh = s.elite ? STALKER_HEIGHT * ELITE_SCALE : STALKER_HEIGHT;
+      const hw = s.elite ? STALKER_HALF_WIDTH * ELITE_SCALE : s.swift ? STALKER_HALF_WIDTH * SWIFT_SCALE : STALKER_HALF_WIDTH;
+      const hh = s.elite ? STALKER_HEIGHT * ELITE_SCALE : s.swift ? STALKER_HEIGHT * SWIFT_SCALE : STALKER_HEIGHT;
       const t = rayAABB(
         ox, oy, oz, dx, dy, dz,
         b.x - hw, b.y, b.z - hw,

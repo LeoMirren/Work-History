@@ -485,10 +485,11 @@ function makeAnimalMesh(
       pupil.position.set(ex * (hw / 2 - 0.04) - ex * 0.014, 0.035, -hd / 2 - 0.03);
       pupil.scale.set(eyeScale, eyeScale, 1);
     }
-    // Muzzle: a slightly darker snout box low on the face, nose tip + mouth.
+    // Muzzle: a LIGHTER snout box low on the face (photo audit: dark-on-dark
+    // muzzles vanished — brightening reads on every coat), nose tip + mouth.
     const muzzle = detail(
       new THREE.BoxGeometry(hw * 0.62, hh * 0.46, 0.08),
-      mat(tinted(def.headColor, 0.82)),
+      mat(tinted(def.headColor, 1.35)),
       headMesh,
     );
     muzzle.position.set(0, -hh * 0.22, -hd / 2 - 0.03);

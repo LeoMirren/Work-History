@@ -499,3 +499,9 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] TAMING: offer meat (U) to a cinderpup, mosshare or puffle — 40% per morsel to befriend it. Companions wear a red collar, follow at heel (blink to your side if left 30+ blocks behind), never despawn, and are protected from your own swings; rose-mote puff + feedback lines on every offer
 - [x] CATACLYSM: from phase 2 the Ashen Monarch's slams crack the floor into burning ember patches (6s, orange mote fountains) that tick 2 damage — the arena itself becomes the fight
 - [x] Meat usage hint teaches taming; 530 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.26 COMPANIONS & CATACLYSM
+
+## Post-spec: v0.27 THE MENAGERIE — photo-audited creatures, a third mob type
+
+- [x] PHOTO AUDIT: built a portrait booth (dev probe spawns each creature and parks the camera in its face) and shot all 14 species + hostiles; verified faces render and fixed what the camera caught — muzzles now brighten (1.35x) instead of darkening, so they read on dark coats
+- [x] SHRIEKERS: a third hostile archetype — tiny bleached-pale swarmers at 0.62 scale that hunt in packs of three, fast (1.8x chase) and fragile (2 HP), nipping for 1 — ~20% of night spawns now come as a pack; melee-only, scaled hitboxes
+- [x] 532 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.27 THE MENAGERIE
