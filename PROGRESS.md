@@ -477,3 +477,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Projectiles: thrown stones 50% bigger with a three-tone tumble glint; venom bolts 40% bigger with a white-hot core, faster spin and a denser trail
 - [x] Wilderness scatter: boulders and fallen logs seed the open ground (~2/3-gated rolls, level-pad checks) — plains and forests read as places, not lawns
 - [x] 526 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.23 DEFINITION
+
+## Post-spec: v0.24 ALIVE — sound, combat feel, and watching eyes
+
+- [x] The world makes NOISE: synthesized creature voices with zero assets — stalker growls when they hit you, prey squeals on every landed strike, death pops, spitter launch zips, boss summon ROARS (three-layer bellow), ground-slam thumps, and irregular daytime birdsong
+- [x] TELEGRAPHED COMBAT: every melee attacker (stalkers, elites, guardians, all four bosses) now winds up ~0.35s with a visible forward tip BEFORE the blow — step back during the tell and the strike whiffs into a stagger. A real dodge window; enraged bosses swing faster
+- [x] Heads that watch you: animals and villagers turn their heads to track a player within 8 blocks (eased, clamped) — walk through a herd or a market and eyes follow you
+- [x] 527 tests green (guardian melee cadence retuned + a new whiff test), strict tsc, clean build; BUILD_TAG bumped to v0.24 ALIVE

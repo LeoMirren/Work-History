@@ -110,6 +110,8 @@ export interface Villager {
   phase: number;
   /** Flee-sprint seconds remaining after a startle. */
   flee: number;
+  /** Eased local head yaw toward a near player (0 = straight ahead). */
+  headLook: number;
   /** Startle-flash seconds remaining (materials blink warm while > 0). */
   flash: number;
   /** Knockback impulse, decaying, added to the walk velocity. */
@@ -300,6 +302,7 @@ export class VillagerSystem {
       timer: 0.5 + this.random() * 2,
       phase: 0,
       flee: 0,
+      headLook: 0,
       flash: 0,
       kbX: 0,
       kbZ: 0,
@@ -443,6 +446,16 @@ export class VillagerSystem {
         continue;
       }
       this.step(v, world, dt);
+      // A near player draws the warden's gaze — traders look at you.
+      if (dx * dx + dz * dz < 64 && v.flee <= 0) {
+        const desired = Math.atan2(-(px - body.x), -(pz - body.z));
+        let rel = desired - v.yaw;
+        while (rel > Math.PI) rel -= Math.PI * 2;
+        while (rel < -Math.PI) rel += Math.PI * 2;
+        v.headLook = Math.max(-0.8, Math.min(0.8, rel));
+      } else {
+        v.headLook = 0;
+      }
       v.group.position.set(body.x, body.y, body.z);
       v.group.rotation.set(0, v.yaw, 0);
       this.animate(v, dt);
@@ -472,6 +485,8 @@ export class VillagerSystem {
       v.arms[1]?.rotation.set(-sway, 0, -IDLE_ARM_SPLAY);
       v.head.rotation.x = Math.sin(v.phase) * IDLE_BOB_TILT;
     }
+    // Gaze: the head eases toward a watching player in both gaits.
+    v.head.rotation.y += (v.headLook - v.head.rotation.y) * Math.min(1, dt * 8);
     if (v.flash > 0) {
       v.flash -= dt;
       const on = v.flash > 0;

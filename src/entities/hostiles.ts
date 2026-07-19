@@ -51,6 +51,8 @@ export const UNDERGROUND_SPAWN_Y = 114; // below the post-Deepening surface, cav
 /** Melee tell: the torso tips this far forward on a hit, decaying upright. */
 const LUNGE_TIP = 0.25;
 const LUNGE_S = 0.3; // seconds the lunge tell takes to decay
+const WINDUP_S = 0.35; // telegraphed strike: the tell runs this long BEFORE damage
+const WHIFF_RECOVERY_S = 0.45; // stagger after a dodged strike
 /** Death pop: a slain stalker lingers this long, shrinking, before removal. */
 const DYING_S = 0.18;
 const DYING_SHRINK = 14; // per-second scale decay while dying
@@ -98,6 +100,8 @@ export interface Stalker {
   flash: number;
   /** Melee-lunge seconds remaining — the torso tips forward, then decays. */
   lunge: number;
+  /** Telegraph seconds remaining before the strike lands (0 = not winding). */
+  windup: number;
   /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
   dying: number;
   /** Knockback impulse, decaying, added to the drive velocity. */
@@ -319,6 +323,7 @@ export class HostileSystem {
       phase: 0,
       flash: 0,
       lunge: 0,
+      windup: 0,
       dying: 0,
       kbX: 0,
       kbZ: 0,
@@ -445,7 +450,7 @@ export class HostileSystem {
     if (s.lunge > 0) {
       // Lunge tell: tipped LUNGE_TIP forward on the hit, decaying upright.
       s.lunge -= dt;
-      s.torso.rotation.x = Math.max(0, s.lunge) * (LUNGE_TIP / LUNGE_S);
+      s.torso.rotation.x = Math.min(LUNGE_TIP, Math.max(0, s.lunge) * (LUNGE_TIP / LUNGE_S));
     }
     if (s.flash > 0) {
       s.flash -= dt;
@@ -519,17 +524,33 @@ export class HostileSystem {
       body.vy = HOP_VELOCITY; // climb obstacles toward the player
     }
 
-    // Melee (non-ranged only): in range including vertical, off cooldown.
+    // Melee (non-ranged only): a TELEGRAPHED strike. Entering range starts a
+    // windup — the torso tips forward with NO damage yet — and the blow only
+    // lands if the player is still close when it finishes. Back off during
+    // the tell and the strike whiffs: a real dodge window.
     const dyEye = Math.abs(body.y - py);
-    if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
-      hitPlayer(s.elite ? ELITE_DAMAGE : ATTACK_DAMAGE);
-      s.attackCd = ATTACK_COOLDOWN_S;
-      s.lunge = LUNGE_S; // visible tell: the torso tips forward, then decays
+    if (s.windup > 0) {
+      s.windup -= dt;
+      if (s.windup <= 0) {
+        if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
+          hitPlayer(s.elite ? ELITE_DAMAGE : ATTACK_DAMAGE);
+          s.attackCd = ATTACK_COOLDOWN_S;
+        } else {
+          s.attackCd = WHIFF_RECOVERY_S; // dodged: a short stagger
+        }
+      }
+    } else if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
+      s.windup = WINDUP_S;
+      s.lunge = WINDUP_S + LUNGE_S; // the tell tips through windup + strike
     }
   }
 
+  /** A spitter loosed a bolt (main plays the launch voice). */
+  onSpit: (() => void) | null = null;
+
   /** Launch a projectile from the spitter's head toward the player's chest. */
   private fire(s: Stalker, px: number, py: number, pz: number): void {
+    this.onSpit?.();
     const ox = s.body.x;
     const oy = s.body.y + STALKER_HEIGHT * 0.85;
     const oz = s.body.z;

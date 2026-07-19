@@ -120,21 +120,35 @@ describe('guardian behaviour', () => {
     expect(Math.hypot(brute.body.x - 0.5, brute.body.z - 0.5)).toBeLessThan(6);
   });
 
-  it('melee ticks hitPlayer(3) on the 1.2s cooldown, with a lunge tell', () => {
+  it('telegraphs melee: the tell runs ~0.35s BEFORE hitPlayer(3) lands', () => {
     const { system } = makeSystem(noDungeon);
     const g = system.spawnAt(2.0, 10, 0.5, 'a', { x: 2, y: 10, z: 0.5 });
     const damages: number[] = [];
-    system.fixedUpdate(DT, 0.5, 10, 0.5, (d) => damages.push(d));
-    expect(damages).toEqual([3]); // first strike lands at once
-    expect(g.torso.rotation.x).toBeGreaterThan(0.2); // tipped ~0.25 forward
-    for (let i = 0; i < 60 * 3 - 1; i++) {
+    // During the windup: the torso tips (the tell) but NO damage yet.
+    for (let i = 0; i < 12; i++) system.fixedUpdate(DT, 0.5, 10, 0.5, (d) => damages.push(d));
+    expect(damages).toEqual([]);
+    expect(g.torso.rotation.x).toBeGreaterThan(0.1); // tipped: the dodge window
+    // The windup expires: the strike lands.
+    for (let i = 0; i < 15; i++) system.fixedUpdate(DT, 0.5, 10, 0.5, (d) => damages.push(d));
+    expect(damages).toEqual([3]);
+    for (let i = 0; i < 60 * 3; i++) {
       system.fixedUpdate(DT, 0.5, 10, 0.5, (d) => damages.push(d));
     }
-    // 1.2s cooldown over 3s: strikes at ~0, ~1.2, ~2.4 — never more.
+    // Windup + 1.2s cooldown cadence over ~3.5s: 2-3 strikes, never more.
     expect(damages.length).toBeGreaterThanOrEqual(2);
-    expect(damages.length).toBeLessThanOrEqual(3);
+    expect(damages.length).toBeLessThanOrEqual(4);
     expect(damages.every((d) => d === 3)).toBe(true);
-    expect(g.torso.rotation.x).toBeGreaterThanOrEqual(0); // tell decays upright
+  });
+
+  it('a strike whiffs when the player steps away during the tell', () => {
+    const { system } = makeSystem(noDungeon);
+    system.spawnAt(2.0, 10, 0.5, 'a', { x: 2, y: 10, z: 0.5 });
+    const damages: number[] = [];
+    // Start the windup in range...
+    for (let i = 0; i < 6; i++) system.fixedUpdate(DT, 0.5, 10, 0.5, (d) => damages.push(d));
+    // ...then the player retreats far before it lands: no damage.
+    for (let i = 0; i < 40; i++) system.fixedUpdate(DT, 12.5, 10, 0.5, (d) => damages.push(d));
+    expect(damages).toEqual([]);
   });
 
   it('leash beyond 16 turns it home, ignoring an adjacent player', () => {

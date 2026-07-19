@@ -166,12 +166,16 @@ async function boot(): Promise<void> {
     if (done) goalToast.show(done.title, done.text);
   }
   inventoryScreen.onMake = (name, station) => signalGoal({ kind: station, name });
-  interaction.onKill = (what) => signalGoal({ kind: 'kill', what });
+  interaction.onKill = (what) => {
+    signalGoal({ kind: 'kill', what });
+    audio.voice('pop');
+  };
   interaction.onCatch = () => signalGoal({ kind: 'catch' });
   const infoPanel = new InfoPanel(app);
   const damageOverlay = new DamageOverlay(app);
   const hurt = new HurtIndicator();
   let prevHp = MAX_HP;
+  let chirpTimer = 5;
   let deathOpen = false;
   const deathScreen = new DeathScreen(app, () => {
     player.respawn();
@@ -232,11 +236,15 @@ async function boot(): Promise<void> {
   interaction.onThrow = (ox, oy, oz, dx, dy, dz) => projectiles.throw(ox, oy, oz, dx, dy, dz);
   const boss = new BossSystem(gr.scene);
   const bossBar = new BossBar(app);
-  interaction.onSummonBoss = (x, y, z) => boss.summon(x, y + 0.5, z);
+  const summonWithRoar = (ok: boolean): boolean => {
+    if (ok) audio.voice('roar');
+    return ok;
+  };
+  interaction.onSummonBoss = (x, y, z) => summonWithRoar(boss.summon(x, y + 0.5, z));
   // Shrine altars wake the Hollow Tyrant right where the altar stands.
-  interaction.onSummonAltarBoss = (bx, by, bz) => boss.summon(bx + 0.5, by + 1, bz + 0.5, 'hollowTyrant');
+  interaction.onSummonAltarBoss = (bx, by, bz) => summonWithRoar(boss.summon(bx + 0.5, by + 1, bz + 0.5, 'hollowTyrant'));
   // The emberthrone wakes the Ashen Monarch — the end of the game.
-  interaction.onSummonThroneBoss = (bx, by, bz) => boss.summon(bx + 0.5, by + 1, bz + 0.5, 'ashenMonarch');
+  interaction.onSummonThroneBoss = (bx, by, bz) => summonWithRoar(boss.summon(bx + 0.5, by + 1, bz + 0.5, 'ashenMonarch'));
   // Roaming titans: region-seeded Stone Colossus anchors (overworld surface).
   // Walk within reach of a living titan's anchor and the fight simply begins.
   let titanSeedInt = 0;
@@ -285,7 +293,11 @@ async function boot(): Promise<void> {
   // Venom bolts shed a green wake as they fly.
   hostiles.onProjectileTrail = (tx, ty, tz) => particles.puff(tx, ty, tz, 0.45, 0.85, 0.3);
   // Red flecks confirm every landed melee strike at the point of impact.
-  interaction.onMobHit = (hx, hy, hz) => particles.puff(hx, hy, hz, 0.85, 0.16, 0.12, 4);
+  interaction.onMobHit = (hx, hy, hz) => {
+    particles.puff(hx, hy, hz, 0.85, 0.16, 0.12, 4);
+    audio.voice('squeal');
+  };
+  hostiles.onSpit = () => audio.voice('spit');
   hostiles.onEliteLoot = (x, y, z, drops) => {
     for (const d of drops) itemDrops.spawn(d.id, d.count, x, y, z);
   };
@@ -879,7 +891,10 @@ async function boot(): Promise<void> {
         player.body.y,
         player.body.z,
         threatBrightness,
-        (dmg) => player.hurt(dmg),
+        (dmg) => {
+          player.hurt(dmg);
+          audio.voice('growl');
+        },
       );
       guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
       boss.fixedUpdate(
@@ -888,7 +903,10 @@ async function boot(): Promise<void> {
         player.body.x,
         player.body.y,
         player.body.z,
-        (dmg) => player.hurt(dmg),
+        (dmg) => {
+          player.hurt(dmg);
+          audio.voice('slam');
+        },
         (ax, ay, az) => hostiles.spawnAt(ax, ay, az),
         (id, count, lx, ly, lz) => itemDrops.spawn(id, count, lx, ly, lz),
       );
@@ -944,6 +962,12 @@ async function boot(): Promise<void> {
         const moteMode =
           session.dimension === 'underworld' ? 'underworld' : isNightTime(dayNight.time) ? 'night' : 'day';
         ambience.update(frameDt, player.body.x, player.body.y, player.body.z, moteMode);
+        // Idle birdsong: irregular chirps through overworld daylight.
+        chirpTimer -= frameDt;
+        if (chirpTimer <= 0) {
+          chirpTimer = 6 + Math.random() * 9;
+          if (moteMode === 'day' && !player.eyesUnderwater) audio.voice('chirp');
+        }
       }
       // Weather: deterministic wet/clear spells (overworld only). Each day
       // splits into 4 cycles; wet falls as snow in freezing biomes, else rain.

@@ -204,6 +204,8 @@ export interface Boss {
   /** Integrated stride phase — position-independent, so no diagonal freeze. */
   walkPhase: number;
   lunge: number;
+  /** Telegraph seconds remaining before the slam lands (0 = not winding). */
+  windup: number;
   flash: number;
   dying: number;
   kbX: number;
@@ -615,6 +617,7 @@ export class BossSystem {
       phase: 1,
       walkPhase: 0,
       lunge: 0,
+      windup: 0,
       flash: 0,
       dying: 0,
       kbX: 0,
@@ -677,12 +680,22 @@ export class BossSystem {
     b.kbX *= kbDecay;
     b.kbZ *= kbDecay;
 
-    // Ground slam when in reach and off cooldown.
+    // Ground slam: TELEGRAPHED. The lean-forward runs before the blow, and
+    // stepping out of reach during the tell makes even a boss whiff.
     if (b.attackCd > 0) b.attackCd -= dt;
-    if (b.attackCd <= 0 && distSq < b.spec.slamRange * b.spec.slamRange && Math.abs(b.body.y - py) < 3) {
-      hitPlayer(b.spec.slamDamage);
-      b.attackCd = enraged ? b.spec.enragedCooldown : b.spec.slamCooldown;
-      b.lunge = LUNGE_S;
+    if (b.windup > 0) {
+      b.windup -= dt;
+      if (b.windup <= 0) {
+        if (distSq < b.spec.slamRange * b.spec.slamRange * 1.7 && Math.abs(b.body.y - py) < 3.4) {
+          hitPlayer(b.spec.slamDamage);
+          b.attackCd = enraged ? b.spec.enragedCooldown : b.spec.slamCooldown;
+        } else {
+          b.attackCd = 0.6;
+        }
+      }
+    } else if (b.attackCd <= 0 && distSq < b.spec.slamRange * b.spec.slamRange && Math.abs(b.body.y - py) < 3) {
+      b.windup = enraged ? 0.28 : 0.42; // enraged bosses swing faster
+      b.lunge = b.windup + LUNGE_S;
     }
 
     // Phase 2+: periodically summon adds around the arena.
@@ -722,7 +735,7 @@ export class BossSystem {
     b.limbs[3]?.rotation.set(swing * 0.7, 0, 0);
     if (b.lunge > 0) {
       b.lunge -= dt;
-      b.torso.rotation.set(Math.max(0, b.lunge / LUNGE_S) * 0.4, 0, 0);
+      b.torso.rotation.set(Math.min(1, Math.max(0, b.lunge / LUNGE_S)) * 0.4, 0, 0);
     } else {
       b.torso.rotation.set(0, 0, 0);
     }

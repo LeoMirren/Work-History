@@ -106,6 +106,8 @@ export const UNDERWORLD_SPECIES: readonly SpeciesId[] = [Species.cinderpup, Spec
 
 /** Below this y the overworld's cave wildlife starts appearing. */
 const CAVE_WILDLIFE_Y = 100;
+/** A player inside this range draws heads toward them (look-at). */
+const LOOK_RADIUS = 8;
 
 /** Skittish species bolt when the player closes within FLEE_RADIUS. */
 const SKITTISH = new Set<SpeciesId>([Species.bramblehorn, Species.dustpuff, Species.stiltback, Species.mosshare]);
@@ -347,6 +349,8 @@ export interface Animal {
   phase: number;
   /** Graze seconds remaining; > 0 while idle-grazing (head down, nibbling). */
   graze: number;
+  /** Eased local head yaw toward a near player (0 = straight ahead). */
+  headLook: number;
   /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
   dying: number;
   /** Hurt-flash seconds remaining (materials glow red while > 0). */
@@ -759,6 +763,7 @@ export class AnimalSystem {
       timer: 0.5 + this.random() * 2,
       phase: 0,
       graze: 0,
+      headLook: 0,
       dying: 0,
       flash: 0,
       kbX: 0,
@@ -916,6 +921,17 @@ export class AnimalSystem {
         animal.graze = 0;
       }
       this.step(animal, world, dt);
+      // Head look-at: a near player draws the gaze (clamped, eased) — the
+      // difference between livestock and set dressing.
+      if (dx * dx + dz * dz < LOOK_RADIUS * LOOK_RADIUS && animal.dying <= 0) {
+        const desired = Math.atan2(-(px - body.x), -(pz - body.z));
+        let rel = desired - animal.yaw;
+        while (rel > Math.PI) rel -= Math.PI * 2;
+        while (rel < -Math.PI) rel += Math.PI * 2;
+        animal.headLook = Math.max(-0.75, Math.min(0.75, rel));
+      } else {
+        animal.headLook = 0;
+      }
       animal.group.position.set(body.x, body.y, body.z);
       animal.group.rotation.set(0, animal.yaw, 0);
       this.animate(animal, dt);
@@ -957,6 +973,8 @@ export class AnimalSystem {
       animal.torso.rotation.z *= settle;
       if (animal.tail) animal.tail.rotation.y *= settle;
     }
+    // Gaze: the head eases toward a watching player in both gaits.
+    animal.head.rotation.y += (animal.headLook - animal.head.rotation.y) * ease;
     if (animal.flash > 0) {
       animal.flash -= dt;
       const on = animal.flash > 0;

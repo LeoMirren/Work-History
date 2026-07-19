@@ -80,6 +80,8 @@ export interface Guardian {
   flash: number;
   /** Melee-lunge seconds remaining — the torso tips forward, then decays. */
   lunge: number;
+  /** Telegraph seconds remaining before the strike lands (0 = not winding). */
+  windup: number;
   /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
   dying: number;
   /** Knockback impulse, decaying, added to the drive velocity. */
@@ -224,6 +226,7 @@ export class GuardianSystem {
       yaw: this.random() * Math.PI * 2,
       hp: GUARDIAN_HP,
       attackCd: 0,
+      windup: 0,
       wanderTimer: 0,
       phase: 0,
       flash: 0,
@@ -367,7 +370,7 @@ export class GuardianSystem {
     if (g.lunge > 0) {
       // Lunge tell: tipped LUNGE_TIP forward on the hit, decaying upright.
       g.lunge -= dt;
-      g.torso.rotation.x = Math.max(0, g.lunge) * (LUNGE_TIP / LUNGE_S);
+      g.torso.rotation.x = Math.min(LUNGE_TIP, Math.max(0, g.lunge) * (LUNGE_TIP / LUNGE_S));
     }
     if (g.flash > 0) {
       g.flash -= dt;
@@ -444,10 +447,21 @@ export class GuardianSystem {
 
     // Melee: in reach including vertical, off cooldown, only while aggroed.
     const dyEye = Math.abs(body.y - py);
-    if (aggro && g.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
-      hitPlayer(ATTACK_DAMAGE);
-      g.attackCd = ATTACK_COOLDOWN_S;
-      g.lunge = LUNGE_S; // visible tell: the torso tips forward, then decays
+    // Telegraphed strike: the tip-forward runs BEFORE damage; step back
+    // during the tell and the brute whiffs into a short stagger.
+    if (g.windup > 0) {
+      g.windup -= dt;
+      if (g.windup <= 0) {
+        if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
+          hitPlayer(ATTACK_DAMAGE);
+          g.attackCd = ATTACK_COOLDOWN_S;
+        } else {
+          g.attackCd = 0.5;
+        }
+      }
+    } else if (aggro && g.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
+      g.windup = 0.35;
+      g.lunge = 0.35 + LUNGE_S;
     }
   }
 

@@ -69,4 +69,68 @@ export class TapAudio {
     noiseGain.connect(this.master);
     noise.start(t);
   }
+
+  /**
+   * Creature & combat voices — every call synthesizes a short gesture from
+   * oscillators, so the world finally makes noise: growls, squeals, spits,
+   * boss roars and slams, and idle birdsong. Zero assets, same lazy context.
+   */
+  voice(kind: VoiceKind): void {
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime;
+    /** One swept-oscillator note into its own envelope. */
+    const note = (
+      type: OscillatorType,
+      f0: number,
+      f1: number,
+      dur: number,
+      gain: number,
+      delay = 0,
+    ): void => {
+      if (!this.master) return;
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, t + delay);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(24, f1), t + delay + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t + delay);
+      g.gain.exponentialRampToValueAtTime(gain, t + delay + Math.min(0.02, dur * 0.2));
+      g.gain.exponentialRampToValueAtTime(0.002, t + delay + dur);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start(t + delay);
+      osc.stop(t + delay + dur + 0.02);
+    };
+    switch (kind) {
+      case 'growl': // stalker menace: low sawtooth rumble, falling
+        note('sawtooth', 110, 55, 0.28, 0.22);
+        note('square', 70, 40, 0.3, 0.12, 0.03);
+        break;
+      case 'squeal': // prey hurt: quick high chirp bending down
+        note('triangle', 620, 310, 0.12, 0.2);
+        break;
+      case 'pop': // death pop: a soft descending bloop
+        note('sine', 340, 90, 0.16, 0.24);
+        break;
+      case 'spit': // venom bolt launch: airy rising zip
+        note('sawtooth', 240, 760, 0.1, 0.14);
+        break;
+      case 'roar': // boss summon: long two-layer bellow
+        note('sawtooth', 90, 45, 0.7, 0.3);
+        note('square', 140, 60, 0.6, 0.18, 0.06);
+        note('triangle', 55, 30, 0.8, 0.22, 0.1);
+        break;
+      case 'slam': // boss ground slam: deep thump + noise-free body
+        note('sine', 120, 35, 0.22, 0.34);
+        note('square', 60, 30, 0.18, 0.16, 0.01);
+        break;
+      case 'chirp': // idle birdsong: two quick up-notes
+        note('sine', 1350, 1900, 0.06, 0.07);
+        note('sine', 1600, 2200, 0.05, 0.06, 0.09);
+        break;
+    }
+  }
 }
+
+export type VoiceKind = 'growl' | 'squeal' | 'pop' | 'spit' | 'roar' | 'slam' | 'chirp';
