@@ -48,6 +48,12 @@ export const ELITE_SCALE = 1.7;
 // packs of three, fast and fragile, nipping for 1 a bite.
 export const SWIFT_SCALE = 0.62;
 export const SWIFT_HP = 2;
+// Shellbacks: the fifth archetype — front-armored bruisers. Blows against
+// the shell chip for 1; flank them and they take full damage.
+export const SHELLBACK_HP = 10;
+const SHELLBACK_DAMAGE = 3;
+const SHELLBACK_CHANCE = 0.15; // fraction of surface night spawns
+const SHELLBACK_SPEED_MULT = 0.75;
 // Burrowers: the fourth archetype — earth-toned lurkers that ERUPT from the
 // cave floor right beside an underground player.
 export const BURROWER_HP = 7;
@@ -105,6 +111,8 @@ export interface Stalker {
   readonly swift: boolean;
   /** Burrower: erupts from cave floors beside the player (see BURROWER_*). */
   readonly burrower: boolean;
+  /** Shellback: front-armored — frontal blows chip for 1 (see SHELLBACK_*). */
+  readonly shelled: boolean;
   /** Eruption seconds remaining — rising from the ground, no AI yet. */
   erupting: number;
   readonly body: Body;
@@ -322,9 +330,29 @@ export class HostileSystem {
     return this.projectiles.length;
   }
 
-  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false, burrower = false): Stalker {
-    const isRanged = swift || burrower ? false : ranged ?? this.random() < RANGED_CHANCE;
+  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false, burrower = false, shelled = false): Stalker {
+    const isRanged = swift || burrower || shelled ? false : ranged ?? this.random() < RANGED_CHANCE;
     const parts = makeStalkerMesh(isRanged);
+    if (shelled) {
+      // Slate-grey armor: a front carapace slab, a brow plate and pauldron
+      // ridges — unmistakably "hit me from behind".
+      const shellMat = hideMaterial(0x9aa0aa, 'stone');
+      parts.mats.push(shellMat);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.1), shellMat);
+      plate.name = 'entity';
+      plate.position.set(0, 1.1, -0.24);
+      parts.group.add(plate);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.2, 0.1), shellMat);
+      visor.name = 'entity';
+      visor.position.set(0, 1.78, -0.22);
+      parts.group.add(visor);
+      for (const sx of [-1, 1]) {
+        const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.34), shellMat);
+        ridge.name = 'entity';
+        ridge.position.set(sx * 0.36, 1.32, -0.06);
+        parts.group.add(ridge);
+      }
+    }
     if (burrower) {
       // Earth-toned, claws-first, born from the floor itself.
       const earth = [0x5a4630, 0x4a3a28, 0x3d2f20];
@@ -350,9 +378,10 @@ export class HostileSystem {
       elite,
       swift,
       burrower,
+      shelled,
       erupting: burrower ? ERUPT_S : 0,
       yaw: this.random() * Math.PI * 2,
-      hp: elite ? ELITE_HP : swift ? SWIFT_HP : burrower ? BURROWER_HP : STALKER_HP,
+      hp: elite ? ELITE_HP : swift ? SWIFT_HP : burrower ? BURROWER_HP : shelled ? SHELLBACK_HP : STALKER_HP,
       attackCd: 0,
       sunTimer: 0,
       wanderTimer: 0,
@@ -396,6 +425,8 @@ export class HostileSystem {
       if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
         if (burrow) {
           this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, true);
+        } else if (!underground0 && !forceElite && !elite && this.random() < SHELLBACK_CHANCE) {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, false, true);
         } else if (!forceElite && !elite && this.random() < SWIFT_CHANCE) {
           // A shrieker pack: three tiny swarmers, scattered a step apart.
           for (let n = 0; n < SWIFT_PACK && this.stalkers.length < MAX_STALKERS; n++) {
@@ -551,7 +582,7 @@ export class HostileSystem {
       }
     } else if (aggro) {
       s.yaw = Math.atan2(px - body.x, pz - body.z); // face the player
-      const chase = MOVE_SPEED * (s.swift ? SWIFT_SPEED_MULT : 1);
+      const chase = MOVE_SPEED * (s.swift ? SWIFT_SPEED_MULT : s.shelled ? SHELLBACK_SPEED_MULT : 1);
       body.vx = ((px - body.x) / horiz) * chase;
       body.vz = ((pz - body.z) / horiz) * chase;
     } else {
@@ -596,7 +627,7 @@ export class HostileSystem {
       s.windup -= dt;
       if (s.windup <= 0) {
         if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
-          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : s.burrower ? BURROWER_DAMAGE : ATTACK_DAMAGE);
+          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : s.burrower ? BURROWER_DAMAGE : s.shelled ? SHELLBACK_DAMAGE : ATTACK_DAMAGE);
           s.attackCd = ATTACK_COOLDOWN_S;
         } else {
           s.attackCd = WHIFF_RECOVERY_S; // dodged: a short stagger
@@ -732,6 +763,13 @@ export class HostileSystem {
    */
   hurt(stalker: Stalker, kx = 0, kz = 0, damage = 2): boolean {
     if (stalker.dying > 0) return false; // already slain and popping
+    // Shellback armor: an attack travelling INTO the facing (head-on) meets
+    // the carapace and chips for 1 — circle behind for full damage.
+    if (stalker.shelled && (kx !== 0 || kz !== 0)) {
+      const fx = -Math.sin(stalker.yaw);
+      const fz = -Math.cos(stalker.yaw);
+      if (kx * fx + kz * fz < 0) damage = Math.min(damage, 1);
+    }
     stalker.hp -= damage;
     stalker.body.vy = 4; // knock-up
     if (stalker.hp <= 0) {

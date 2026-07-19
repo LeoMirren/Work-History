@@ -512,3 +512,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Block definition pass: stone gains meandering cracks and embedded pebbles, dirt gains buried pebbles and dark root threads, sand gains drifting wind-ripple shadows and shell flecks — the three most-seen blocks in the game now have geology instead of static
 - [x] Four hostile silhouettes now roam (stalker / spitter / shrieker / burrower) plus elites, guardians and four bosses
 - [x] 534 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.28 EARTH & STONE
+
+## Post-spec: v0.29 THE GARRISON — shellbacks, watchposts, living wood & turf
+
+- [x] SHELLBACKS: the FIFTH hostile archetype — slate-armored bruisers with a carapace plate, visor and pauldron ridges; frontal blows CHIP for 1, flank them for full damage (10 HP, 3 damage, slower, ~15% of surface night spawns) — the first positional fight in the game
+- [x] Village WATCHPOSTS: lantern-lit pillar-and-deck lookouts with spiral plank steps and a parapet now rise on village outskirts — settlements under night raids look like they know it
+- [x] Block art finish: grass tops gain bright blade flecks and worn soil peeks; log bark gains knots and horizontal cracks — with stone/dirt/sand from v0.28, every core block now has features
+- [x] 535 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.29 THE GARRISON

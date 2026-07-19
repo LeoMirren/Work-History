@@ -201,6 +201,20 @@ const paintGrassTop: TilePainter = (set, rng) => {
       set(x, y, 96 + n * 0.7, 160 + n, 56 + n * 0.5);
     }
   }
+  // DEFINITION: bright blade flecks and the odd worn soil peek — turf, not
+  // green noise.
+  for (let b = 0; b < 6; b++) {
+    const bx = Math.floor(rng() * TILE_PX);
+    const by = Math.floor(rng() * TILE_PX);
+    set(bx, by, 128, 198, 84);
+    if (by > 0 && rng() < 0.6) set(bx, by - 1, 118, 186, 76);
+  }
+  for (let p = 0; p < 2; p++) {
+    const px2 = 1 + Math.floor(rng() * 13);
+    const py = 1 + Math.floor(rng() * 13);
+    set(px2, py, 124, 100, 62);
+    if (rng() < 0.5) set(px2 + 1, py, 116, 92, 58);
+  }
 };
 
 /** Dirt with a 4px grass band on top; row 4 gets a ragged transition. */
@@ -255,6 +269,20 @@ const paintLogSide: TilePainter = (set, rng) => {
     for (let x = 0; x < TILE_PX; x++) {
       const n = jitter(rng, 16) + (colShade[x] ?? 0);
       set(x, y, 104 + n, 82 + n * 0.8, 50 + n * 0.5);
+    }
+  }
+  // DEFINITION: a bark knot with a ring, plus two horizontal bark cracks.
+  const kx = 3 + Math.floor(rng() * 10);
+  const ky = 3 + Math.floor(rng() * 10);
+  set(kx, ky, 62, 46, 28);
+  set(kx + 1, ky, 78, 58, 34);
+  set(kx, ky + 1, 78, 58, 34);
+  set(kx + 1, ky + 1, 88, 66, 38);
+  for (let c = 0; c < 2; c++) {
+    const cy = 2 + Math.floor(rng() * 12);
+    const cx2 = Math.floor(rng() * 6);
+    for (let x = cx2; x < Math.min(TILE_PX, cx2 + 5 + Math.floor(rng() * 5)); x++) {
+      set(x, cy, 82, 62, 36);
     }
   }
 };

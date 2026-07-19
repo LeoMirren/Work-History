@@ -880,8 +880,8 @@ function createOverworld(seed: string): Generator {
             // roll 8: green — this slot stays open.
           }
         } else {
-          // Outer ring: farmland outskirts — one roll, field-weighted:
-          // farm 3 / hut 2 / lamp pair 2 / green 2.
+          // Outer ring: outskirts — one roll: farm 3 / hut 2 / lamp pair 1 /
+          // WATCHPOST 1 (a lantern-lit lookout guarding the approach) / green 2.
           const roll = vhash % 9;
           if (roll < 3) {
             const site = findSite(data, heights, vhash, FARM_W, FARM_D, FARM_DRIFT);
@@ -889,11 +889,14 @@ function createOverworld(seed: string): Generator {
           } else if (roll < 5) {
             const site = findSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
             if (site !== null) tryPlantHut(data, heights, site[0], site[1]);
-          } else if (roll < 7) {
+          } else if (roll < 6) {
             const a = findSite(data, heights, hash2(vhash, 1, 0), 1, 1, 0);
             if (a !== null) tryPlantLampPost(data, heights, a[0], a[1]);
             const b = findSite(data, heights, hash2(vhash, 2, 0), 1, 1, 0, a !== null ? [claim(a[0], a[1], 1, 1, 3)] : []);
             if (b !== null) tryPlantLampPost(data, heights, b[0], b[1]);
+          } else if (roll < 7) {
+            const site = findSite(data, heights, vhash, 3, 3, BUILD_DRIFT);
+            if (site !== null) tryPlantWatchpost(data, heights, site[0], site[1]);
           }
           // rolls 7-8: open outskirts.
         }
@@ -1525,6 +1528,40 @@ export function tryCarveAltarShrine(data: Uint8Array, hash: number, x0: number, 
   data[blockIndex(x0 + 3, y0 + 2, z0 + 3)] = Block.altar;
   data[blockIndex(x0 + 1, y0 + 1, z0 + 1)] = Block.emberrock;
   data[blockIndex(x0 + 5, y0 + 1, z0 + 5)] = Block.emberrock;
+}
+
+/**
+ * A village watchpost: a slim 3x3 cobble pillar-and-deck lookout on the
+ * settlement's outskirts — lantern-lit, with jutting plank steps up the
+ * side. Villages under night raids finally look like they know it.
+ */
+export function tryPlantWatchpost(
+  data: Uint8Array,
+  heights: Int32Array,
+  x0: number,
+  z0: number,
+): void {
+  const baseY = fitFootprint(data, heights, x0, z0, 3, 3, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, 3, 3, baseY, Block.cobblestone);
+  const floorY = baseY + 1;
+  if (floorY + 7 >= CHUNK_HEIGHT) return;
+  // Central pillar with jutting plank steps spiralling up.
+  for (let y = floorY; y <= floorY + 4; y++) data[blockIndex(x0 + 1, y, z0 + 1)] = Block.cobblestone;
+  const steps: ReadonlyArray<readonly [number, number]> = [[0, 1], [0, 0], [1, 0], [2, 0], [2, 1]];
+  for (let i = 0; i < steps.length; i++) {
+    const at = steps[i];
+    if (!at) continue;
+    data[blockIndex(x0 + at[0], floorY + i, z0 + at[1])] = Block.planks;
+  }
+  // The deck: a 3x3 plank platform with a cobble parapet rim + lantern.
+  for (let dz = 0; dz < 3; dz++) {
+    for (let dx = 0; dx < 3; dx++) data[blockIndex(x0 + dx, floorY + 5, z0 + dz)] = Block.planks;
+  }
+  for (const [dx, dz] of [[0, 0], [2, 0], [0, 2], [2, 2]] as const) {
+    data[blockIndex(x0 + dx, floorY + 6, z0 + dz)] = Block.cobblestone;
+  }
+  data[blockIndex(x0 + 1, floorY + 6, z0 + 1)] = Block.lantern;
 }
 
 /**
