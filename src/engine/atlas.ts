@@ -1765,8 +1765,49 @@ export function generateAtlasPixels(seed: string): Uint8ClampedArray {
   }
   for (let tile = 0; tile < ATLAS_TILES * ATLAS_TILES; tile++) {
     shadeOpaqueTile(px, (tile % ATLAS_TILES) * TILE_PX, Math.floor(tile / ATLAS_TILES) * TILE_PX);
+    outlineSpriteTile(px, (tile % ATLAS_TILES) * TILE_PX, Math.floor(tile / ATLAS_TILES) * TILE_PX);
   }
   return px;
+}
+
+/**
+ * Definition pass for ITEM sprites: any tile with transparency (tools, food,
+ * trophies, drops — never full block faces) gains a crisp 1px dark outline
+ * where transparent pixels touch opaque ones. Every item instantly reads in
+ * the hotbar, in drops and in hand instead of dissolving into the scene.
+ * Pure and RNG-free, so atlas determinism is preserved. Cutout FOLIAGE tiles
+ * (leaves-style, mostly-opaque) are skipped by the opaque-majority guard so
+ * plants keep their soft edges.
+ */
+function outlineSpriteTile(px: Uint8ClampedArray, ox: number, oy: number): void {
+  let opaque = 0;
+  let transparent = 0;
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      if (px[((oy + y) * ATLAS_PX + (ox + x)) * 4 + 3] === 255) opaque++;
+      else transparent++;
+    }
+  }
+  // Sprites are minority-opaque; skip empty tiles, block faces and foliage.
+  if (opaque === 0 || transparent === 0 || opaque > 190) return;
+  const alphaAt = (x: number, y: number): number =>
+    x < 0 || y < 0 || x >= TILE_PX || y >= TILE_PX ? 0 : px[((oy + y) * ATLAS_PX + (ox + x)) * 4 + 3] ?? 0;
+  const outline: Array<[number, number]> = [];
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      if (alphaAt(x, y) === 255) continue;
+      if (alphaAt(x - 1, y) === 255 || alphaAt(x + 1, y) === 255 || alphaAt(x, y - 1) === 255 || alphaAt(x, y + 1) === 255) {
+        outline.push([x, y]);
+      }
+    }
+  }
+  for (const [x, y] of outline) {
+    const o = ((oy + y) * ATLAS_PX + (ox + x)) * 4;
+    px[o] = 22;
+    px[o + 1] = 20;
+    px[o + 2] = 26;
+    px[o + 3] = 235;
+  }
 }
 
 /** Blit the atlas pixels onto a canvas (DOM side, not used by tests). */

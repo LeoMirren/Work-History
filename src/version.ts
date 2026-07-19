@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.24 ALIVE — creature voices · telegraphed strikes · heads that watch you';
+export const BUILD_TAG = 'v0.25 LIVING WORLD — night raids · schooling fish · outlined items · ember skies';

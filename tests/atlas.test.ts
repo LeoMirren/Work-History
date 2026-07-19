@@ -108,8 +108,8 @@ describe('atlas generation', () => {
     const moss = tilePixels(px, Tiles.glowmoss);
     let opaque = 0;
     for (let i = 0; i < moss.length; i += 4) {
-      if ((moss[i + 3] ?? 0) === 0) continue;
-      expect(moss[i + 3]).toBe(255);
+      // Skip empty pixels and the definition-pass outline (alpha 235).
+      if ((moss[i + 3] ?? 0) !== 255) continue;
       opaque++;
       // Teal-cyan: green and blue clearly dominate red on every moss pixel.
       expect(moss[i + 1] ?? 0).toBeGreaterThan(moss[i] ?? 0);

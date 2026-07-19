@@ -921,6 +921,10 @@ export class AnimalSystem {
         animal.graze = 0;
       }
       this.step(animal, world, dt);
+      // Signature gaits: puffles BOUNCE along instead of trotting.
+      if (animal.species === Species.puffle && animal.moving && body.onGround && Math.sin(animal.phase) > 0.95) {
+        body.vy = 3.2;
+      }
       // Head look-at: a near player draws the gaze (clamped, eased) — the
       // difference between livestock and set dressing.
       if (dx * dx + dz * dz < LOOK_RADIUS * LOOK_RADIUS && animal.dying <= 0) {
@@ -951,7 +955,9 @@ export class AnimalSystem {
     if (speed > GAIT_MIN_SPEED && animal.body.onGround) {
       // Swing frequency tracks ground speed; scurriers pace it up further.
       animal.phase += dt * (GAIT_BASE + speed * GAIT_PER_SPEED) * SPECIES[animal.species].gait;
-      const swing = Math.sin(animal.phase) * 0.7;
+      // Stiltbacks stride with exaggerated, deliberate high-steps.
+      const swingAmp = animal.species === Species.stiltback ? 1.15 : 0.7;
+      const swing = Math.sin(animal.phase) * swingAmp;
       for (let l = 0; l < animal.legs.length; l++) {
         // Diagonal pairs move together (0,3 vs 1,2), like a real gait.
         animal.legs[l]?.rotation.set(l === 0 || l === 3 ? swing : -swing, 0, 0);

@@ -202,6 +202,11 @@ describe('hunting fish', () => {
 
     const drops = system.hurt(fish); // second hit kills
     expect(drops).toEqual({ id: Item.meat, count: 1 });
+    // Death pop: the fish lingers shrinking for a beat, then despawns —
+    // the same farewell every other creature gets.
+    expect(fish.dying).toBeGreaterThan(0);
+    expect(system.hurt(fish)).toBeNull(); // no double drops while popping
+    for (let i = 0; i < 20; i++) system.fixedUpdate(DT, 4, 6, 4);
     expect(system.count).toBe(0);
     expect(scene.children.length).toBe(withFish - 1);
   });

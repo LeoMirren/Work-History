@@ -176,6 +176,7 @@ async function boot(): Promise<void> {
   const hurt = new HurtIndicator();
   let prevHp = MAX_HP;
   let chirpTimer = 5;
+  let raidTimer = 0.5;
   let deathOpen = false;
   const deathScreen = new DeathScreen(app, () => {
     player.respawn();
@@ -897,6 +898,23 @@ async function boot(): Promise<void> {
         },
       );
       guardians.fixedUpdate(dt, player.body.x, player.body.y, player.body.z, (dmg) => player.hurt(dmg));
+      // NIGHT RAIDS: villages notice their raiders. Any warden with a
+      // stalker prowling close bolts away from it — night settlements
+      // scatter and huddle instead of ignoring the monsters at the well.
+      raidTimer -= dt;
+      if (raidTimer <= 0) {
+        raidTimer = 0.5;
+        for (const v of villagers.villagers) {
+          for (const s of hostiles.stalkers) {
+            const rdx = v.body.x - s.body.x;
+            const rdz = v.body.z - s.body.z;
+            if (rdx * rdx + rdz * rdz > 64) continue;
+            const rd = Math.max(0.001, Math.hypot(rdx, rdz));
+            villagers.startle(v, (rdx / rd) * 0.6, (rdz / rd) * 0.6);
+            break;
+          }
+        }
+      }
       boss.fixedUpdate(
         dt,
         session.world,

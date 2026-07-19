@@ -53,6 +53,13 @@ export class DayNight {
       m.uniforms.uBrightness.value = b;
       m.uniforms.fogColor.value.copy(this.sky);
     }
-    clouds.color.setScalar(b);
+    // Clouds catch the light: grey-dim at night, white at noon, and warmed
+    // toward ember-rose through dawn and dusk (the low-sun band).
+    const warmth = Math.max(0, 1 - Math.abs(b - 0.45) / 0.3);
+    clouds.color.setRGB(
+      Math.min(1, b + warmth * 0.28),
+      Math.max(0, b + warmth * 0.02),
+      Math.max(0, b - warmth * 0.1),
+    );
   }
 }

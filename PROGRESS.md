@@ -484,3 +484,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] TELEGRAPHED COMBAT: every melee attacker (stalkers, elites, guardians, all four bosses) now winds up ~0.35s with a visible forward tip BEFORE the blow — step back during the tell and the strike whiffs into a stagger. A real dodge window; enraged bosses swing faster
 - [x] Heads that watch you: animals and villagers turn their heads to track a player within 8 blocks (eased, clamped) — walk through a herd or a market and eyes follow you
 - [x] 527 tests green (guardian melee cadence retuned + a new whiff test), strict tsc, clean build; BUILD_TAG bumped to v0.24 ALIVE
+
+## Post-spec: v0.25 LIVING WORLD — raids, schools, outlines, ember skies
+
+- [x] NIGHT RAIDS: wardens notice prowling stalkers within 8 blocks and bolt — villages scatter and huddle under attack instead of ignoring the monsters at the well
+- [x] Fish are creatures now: schools steer toward their same-kind centroid (they swim as one body), and a caught fish flashes and shrinks through the same death pop as every other animal — no more blink-out
+- [x] Signature gaits: puffles BOUNCE along the ground; stiltbacks stride with exaggerated deliberate high-steps
+- [x] ITEM DEFINITION PASS: every item sprite in the game (tools, food, armor, trophies, drops) gains an automatic crisp 1px dark outline — the whole inventory, hotbar and every dropped item instantly reads against any background; ground flora gets crisp cutout edges too
+- [x] Ember skies: clouds warm toward rose-gold through dawn and dusk instead of just greying out
+- [x] 527 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.25 LIVING WORLD

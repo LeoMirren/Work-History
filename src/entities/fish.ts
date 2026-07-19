@@ -111,6 +111,8 @@ export interface Fish {
   flash: number;
   /** Seconds spent out of water (drained); dies past DRY_TIMEOUT_S. */
   flop: number;
+  /** Death-pop seconds remaining; > 0 means caught: shrink, then despawn. */
+  dying: number;
   /** Knockback impulse, decaying, added to the swim velocity. */
   kbX: number;
   kbZ: number;
@@ -229,6 +231,7 @@ export class FishSystem {
       phase: this.random() * Math.PI * 2,
       flash: 0,
       flop: 0,
+      dying: 0,
       kbX: 0,
       kbZ: 0,
       group: parts.group,
@@ -292,6 +295,17 @@ export class FishSystem {
     for (let i = this.fishes.length - 1; i >= 0; i--) {
       const fish = this.fishes[i];
       if (!fish) continue;
+      if (fish.dying > 0) {
+        fish.dying -= dt;
+        if (fish.dying <= 0) {
+          this.scene.remove(fish.group);
+          this.fishes.splice(i, 1);
+        } else {
+          const s = Math.max(0.05, fish.group.scale.x * Math.max(0, 1 - dt * 14));
+          fish.group.scale.set(s, s, s);
+        }
+        continue;
+      }
       const body = fish.body;
       const inWater =
         world.getBlock(Math.floor(body.x), Math.floor(body.y + FISH_HEIGHT / 2), Math.floor(body.z)) ===
@@ -310,7 +324,31 @@ export class FishSystem {
         this.fishes.splice(i, 1);
         continue;
       }
-      if (inWater) this.swim(fish, world, dt);
+      if (inWater) {
+        // Schooling: drift the wander heading toward the same-kind centroid
+        // nearby, so schools swim as one body instead of scattering.
+        let cx2 = 0;
+        let cz2 = 0;
+        let n = 0;
+        for (const other of this.fishes) {
+          if (other === fish || other.kind !== fish.kind || other.dying > 0) continue;
+          const ox = other.body.x - body.x;
+          const oz = other.body.z - body.z;
+          if (ox * ox + oz * oz > 36) continue;
+          cx2 += other.body.x;
+          cz2 += other.body.z;
+          n++;
+        }
+        if (n > 0) {
+          const gx = cx2 / n - body.x;
+          const gz = cz2 / n - body.z;
+          if (gx * gx + gz * gz > 4) {
+            const toward = Math.atan2(gx, gz);
+            fish.targetYaw += angleDelta(fish.targetYaw, toward) * Math.min(1, dt * 1.6);
+          }
+        }
+        this.swim(fish, world, dt);
+      }
       else this.flopStep(fish, world, dt);
       fish.group.position.set(body.x, body.y, body.z);
       // Stranded fish roll onto their sides and rock as they flop.
@@ -458,11 +496,12 @@ export class FishSystem {
    * (kx, kz) is the attack direction for knockback.
    */
   hurt(fish: Fish, kx = 0, kz = 0): { id: number; count: number } | null {
+    if (fish.dying > 0) return null; // already caught — no double drops
     fish.hp--;
     if (fish.hp <= 0) {
-      const index = this.fishes.indexOf(fish);
-      if (index >= 0) this.fishes.splice(index, 1);
-      this.scene.remove(fish.group);
+      // Death pop like every other creature: flash, shrink, then despawn.
+      fish.dying = 0.18;
+      fish.flash = 0.18;
       return { id: Item.meat, count: 1 };
     }
     fish.flash = FLASH_S;
