@@ -87,9 +87,9 @@ const DUNGEON_MAX_Y = 98;
 // columns by 7 deep. y extent is 6 cells (floor y0 .. ceiling y0+5).
 const DUNGEON_W = 14;
 const DUNGEON_D = 7;
-const DEEPHOLD_CHANCE = 130; // ~1 chunk in 130 buries a deephold (mob village)
-const DEEPHOLD_MIN_Y = 80; // hash-picked hall-floor band
-const DEEPHOLD_MAX_Y = 94;
+const DEEPHOLD_CHANCE = 70; // ~1 chunk in 70 buries a deephold (cave village) — was 130; too rare to ever find
+const DEEPHOLD_MIN_Y = 60; // hash-picked hall-floor band — widened DOWN from 80 so
+const DEEPHOLD_MAX_Y = 96; // holds spread across the deep caves players actually roam
 const ALTAR_CHANCE = 110; // ~1 chunk in 110 hides a Tyrant shrine
 const ALTAR_MIN_Y = 40; // hash-picked shrine-floor band (reaches the abyss)
 const ALTAR_MAX_Y = 88;
@@ -1411,12 +1411,19 @@ export function deepholdFor(
  */
 export function tryCarveDeephold(data: Uint8Array, hash: number, x0: number, z0: number): void {
   const y0 = deepholdY(hash);
-  // Stay buried: probe above the hall centre and each side room.
-  for (const [px, pz] of [[x0 + 4, z0 + 6], [x0 + 4, z0 + 1], [x0 + 4, z0 + 12], [x0 + 11, z0 + 6]] as const) {
-    if ((data[blockIndex(px, y0 + 7, pz)] ?? Block.air) === Block.air) return;
+  // Don't build a hold floating in open air — require ground under at least one
+  // corner. Unlike the old roof-probe (which bailed whenever ANY cave touched
+  // the ceiling, so cave-dense worlds carved almost none), caves that reach the
+  // WALLS are now welcome: they open the hall to explorers, which is the point.
+  let support = 0;
+  for (const [px, pz] of [[x0 + 2, z0 + 2], [x0 + 2, z0 + 11], [x0 + 11, z0 + 2], [x0 + 11, z0 + 11]] as const) {
+    if ((data[blockIndex(px, y0 - 1, pz)] ?? Block.air) !== Block.air) support++;
   }
+  if (support === 0) return;
 
-  // One shelled box: air interior, cobblestone shell over a mossstone floor.
+  // One shelled box. Floor and ceiling are ALWAYS solid (no fall-through, no
+  // fall-in), but side walls are only built where solid rock stands — so any
+  // cave cutting through a wall stays open as a natural doorway in.
   const box = (bx0: number, by0: number, bz0: number, bx1: number, by1: number, bz1: number): void => {
     for (let y = by0; y <= by1; y++) {
       for (let z = bz0; z <= bz1; z++) {
@@ -1424,9 +1431,11 @@ export function tryCarveDeephold(data: Uint8Array, hash: number, x0: number, z0:
           const i = blockIndex(x, y, z);
           const cur = data[i] ?? Block.air;
           if (cur === Block.bedrock) continue;
-          const edge = x === bx0 || x === bx1 || y === by0 || y === by1 || z === bz0 || z === bz1;
-          if (!edge) data[i] = Block.air;
-          else if (cur !== Block.air) data[i] = y === by0 ? Block.mossstone : Block.cobblestone;
+          if (y === by0) data[i] = Block.mossstone; // floor: always solid
+          else if (y === by1) data[i] = Block.cobblestone; // ceiling: always capped
+          else if (x === bx0 || x === bx1 || z === bz0 || z === bz1) {
+            if (cur !== Block.air) data[i] = Block.cobblestone; // wall over rock; caves stay open
+          } else data[i] = Block.air; // interior
         }
       }
     }

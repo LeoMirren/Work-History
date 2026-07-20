@@ -822,7 +822,16 @@ async function boot(): Promise<void> {
   // Dev-only debug seam for headless visual probes (screenshot tours aim the
   // camera at real entities through this). Absent from production builds.
   if (import.meta.env.DEV) {
-    (window as unknown as Record<string, unknown>)['__voxDebug'] = { player, animals, hostiles, boss };
+    (window as unknown as Record<string, unknown>)['__voxDebug'] = {
+      player,
+      animals,
+      hostiles,
+      boss,
+      villagers,
+      get world() {
+        return session?.world ?? null;
+      },
+    };
   }
 
   if (import.meta.env.DEV) {

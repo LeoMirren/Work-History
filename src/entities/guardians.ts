@@ -409,11 +409,11 @@ export class GuardianSystem {
     if (leashed) {
       // Past the leash: ignore the player, trudge back toward the vault.
       const horiz = Math.max(0.001, Math.sqrt(homeDistSq));
-      g.yaw = Math.atan2(homeDx, homeDz);
+      g.yaw = Math.atan2(-homeDx, -homeDz); // face home (front is -z)
       body.vx = (homeDx / horiz) * MOVE_SPEED;
       body.vz = (homeDz / horiz) * MOVE_SPEED;
     } else if (aggro) {
-      g.yaw = Math.atan2(dx, dz); // face the intruder
+      g.yaw = Math.atan2(-dx, -dz); // face the intruder (front is -z)
       const horiz = Math.max(0.001, Math.sqrt(distSq));
       body.vx = (dx / horiz) * MOVE_SPEED;
       body.vz = (dz / horiz) * MOVE_SPEED;

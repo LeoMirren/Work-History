@@ -31,15 +31,15 @@ function findHosted(): { seedInt: number; cx: number; cz: number; x: number; y: 
 }
 
 describe('deepholdFor', () => {
-  it('is deterministic and rolls roughly 1-in-130 chunks', () => {
+  it('is deterministic and rolls roughly 1-in-70 chunks', () => {
     const a = deepholdFor(999, 3, -2);
     expect(a).toEqual(deepholdFor(999, 3, -2));
     let hosted = 0;
     for (let i = 0; i < 2600; i++) {
       if (deepholdFor(999, i % 51, Math.floor(i / 51))) hosted++;
     }
-    expect(hosted).toBeGreaterThan(5); // ~20 expected
-    expect(hosted).toBeLessThan(60);
+    expect(hosted).toBeGreaterThan(12); // ~37 expected at 1-in-70
+    expect(hosted).toBeLessThan(70);
   });
 
   it('points inside the hosting chunk at a deep hall floor', () => {
@@ -48,18 +48,18 @@ describe('deepholdFor', () => {
     expect(x).toBeLessThan((cx + 1) * CHUNK_SIZE);
     expect(z).toBeGreaterThanOrEqual(cz * CHUNK_SIZE);
     expect(z).toBeLessThan((cz + 1) * CHUNK_SIZE);
-    expect(y).toBeGreaterThanOrEqual(81); // DEEPHOLD_MIN_Y + 1
-    expect(y).toBeLessThanOrEqual(95); // DEEPHOLD_MAX_Y + 1
+    expect(y).toBeGreaterThanOrEqual(61); // DEEPHOLD_MIN_Y + 1
+    expect(y).toBeLessThanOrEqual(97); // DEEPHOLD_MAX_Y + 1
   });
 });
 
 describe('tryCarveDeephold', () => {
   // The carver derives everything from the hash; hash 0 keeps the maths easy
-  // (floor at DEEPHOLD_MIN_Y = 80, origin x0 = z0 = 1).
+  // (floor at DEEPHOLD_MIN_Y = 60, origin x0 = z0 = 1).
   const HASH = 0;
   const X0 = 1;
   const Z0 = 1;
-  const Y0 = 80;
+  const Y0 = 60;
 
   it('carves the hall, chambers, doorways, lights and three chests', () => {
     const data = stoneChunk(90);

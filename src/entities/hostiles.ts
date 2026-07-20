@@ -696,7 +696,9 @@ export class HostileSystem {
     if (aggro && s.ranged) {
       // Spitter: face the player and hold the preferred range — back off when
       // too close, sidle in when too far, otherwise strafe to a near-stop.
-      s.yaw = Math.atan2(px - body.x, pz - body.z);
+      // NB: the face is on local -z, so facing a target NEGATES the delta
+      // (same convention as villagers) — otherwise the mob turns its BACK.
+      s.yaw = Math.atan2(-(px - body.x), -(pz - body.z));
       const dist = Math.sqrt(distSq);
       const toward = (dist - PREFERRED_RANGE) / Math.max(2, PREFERRED_RANGE);
       const drive = Math.max(-1, Math.min(1, toward)) * MOVE_SPEED;
@@ -707,7 +709,7 @@ export class HostileSystem {
         s.attackCd = FIRE_COOLDOWN_S;
       }
     } else if (aggro) {
-      s.yaw = Math.atan2(px - body.x, pz - body.z); // face the player
+      s.yaw = Math.atan2(-(px - body.x), -(pz - body.z)); // face the player (front is -z)
       const chase = MOVE_SPEED * (s.swift ? SWIFT_SPEED_MULT : s.shelled ? SHELLBACK_SPEED_MULT : 1);
       body.vx = ((px - body.x) / horiz) * chase;
       body.vz = ((pz - body.z) / horiz) * chase;

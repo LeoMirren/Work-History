@@ -555,3 +555,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] A real PLATING layer on every hostile: a chest slab, shoulder pauldrons, a head crest, bony ear fins and a raked DORSAL FIN RIDGE whose glowing cores sit in visible fins (not floating studs on black) — front, side and back all carry material contrast now
 - [x] Emissive self-glow floor (`bakeFloor`, 20% of each material's own colour) baked into every hide/plate: a hostile backlit by a low sun, or lurking in a dark cave, no longer crushes to black; it never lights the world, just stays legible. Hurt-flash now settles back to the floor instead of pure black. Elites wear gold-touched plating to match their brow band
 - [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.34 NO MORE VOIDS
+
+## Post-spec: v0.35 THEY FACE YOU — the real "no faces" root cause, and findable cave villages
+
+- [x] ROOT CAUSE of the whole recurring "mobs have no faces" saga: the aggro yaw was NOT negated. An entity's face is on local -z, and villagers (which read correctly) face a target with `atan2(-(dx), -(dz))` — but hostiles, guardians AND the boss all used `atan2(dx, dz)`, exactly 180° off, so every combat mob turned its BACK to the player when it "faced" them. That is why every screenshot showed spine/back detail and the face work never landed. Fixed all five sites to the villager convention; confirmed in-game (elite now shows its gold-crowned face to the camera when it aggros)
+- [x] Bonus from the same fix: the shellback's armored front (carapace) now actually faces the player, so "flank it to hurt it" works as designed instead of being inverted
+- [x] CAVE VILLAGES you can actually find: deepholds were 1-in-130 chunks in a narrow y80–94 band, and — worse — the carver BAILED whenever any cave touched the ceiling, so cave-dense worlds carved almost none. Now 1-in-70, band widened to y60–96 (the depths players roam), and the carve is cave-friendly: floor and ceiling are always solid (no fall-through / fall-in) while side walls keep the gaps where caves cut through — so a cave opens straight into the lit hall. Holds only skip if they'd float with no ground under any corner
+- [x] Deephold halls now house 3 underfolk traders (was 2) so they read as inhabited; verified by warping in and photographing a populated hall (two traders, chest, wall lantern, crystal)
+- [x] DEV probe seam gains `world` (block reads) and `villagers` for headless verification
+- [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.35 THEY FACE YOU

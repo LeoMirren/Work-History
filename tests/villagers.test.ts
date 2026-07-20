@@ -283,7 +283,7 @@ describe('picking & rig', () => {
 });
 
 describe('underfolk traders (deephold halls)', () => {
-  it('fills a nearby deephold hall with two traders on its floor', () => {
+  it('fills a nearby deephold hall with three traders on its floor', () => {
     const { system } = makeSystem();
     // A hall floor at y=84 with air above (the flatWorld stub is solid
     // below y=60, so give the sweep its own little world).
@@ -293,7 +293,7 @@ describe('underfolk traders (deephold halls)', () => {
     });
     system.setDeepholdFn((cx, cz) => (cx === 0 && cz === 0 ? { x: 8, y: 84, z: 8 } : null));
     for (let i = 0; i < 8; i++) system.fixedUpdate(2.1, 8, 84, 8);
-    expect(system.villagers.length).toBe(2); // DEEP_POPULATION, no more
+    expect(system.villagers.length).toBe(3); // DEEP_POPULATION, no more
     for (const v of system.villagers) {
       // Homed on the hall centre (they may wander within the leash).
       expect(Math.hypot(v.body.x - 8.5, v.body.z - 8.5)).toBeLessThanOrEqual(LEASH_DIST + 1);
@@ -303,7 +303,7 @@ describe('underfolk traders (deephold halls)', () => {
     // The two traders hold distinct indices under the same (salted) key.
     const keys = new Set(system.villagers.map((v) => v.villageKey));
     expect(keys.size).toBe(1);
-    expect(new Set(system.villagers.map((v) => v.index)).size).toBe(2);
+    expect(new Set(system.villagers.map((v) => v.index)).size).toBe(3);
     expect(keys.has(packVillageKey(0, 0))).toBe(false); // never a surface key
   });
 });

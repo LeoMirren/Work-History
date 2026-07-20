@@ -718,7 +718,7 @@ export class BossSystem {
     const enraged = b.phase === 3;
     const speed = enraged ? b.spec.enragedSpeed : b.spec.speed;
     const horiz = Math.max(0.001, Math.hypot(dx, dz));
-    b.yaw = Math.atan2(dx, dz);
+    b.yaw = Math.atan2(-dx, -dz); // face the player (front is -z)
     b.body.vx = (dx / horiz) * speed + b.kbX;
     b.body.vz = (dz / horiz) * speed + b.kbZ;
     const kbDecay = Math.max(0, 1 - dt * 6);
