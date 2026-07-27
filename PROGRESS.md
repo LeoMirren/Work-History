@@ -576,3 +576,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Village population raised to 4–7 residents (was 3–5) so the bigger towns feel inhabited
 - [x] New `?goto=village` warp code (biome-gated to a village that actually builds) to fast-travel in and SEE a town
 - [x] Coverage for all three new builders (blocks, forge, stairwell, counter) + updated frequency/population specs (and the tree-canopy invariant now exempts structural market posts); 543 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.36 TOWNS WITH DEPTH
+
+## Post-spec: v0.37 MOLTEN — lava
+
+- [x] New `lava` block: rendered as an opaque, glowing molten cube (a hot-orange atlas tile with dark cooling crust and white-hot fissures) but NON-solid — you sink in — and unbreakable. Self-lit at LIGHT_EMIT 15 (the brightest source in the game), so it lights caverns orange and, via the existing light-ward, keeps monsters off its shores
+- [x] Lava is a hazard: standing in it BURNS in survival — an immediate tick on entry, then 3 damage every 0.5s (~6/s) — but it's buoyant like water so a misstep is escapable, not instant death; creative is immune
+- [x] Lava lakes in worldgen: a slow ember field floods the underworld's lowest cavern floors with molten pools, and the deepest overworld abyss (y≤20 — the magma floor of the world) pools lava between the glowmoss and dusk-bells
+- [x] Coverage: lava block props (non-solid / unbreakable / max-light), the survival burn (survival burns, creative immune), and lava present in both the underworld lakes and the deepest overworld abyss; 548 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.37 MOLTEN

@@ -54,6 +54,7 @@ export const Block = {
   altar: 45, // shrine altar: U wakes the Hollow Tyrant, one summon each
   emberthrone: 46, // the Monarch's seat: U wakes the end of the game
   ashbloom: 47, // crimson underworld flower, faintly lit
+  lava: 48, // molten rock: non-solid (you sink and BURN), self-lit, unbreakable
 } as const;
 
 export type BlockName = keyof typeof Block;
@@ -137,6 +138,9 @@ export const BLOCK_DEFS: readonly BlockDef[] = [
   { id: Block.altar, name: 'altar', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 8, tiles: tiles(T.altar) },
   { id: Block.emberthrone, name: 'emberthrone', solid: true, pass: PASS_OPAQUE, breakable: true, breakTime: 10, tiles: tiles(T.emberthrone) },
   { id: Block.ashbloom, name: 'ashbloom', solid: false, pass: PASS_CUTOUT, breakable: true, breakTime: 0.05, tiles: tiles(T.ashbloom) },
+  // Molten rock: rendered as an opaque glowing cube but NON-solid, so you sink
+  // in and burn. Unbreakable (you can't mine a lake). Self-lit via LIGHT_EMIT.
+  { id: Block.lava, name: 'lava', solid: false, pass: PASS_OPAQUE, breakable: false, breakTime: Infinity, tiles: tiles(T.lava) },
 ];
 
 /** Flat lookup tables indexed by block id (256 slots; unknown ids are air-like). */
@@ -176,6 +180,7 @@ LIGHT_EMIT[Block.cindercap] = 4; // dim orange mushroom light in the cinder deep
 LIGHT_EMIT[Block.altar] = 10; // rune-lit shrine altar, a beacon in the deep dark
 LIGHT_EMIT[Block.emberthrone] = 12; // the Monarch's seat blazes across its hall
 LIGHT_EMIT[Block.ashbloom] = 5; // crimson pinpricks across the ash
+LIGHT_EMIT[Block.lava] = 15; // molten rock blazes — the brightest light in the world
 
 /** Default creative hotbar (§4.2). */
 export const HOTBAR_BLOCKS: readonly number[] = [

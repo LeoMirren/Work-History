@@ -33,6 +33,8 @@ const PITCH_LIMIT = Math.PI / 2 - 0.01;
 const KEY_TURN_RATE = 3.0;
 const DOUBLE_TAP_WINDOW = 0.3; // seconds between W taps to latch sprint
 const RESPAWN_Y = -10;
+const LAVA_BURN_S = 0.5; // seconds between lava burn ticks
+const LAVA_BURN_DAMAGE = 3; // damage per tick — ~6/s, lava is deadly but escapable
 
 export type GameMode = 'creative' | 'survival';
 
@@ -56,6 +58,10 @@ export class PlayerController {
   inWater = false;
   /** True when the camera itself is submerged (drives the underwater look). */
   eyesUnderwater = false;
+  /** True while standing in lava — buoyant like water, but it BURNS (survival). */
+  inLava = false;
+  /** Seconds until the next lava burn tick (0 = burn on the next frame in lava). */
+  private lavaBurnTimer = 0;
   /** True while sprint speed applies (drives the FOV kick). */
   sprinting = false;
   mode: GameMode = 'creative';
@@ -182,7 +188,10 @@ export class PlayerController {
 
     const feetBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + 0.05), Math.floor(body.z));
     const eyeBlock = world.getBlock(Math.floor(body.x), Math.floor(body.y + EYE_HEIGHT), Math.floor(body.z));
-    this.inWater = feetBlock === Block.water || eyeBlock === Block.water;
+    // Lava is buoyant like water (you can struggle out), but it burns. Route
+    // it through the same swim physics so a misstep isn't instantly fatal.
+    this.inLava = feetBlock === Block.lava || eyeBlock === Block.lava;
+    this.inWater = feetBlock === Block.water || eyeBlock === Block.water || this.inLava;
     this.eyesUnderwater = eyeBlock === Block.water;
 
     if (this.flying) {
@@ -212,6 +221,16 @@ export class PlayerController {
     if (this.mode === 'survival') {
       this.trackFall();
       this.updateHunger(dt, len > 0 && !this.flying);
+      // Lava sears: a hard tick of damage on entry, then every LAVA_BURN_S.
+      if (this.inLava) {
+        this.lavaBurnTimer -= dt;
+        if (this.lavaBurnTimer <= 0) {
+          this.lavaBurnTimer = LAVA_BURN_S;
+          this.hurt(LAVA_BURN_DAMAGE);
+        }
+      } else {
+        this.lavaBurnTimer = 0;
+      }
     }
 
     if (body.y < RESPAWN_Y) {

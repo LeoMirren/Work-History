@@ -59,6 +59,8 @@ const GROTTO_STUB_DIV = 22; // ~1/22 cave floors grow a crystal stub
 const CINDER_MIN_Y = 60; // cinder deeps: the last themed band above the abyss
 const CINDER_MAX_Y = 80;
 // Below CINDER_MIN_Y the ABYSS theme owns every cave floor (no zone gating):
+const LAVA_MAX_Y = 20; // molten pools only in the deepest abyss floors (the magma floor of the world)
+const LAVA_POOL_DIV = 6; // ~1/6 of the deepest cave-floor cells is lava
 const ABYSS_GLOW_DIV = 13; // ~1/13 abyss cave floors sprout glowmoss
 const ABYSS_BELL_DIV = 18; // ~1/18 sprout a duskbell
 const CINDER_FLOOR_DIV = 6; // ~1/6 stone cave floors turn to emberrock
@@ -192,6 +194,7 @@ const UW_EMBER_THRESHOLD = 0.8;
 const UW_MOSS_CHANCE = 26; // ~1 cavern-floor column in 26 sprouts glowmoss
 const UW_SPIRE_CHANCE = 60; // ~1 cavern-floor column in 60 raises an ash spire
 const UW_SPIRE_EMBER_DIV = 3; // ~1 spire in 3 wears a glowing emberrock cap
+const UW_LAVA_THRESHOLD = 0.55; // a slow ember field above this floods cavern floors with lava lakes
 
 export function createGenerator(seed: string, dimension: Dimension = 'overworld'): Generator {
   if (dimension === 'underworld') return createUnderworld(seed);
@@ -288,6 +291,18 @@ function createUnderworld(seed: string): Generator {
           const floorY = cavernFloorY(data, x, z);
           if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.ashbloom;
         }
+      }
+    }
+    // Lava lakes: a slow ember field floods the lowest cavern floors with
+    // molten rock — glowing pools you can fall into. Runs last so a lake
+    // overwrites any moss/bloom that seated on its cells.
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const wx = cx * CHUNK_SIZE + x;
+        const wz = cz * CHUNK_SIZE + z;
+        if (ember(wx / 40, 8, wz / 40) < UW_LAVA_THRESHOLD) continue;
+        const floorY = cavernFloorY(data, x, z);
+        if (floorY !== null) data[blockIndex(x, floorY + 1, z)] = Block.lava;
       }
     }
     // The Monarch's throne hall: ~1 chunk in UW_THRONE_CHANCE raises an
@@ -711,8 +726,10 @@ function createOverworld(seed: string): Generator {
             const cellHash = hash2(colHash, y, 0);
             if (y <= ABYSS_TOP) {
               // The abyss theme owns every floor below the cinder band:
-              // glowmoss pinpricks and dusk-violet bells, no zone gating.
-              if (cellHash % ABYSS_GLOW_DIV === 0) data[i] = Block.glowmoss;
+              // molten pools at the very bottom, then glowmoss pinpricks and
+              // dusk-violet bells, no zone gating.
+              if (y <= LAVA_MAX_Y && (cellHash >>> 16) % LAVA_POOL_DIV === 0) data[i] = Block.lava;
+              else if (cellHash % ABYSS_GLOW_DIV === 0) data[i] = Block.glowmoss;
               else if ((cellHash >>> 8) % ABYSS_BELL_DIV === 0) data[i] = Block.duskbell;
             } else if (
               y >= MOSSY_MIN_Y &&

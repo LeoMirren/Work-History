@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Block } from '../src/world/blocks';
+import { Block, BREAKABLE, LIGHT_EMIT, SOLID } from '../src/world/blocks';
 import { blockIndex, CHUNK_HEIGHT, CHUNK_SIZE } from '../src/world/chunk';
 import {
   Biome,
@@ -289,6 +289,43 @@ describe('underworld dimension', () => {
     expect(ember).toBeGreaterThan(0); // light sources present
     expect(air).toBeGreaterThan(0); // caverns to walk through
     expect(water).toBe(0); // no water down here
+  });
+});
+
+describe('lava', () => {
+  it('is a non-solid, unbreakable, max-light block', () => {
+    expect(SOLID[Block.lava]).toBe(0); // you sink in
+    expect(BREAKABLE[Block.lava]).toBe(0); // can't mine a lake
+    expect(LIGHT_EMIT[Block.lava]).toBe(15); // brightest light in the world
+  });
+
+  it('floods lava lakes across the underworld cavern floors', () => {
+    const gen = createGenerator(SEED, 'underworld');
+    let lava = 0;
+    for (let cz = -2; cz <= 2; cz++) {
+      for (let cx = -2; cx <= 2; cx++) {
+        const data = gen.generateChunk(cx, cz);
+        for (let i = 0; i < data.length; i++) if (data[i] === Block.lava) lava++;
+      }
+    }
+    expect(lava).toBeGreaterThan(0);
+  });
+
+  it('pools molten rock in the deepest overworld abyss', () => {
+    const gen = createGenerator(SEED, 'overworld');
+    let lava = 0;
+    for (let cz = -5; cz <= 5; cz++) {
+      for (let cx = -5; cx <= 5; cx++) {
+        const data = gen.generateChunk(cx, cz);
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] === Block.lava) {
+            lava++;
+            expect(i >> 8).toBeLessThanOrEqual(20); // only in the deepest band
+          }
+        }
+      }
+    }
+    expect(lava).toBeGreaterThan(0);
   });
 });
 

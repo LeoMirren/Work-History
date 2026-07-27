@@ -165,6 +165,38 @@ describe('hunger', () => {
   });
 });
 
+describe('lava', () => {
+  // A solid floor at y<=9 with a lava skin at y=10 — the player stands in it.
+  const lavaWorld: WorldView = {
+    isSolid: (_x, y, _z) => y <= 9,
+    getBlock: (_x, y, _z) => (y === 10 ? Block.lava : Block.air),
+  };
+
+  it('sears the player in survival — an immediate tick, then more over time', () => {
+    const c = new PlayerController();
+    c.setMode('survival');
+    c.setSpawn(0.5, 90, 0.5);
+    c.teleport(0.5, 10, 0.5);
+    const input = new FakeInput();
+    c.fixedUpdate(input, lavaWorld, DT); // first frame in lava burns at once
+    expect(c.inLava).toBe(true);
+    expect(c.hp).toBeLessThan(MAX_HP);
+    const afterFirst = c.hp;
+    for (let i = 0; i < 90; i++) c.fixedUpdate(input, lavaWorld, DT); // ~1.5s → more ticks
+    expect(c.hp).toBeLessThan(afterFirst);
+  });
+
+  it('never burns in creative', () => {
+    const c = new PlayerController();
+    c.setMode('creative');
+    c.teleport(0.5, 10, 0.5);
+    const input = new FakeInput();
+    for (let i = 0; i < 120; i++) c.fixedUpdate(input, lavaWorld, DT);
+    expect(c.inLava).toBe(true); // still detected...
+    expect(c.hp).toBe(MAX_HP); // ...but immune
+  });
+});
+
 describe('death handling', () => {
   function survivalPlayer(): PlayerController {
     const c = new PlayerController();

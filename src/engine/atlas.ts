@@ -17,6 +17,7 @@ export const Tiles = {
   grassSide: 3,
   sand: 4,
   water: 5,
+  lava: 215, // molten rock — bright, self-lit; painted at a free high slot
   logSide: 6,
   logTop: 7,
   leaves: 8,
@@ -257,6 +258,40 @@ const paintWater: TilePainter = (set) => {
   for (let y = 0; y < TILE_PX; y++) {
     for (let x = 0; x < TILE_PX; x++) {
       set(x, y, 52, 110, 198, WATER_ALPHA);
+    }
+  }
+};
+
+/**
+ * Molten rock: a hot orange base broken by darker cooling crust patches and a
+ * few white-hot fissures. Opaque and self-lit (LIGHT_EMIT), so it glows in the
+ * dark of the deep and the underworld.
+ */
+const paintLava: TilePainter = (set, rng) => {
+  for (let y = 0; y < TILE_PX; y++) {
+    for (let x = 0; x < TILE_PX; x++) {
+      const n = jitter(rng, 22);
+      // Base molten orange with per-pixel churn.
+      let r = 226 + n;
+      let g = 96 + n * 0.7;
+      let b = 28 + n * 0.3;
+      // Dark cooling crust clumps.
+      if (rng() < 0.16) {
+        r -= 96;
+        g -= 60;
+        b -= 12;
+      }
+      set(x, y, r, g, b);
+    }
+  }
+  // A few white-hot fissures snaking down the tile.
+  for (let c = 0; c < 3; c++) {
+    let fx = 2 + Math.floor(rng() * (TILE_PX - 4));
+    for (let y = 1; y < TILE_PX - 1; y++) {
+      set(fx, y, 255, 226, 140);
+      if (rng() < 0.4) set(fx + 1, y, 255, 190, 96);
+      fx += rng() < 0.5 ? 1 : rng() < 0.5 ? -1 : 0;
+      fx = Math.max(1, Math.min(TILE_PX - 2, fx));
     }
   }
 };
@@ -1680,6 +1715,7 @@ const PAINTERS: ReadonlyArray<readonly [number, string, TilePainter]> = [
   [Tiles.grassSide, 'grassSide', paintGrassSide],
   [Tiles.sand, 'sand', paintSand],
   [Tiles.water, 'water', paintWater],
+  [Tiles.lava, 'lava', paintLava],
   [Tiles.logSide, 'logSide', paintLogSide],
   [Tiles.logTop, 'logTop', paintLogTop],
   [Tiles.leaves, 'leaves', paintLeaves],
