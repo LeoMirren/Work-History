@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.37 MOLTEN — lava lakes in the deep and the underworld; step in and you burn';
+export const BUILD_TAG = 'v0.38 THE INFERNAL KEEP — the Monarch rules a moated obsidian castle';

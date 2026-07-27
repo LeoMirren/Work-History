@@ -46,15 +46,18 @@ describe('the Ashen Monarch', () => {
 });
 
 describe('the throne hall', () => {
-  it('raises the platform, pillars and blazing emberthrone', () => {
+  it('raises a moated, battlemented castle around the blazing emberthrone', () => {
     const data = new Uint8Array(CHUNK_VOLUME);
     for (let i = 0; i < data.length; i++) data[i] = Block.ashstone;
     buildThroneHall(data, 10);
-    expect(data[blockIndex(8, 11, 8)]).toBe(Block.emberthrone);
-    expect(data[blockIndex(4, 10, 4)]).toBe(Block.emberrock); // platform rim
-    expect(data[blockIndex(8, 10, 7)]).toBe(Block.ashstone); // platform floor
-    expect(data[blockIndex(5, 12, 5)]).toBe(Block.emberrock); // pillar
-    expect(data[blockIndex(8, 13, 9)]).toBe(Block.air); // cleared hall
+    expect(data[blockIndex(8, 12, 8)]).toBe(Block.emberthrone); // on the raised keep dais
+    expect(data[blockIndex(8, 11, 8)]).toBe(Block.emberrock); // the dais itself
+    expect(data[blockIndex(1, 10, 8)]).toBe(Block.lava); // the lava moat (edge ring 1)
+    expect(data[blockIndex(2, 11, 8)]).toBe(Block.riftframe); // riftframe curtain wall (edge ring 2)
+    expect(data[blockIndex(2, 18, 2)]).toBe(Block.emberrock); // corner tower cap
+    expect(data[blockIndex(5, 12, 5)]).toBe(Block.emberrock); // inner ember pillar
+    expect(data[blockIndex(8, 10, 1)]).toBe(Block.ashstone); // the drawbridge over the moat
+    expect(data[blockIndex(8, 13, 9)]).toBe(Block.air); // cleared bailey
   });
 
   it('appears in generated underworld chunks (with ashblooms in the ash)', () => {

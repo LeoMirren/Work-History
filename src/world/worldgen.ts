@@ -381,32 +381,73 @@ export function throneArrival(
 }
 
 /**
- * Raise the Monarch's throne hall around local centre (8, 8): a 9x9 platform
- * (emberrock rim, ashstone floor) under a cleared 6-tall hall, four ember
- * pillars, the blazing emberthrone at the centre and glowmoss at its feet.
- * Everything stays inside the chunk; bedrock is never touched.
+ * Raise the Ashen Monarch's CASTLE, filling the throne chunk (local 0..15): a
+ * battlemented ashstone curtain wall with emberrock merlons and four taller
+ * corner towers, ringed by a LAVA MOAT crossed by a single drawbridge into a
+ * gate-arch on the north (-z) side, enclosing a bailey whose centre keep is a
+ * raised emberrock dais bearing the blazing emberthrone (U wakes the end of the
+ * game), flanked by four ember pillars. A short ashstone foundation keeps it
+ * from floating where no cavern floor sits beneath. Bedrock is never touched.
  */
 export function buildThroneHall(data: Uint8Array, floorY: number): void {
-  for (let dz = -4; dz <= 4; dz++) {
-    for (let dx = -4; dx <= 4; dx++) {
-      const x = 8 + dx;
-      const z = 8 + dz;
-      const rim = Math.abs(dx) === 4 || Math.abs(dz) === 4;
-      data[blockIndex(x, floorY, z)] = rim ? Block.emberrock : Block.ashstone;
-      // Clear the hall above the platform.
-      for (let y = floorY + 1; y <= floorY + 6; y++) {
+  const CX = 8;
+  const CZ = 8;
+  const edgeOf = (x: number, z: number): number => Math.min(x, z, 15 - x, 15 - z);
+  // Foundation, courtyard floor and cleared bailey across the whole chunk.
+  for (let z = 0; z <= 15; z++) {
+    for (let x = 0; x <= 15; x++) {
+      for (let y = Math.max(2, floorY - 2); y < floorY; y++) {
         const i = blockIndex(x, y, z);
-        if (data[i] !== Block.bedrock) data[i] = Block.air;
+        if (data[i] === Block.air) data[i] = Block.ashstone; // ground the castle
+      }
+      data[blockIndex(x, floorY, z)] = Block.ashstone; // courtyard floor
+      for (let y = floorY + 1; y <= floorY + 11; y++) {
+        const i = blockIndex(x, y, z);
+        if (data[i] !== Block.bedrock) data[i] = Block.air; // clear the bailey
       }
     }
   }
-  // Four ember pillars just inside the rim.
-  for (const [px, pz] of [[5, 5], [11, 5], [5, 11], [11, 11]] as const) {
-    for (let y = floorY + 1; y <= floorY + 4; y++) data[blockIndex(px, y, pz)] = Block.emberrock;
+  // Lava moat (edge ring 1), bridged on the north gate axis.
+  for (let z = 0; z <= 15; z++) {
+    for (let x = 0; x <= 15; x++) {
+      if (edgeOf(x, z) !== 1) continue;
+      if (z === 1 && (x === CX - 1 || x === CX)) continue; // the drawbridge keeps its ashstone
+      data[blockIndex(x, floorY, z)] = Block.lava;
+      data[blockIndex(x, floorY + 1, z)] = Block.lava;
+    }
   }
-  data[blockIndex(8, floorY + 1, 8)] = Block.emberthrone;
-  data[blockIndex(7, floorY + 1, 8)] = Block.glowmoss;
-  data[blockIndex(9, floorY + 1, 8)] = Block.glowmoss;
+  // Curtain wall (edge ring 2): dark riftframe (obsidian) so the fortress reads
+  // as BUILT against the ashstone cavern, capped with emberrock battlements;
+  // the gateway is left open on -z.
+  for (let z = 0; z <= 15; z++) {
+    for (let x = 0; x <= 15; x++) {
+      if (edgeOf(x, z) !== 2) continue;
+      if (z === 2 && (x === CX - 1 || x === CX)) continue; // gate-arch opening
+      for (let y = floorY + 1; y <= floorY + 4; y++) data[blockIndex(x, y, z)] = Block.riftframe;
+      if ((x + z) % 2 === 0) data[blockIndex(x, floorY + 5, z)] = Block.emberrock; // merlon
+    }
+  }
+  // Four taller corner towers of riftframe with glowing emberrock caps.
+  for (const [tx, tz] of [[2, 2], [2, 13], [13, 2], [13, 13]] as const) {
+    for (let y = floorY + 1; y <= floorY + 7; y++) data[blockIndex(tx, y, tz)] = Block.riftframe;
+    data[blockIndex(tx, floorY + 8, tz)] = Block.emberrock;
+  }
+  // Gate arch: emberrock jambs flanking the opening, capped by a lintel.
+  for (const gx of [CX - 2, CX + 1]) {
+    for (let y = floorY + 1; y <= floorY + 4; y++) data[blockIndex(gx, y, 2)] = Block.emberrock;
+  }
+  data[blockIndex(CX - 1, floorY + 4, 2)] = Block.emberrock;
+  data[blockIndex(CX, floorY + 4, 2)] = Block.emberrock;
+  // Inner keep: four ember pillars and a raised dais bearing the emberthrone.
+  for (const [px, pz] of [[5, 5], [11, 5], [5, 11], [11, 11]] as const) {
+    for (let y = floorY + 1; y <= floorY + 5; y++) data[blockIndex(px, y, pz)] = Block.emberrock;
+  }
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) data[blockIndex(CX + dx, floorY + 1, CZ + dz)] = Block.emberrock;
+  }
+  data[blockIndex(CX, floorY + 2, CZ)] = Block.emberthrone;
+  data[blockIndex(CX - 1, floorY + 2, CZ)] = Block.glowmoss;
+  data[blockIndex(CX + 1, floorY + 2, CZ)] = Block.glowmoss;
 }
 
 function cavernFloorY(data: Uint8Array, x: number, z: number): number | null {

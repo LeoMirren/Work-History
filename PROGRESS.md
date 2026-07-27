@@ -583,3 +583,10 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Lava is a hazard: standing in it BURNS in survival — an immediate tick on entry, then 3 damage every 0.5s (~6/s) — but it's buoyant like water so a misstep is escapable, not instant death; creative is immune
 - [x] Lava lakes in worldgen: a slow ember field floods the underworld's lowest cavern floors with molten pools, and the deepest overworld abyss (y≤20 — the magma floor of the world) pools lava between the glowmoss and dusk-bells
 - [x] Coverage: lava block props (non-solid / unbreakable / max-light), the survival burn (survival burns, creative immune), and lava present in both the underworld lakes and the deepest overworld abyss; 548 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.37 MOLTEN
+
+## Post-spec: v0.38 THE INFERNAL KEEP — the underworld end realm becomes a castle
+
+- [x] The Monarch's throne chunk is entirely revamped from a bare 9×9 platform into a real CASTLE filling the chunk: a battlemented curtain wall of dark riftframe (obsidian) with emberrock merlons, four taller corner towers with glowing caps, a gate-arch on the north side, and — using the new lava — a LAVA MOAT ringing the whole fortress, crossed by a single drawbridge
+- [x] Inside, the bailey is cleared around a raised emberrock keep dais bearing the blazing emberthrone (still the end-game trigger), flanked by four ember pillars; a short ashstone foundation keeps the castle from floating where no cavern floor sits beneath
+- [x] The riftframe walls make the fortress read as BUILT against the natural ashstone cavern (verified in-game: purple obsidian walls, glowing lava moat, emberrock battlements); rift arrivals still land beside the throne inside the walls
+- [x] Throne-hall test rewritten to assert the castle (moat, curtain wall, tower cap, dais, drawbridge, cleared bailey); 548 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.38 THE INFERNAL KEEP
