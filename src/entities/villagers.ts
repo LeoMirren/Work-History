@@ -90,7 +90,7 @@ export function packDeepholdKey(cx: number, cz: number): number {
 
 /** Target head-count (3-5) for the village of region (rx, rz), from its hash. */
 export function populationFor(seedInt: number, rx: number, rz: number): number {
-  return 3 + ((hash2(seedInt, rx, rz) >>> 6) % 3);
+  return 4 + ((hash2(seedInt, rx, rz) >>> 6) % 4); // 4–7 residents (was 3–5) — richer towns feel lived-in
 }
 
 export interface Villager {

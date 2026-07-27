@@ -754,6 +754,7 @@ async function boot(): Promise<void> {
           let warpSpawn: { x: number; y: number; z: number } | undefined;
           if (warpDim === 'overworld' && goto) {
             const structSeed = (stream: string): number => cyrb128(`${seed} ${stream}`)[0] ?? 0;
+            const gen = createGenerator(seed, 'overworld');
             let at: { x: number; z: number } | null = null;
             for (let r = 0; r <= 40 && !at; r++) {
               for (let dz = -r; dz <= r && !at; dz++) {
@@ -762,11 +763,22 @@ async function boot(): Promise<void> {
                   if (goto === 'deephold') at = deepholdFor(structSeed('deepholds'), dx, dz);
                   else if (goto === 'altar') at = altarFor(structSeed('altars'), dx, dz);
                   else if (goto === 'titan') at = titanAnchorFor(structSeed('titans'), dx, dz);
+                  else if (goto === 'village') {
+                    // dx, dz are REGION coords here; only accept a centre whose
+                    // biome actually builds (plains/savanna), so we never warp
+                    // to an empty roll.
+                    const vc = villageCenterFor(structSeed('villages'), dx, dz);
+                    if (vc) {
+                      const bx = vc.cx * 16 + 8;
+                      const bz = vc.cz * 16 + 8;
+                      const b = gen.biomeAt(bx, bz);
+                      if (b === Biome.plains || b === Biome.savanna) at = { x: bx, z: bz };
+                    }
+                  }
                 }
               }
             }
             if (at) {
-              const gen = createGenerator(seed, 'overworld');
               warpSpawn = { x: at.x + 0.5, y: gen.heightAt(at.x, at.z) + 2, z: at.z + 0.5 };
             }
           }

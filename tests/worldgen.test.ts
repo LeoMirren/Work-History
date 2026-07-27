@@ -208,10 +208,25 @@ describe('worldgen content rules', () => {
             logs++;
             const x = i & 15;
             const z = (i >> 4) & 15;
-            expect(x).toBeGreaterThanOrEqual(2);
-            expect(x).toBeLessThanOrEqual(13);
-            expect(z).toBeGreaterThanOrEqual(2);
-            expect(z).toBeLessThanOrEqual(13);
+            const y = i >> 8;
+            // Only TREE TRUNKS need the canopy margin (leaves spread ±2 and must
+            // not clip at the chunk border). A market-stall post is also a log,
+            // but it stands on the stall's COBBLESTONE floor, whereas a trunk
+            // stands on soil — trace the column down through the stack to tell
+            // them apart, and exempt structural posts.
+            let structural = false;
+            for (let dy = 1; dy <= 6; dy++) {
+              const b = data[x + (z << 4) + ((y - dy) << 8)] ?? 0;
+              if (b === Block.log) continue; // still inside the post/trunk stack
+              structural = b === Block.cobblestone;
+              break;
+            }
+            if (!structural) {
+              expect(x).toBeGreaterThanOrEqual(2);
+              expect(x).toBeLessThanOrEqual(13);
+              expect(z).toBeGreaterThanOrEqual(2);
+              expect(z).toBeLessThanOrEqual(13);
+            }
           } else if (data[i] === Block.leaves) {
             leaves++;
           }

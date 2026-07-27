@@ -56,13 +56,13 @@ function findVillage(seedInt: number): { rx: number; rz: number; x: number; z: n
 }
 
 describe('village-tagged spawning', () => {
-  it('pins the spec: population is 3 + (hash >>> 6) % 3, always 3-5', () => {
+  it('pins the spec: population is 4 + (hash >>> 6) % 4, always 4-7', () => {
     for (let rx = -3; rx <= 3; rx++) {
       for (let rz = -3; rz <= 3; rz++) {
         const pop = populationFor(SEED, rx, rz);
-        expect(pop).toBe(3 + ((hash2(SEED, rx, rz) >>> 6) % 3));
-        expect(pop).toBeGreaterThanOrEqual(3);
-        expect(pop).toBeLessThanOrEqual(5);
+        expect(pop).toBe(4 + ((hash2(SEED, rx, rz) >>> 6) % 4));
+        expect(pop).toBeGreaterThanOrEqual(4);
+        expect(pop).toBeLessThanOrEqual(7);
       }
     }
   });

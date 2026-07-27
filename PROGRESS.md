@@ -564,3 +564,15 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Deephold halls now house 3 underfolk traders (was 2) so they read as inhabited; verified by warping in and photographing a populated hall (two traders, chest, wall lantern, crystal)
 - [x] DEV probe seam gains `world` (block reads) and `villagers` for headless verification
 - [x] 538 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.35 THEY FACE YOU
+
+## Post-spec: v0.36 TOWNS WITH DEPTH — richer buildings, far more villages
+
+- [x] Village frequency raised from ~45% to ~64% of regions — the overworld was too empty between settlements
+- [x] Three new building types, each a real interior (not a one-room box), giving villages architectural DEPTH:
+  - SMITHY — a cobblestone workshop with brick corner pillars and a FURNACE forge set into the front wall, an emberrock anvil, a wares chest and a lantern (reads instantly as a trade building, not a home)
+  - MANOR — a two-storey plank house with a real internal upper floor, a stairwell gap between levels, windows on both storeys, a lantern per floor, a ground chest and an upstairs bed (vertical depth instead of a field of huts)
+  - MARKET STALL — four log posts under a plank awning over a paved floor, with a goods counter of produce and a wares chest
+- [x] Wired into all three village rings: the heart now anchors on a manor "town hall"; the inner ring rolls THREE slots over a rich table (hut / hall / manor / smithy / market / farm / lamp); the outskirts gain roadside smithies and market stalls
+- [x] Village population raised to 4–7 residents (was 3–5) so the bigger towns feel inhabited
+- [x] New `?goto=village` warp code (biome-gated to a village that actually builds) to fast-travel in and SEE a town
+- [x] Coverage for all three new builders (blocks, forge, stairwell, counter) + updated frequency/population specs (and the tree-canopy invariant now exempts structural market posts); 543 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.36 TOWNS WITH DEPTH

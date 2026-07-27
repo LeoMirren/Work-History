@@ -103,11 +103,17 @@ const HAMLET_W = 12; // two hut footprints with a 2-column gap between them
 const HAMLET_D = 8; // hut rows plus the well row south of them
 /** Village grid: chunk space is partitioned into square regions this many chunks per side. */
 export const VILLAGE_REGION = 8;
-const VILLAGE_CHANCE_PCT = 45; // ~45% of regions host a village
+const VILLAGE_CHANCE_PCT = 64; // ~64% of regions host a village (was 45 — the world felt empty)
 /** Member chunks reach this Chebyshev distance from the centre (5x5 chunks). */
 export const VILLAGE_RADIUS = 2;
 const LONGHOUSE_W = 8; // village hall footprint: 8 columns of plank walls...
 const LONGHOUSE_D = 5; // ...by 5 rows, cobble pillars on the corners
+const SMITHY_W = 6; // blacksmith: a cobble/brick workshop with an open forge
+const SMITHY_D = 5;
+const MANOR_W = 7; // two-storey manor: a plank house with a real upper floor
+const MANOR_D = 6;
+const MARKET_W = 5; // open market stall: log posts, plank awning, a goods counter
+const MARKET_D = 5;
 const FARM_W = 6; // farm plot footprint: crop rows either side of the channel
 const FARM_D = 5;
 const LAMP_HEIGHT = 3; // cobblestone pillar height under a lamp post's lantern
@@ -843,46 +849,72 @@ function createOverworld(seed: string): Generator {
             layPlaza(data, heights, well[0], well[1]);
             taken.push(claim(well[0], well[1], WELL_SIZE, WELL_SIZE));
           }
+          // The town hall: a two-storey manor anchoring the heart of the village.
+          const hall = findSite(data, heights, hash2(vhash, 4, 0), MANOR_W, MANOR_D, BUILD_DRIFT, taken);
+          if (hall !== null) {
+            tryPlantManor(data, heights, hall[0], hall[1]);
+            taken.push(claim(hall[0], hall[1], MANOR_W, MANOR_D));
+          }
           const lamp = findSite(data, heights, hash2(vhash, 3, 0), 1, 1, 0, taken);
           if (lamp !== null) tryPlantLampPost(data, heights, lamp[0], lamp[1]);
         } else if (ring === 1) {
-          // Inner ring: town proper — two independent building rolls so the
-          // blocks around the heart feel built-up.
+          // Inner ring: town proper — THREE independent building rolls over a
+          // rich table (huts, halls, a manor, a smithy, a market, farms) so the
+          // blocks around the heart feel like a real, varied town.
           const taken: Rect[] = [];
-          for (let slot = 0; slot < 2; slot++) {
+          for (let slot = 0; slot < 3; slot++) {
             const shash = hash2(vhash, 20 + slot, slot);
-            const roll = shash % 9;
-            if (roll < 3) {
+            const roll = shash % 12;
+            if (roll < 2) {
               const site = findSite(data, heights, shash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT, taken);
               if (site !== null) {
                 tryPlantHut(data, heights, site[0], site[1]);
                 taken.push(claim(site[0], site[1], HUT_SIZE, HUT_SIZE));
               }
-            } else if (roll < 5) {
+            } else if (roll < 4) {
               const site = findSite(data, heights, shash, LONGHOUSE_W, LONGHOUSE_D, BUILD_DRIFT, taken);
               if (site !== null) {
                 tryPlantLongHouse(data, heights, site[0], site[1]);
                 taken.push(claim(site[0], site[1], LONGHOUSE_W, LONGHOUSE_D));
               }
+            } else if (roll < 5) {
+              const site = findSite(data, heights, shash, MANOR_W, MANOR_D, BUILD_DRIFT, taken);
+              if (site !== null) {
+                tryPlantManor(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], MANOR_W, MANOR_D));
+              }
+            } else if (roll < 6) {
+              const site = findSite(data, heights, shash, SMITHY_W, SMITHY_D, BUILD_DRIFT, taken);
+              if (site !== null) {
+                tryPlantSmithy(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], SMITHY_W, SMITHY_D));
+              }
             } else if (roll < 7) {
+              const site = findSite(data, heights, shash, MARKET_W, MARKET_D, BUILD_DRIFT, taken);
+              if (site !== null) {
+                tryPlantMarket(data, heights, site[0], site[1]);
+                taken.push(claim(site[0], site[1], MARKET_W, MARKET_D));
+              }
+            } else if (roll < 9) {
               const site = findSite(data, heights, shash, FARM_W, FARM_D, FARM_DRIFT, taken);
               if (site !== null) {
                 tryPlantFarm(data, heights, site[0], site[1]);
                 taken.push(claim(site[0], site[1], FARM_W, FARM_D));
               }
-            } else if (roll < 8) {
+            } else if (roll < 10) {
               const site = findSite(data, heights, shash, 1, 1, 0, taken);
               if (site !== null) {
                 tryPlantLampPost(data, heights, site[0], site[1]);
                 taken.push(claim(site[0], site[1], 1, 1, 3));
               }
             }
-            // roll 8: green — this slot stays open.
+            // rolls 10-11: green — this slot stays open.
           }
         } else {
-          // Outer ring: outskirts — one roll: farm 3 / hut 2 / lamp pair 1 /
-          // WATCHPOST 1 (a lantern-lit lookout guarding the approach) / green 2.
-          const roll = vhash % 9;
+          // Outer ring: outskirts — one roll over farms, huts, a roadside
+          // smithy or market stall, a lamp pair, and a WATCHPOST (a lantern-lit
+          // lookout guarding the approach), with some plots left open.
+          const roll = vhash % 11;
           if (roll < 3) {
             const site = findSite(data, heights, vhash, FARM_W, FARM_D, FARM_DRIFT);
             if (site !== null) tryPlantFarm(data, heights, site[0], site[1]);
@@ -890,15 +922,21 @@ function createOverworld(seed: string): Generator {
             const site = findSite(data, heights, vhash, HUT_SIZE, HUT_SIZE, BUILD_DRIFT);
             if (site !== null) tryPlantHut(data, heights, site[0], site[1]);
           } else if (roll < 6) {
+            const site = findSite(data, heights, vhash, SMITHY_W, SMITHY_D, BUILD_DRIFT);
+            if (site !== null) tryPlantSmithy(data, heights, site[0], site[1]);
+          } else if (roll < 7) {
+            const site = findSite(data, heights, vhash, MARKET_W, MARKET_D, BUILD_DRIFT);
+            if (site !== null) tryPlantMarket(data, heights, site[0], site[1]);
+          } else if (roll < 8) {
             const a = findSite(data, heights, hash2(vhash, 1, 0), 1, 1, 0);
             if (a !== null) tryPlantLampPost(data, heights, a[0], a[1]);
             const b = findSite(data, heights, hash2(vhash, 2, 0), 1, 1, 0, a !== null ? [claim(a[0], a[1], 1, 1, 3)] : []);
             if (b !== null) tryPlantLampPost(data, heights, b[0], b[1]);
-          } else if (roll < 7) {
+          } else if (roll < 9) {
             const site = findSite(data, heights, vhash, 3, 3, BUILD_DRIFT);
             if (site !== null) tryPlantWatchpost(data, heights, site[0], site[1]);
           }
-          // rolls 7-8: open outskirts.
+          // rolls 9-10: open outskirts.
         }
       }
     }
@@ -1874,6 +1912,128 @@ export function tryPlantLongHouse(data: Uint8Array, heights: Int32Array, x0: num
   // A lantern hung at the hall centre, and a chest in the corner.
   data[blockIndex(x0 + (LONGHOUSE_W >> 1), wallTop, z0 + (LONGHOUSE_D >> 1))] = Block.lantern;
   data[blockIndex(x0 + 1, floorY + 1, z0 + 1)] = Block.chest;
+}
+
+/**
+ * Build a blacksmith over the 6x5 grass footprint at local (x0, z0): a
+ * cobblestone workshop with brick corner pillars (reads as "trade building",
+ * not a home), a FURNACE forge set into the front wall beside the door, and
+ * inside an emberrock anvil block, a chest of wares and a hung lantern. Ground
+ * rules mirror the long house; unfit ground bails with the terrain untouched.
+ */
+export function tryPlantSmithy(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  const baseY = fitFootprint(data, heights, x0, z0, SMITHY_W, SMITHY_D, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, SMITHY_W, SMITHY_D, baseY, Block.cobblestone);
+  const floorY = baseY + 1;
+  const wallTop = floorY + 3;
+  const lastX = SMITHY_W - 1;
+  const lastZ = SMITHY_D - 1;
+  for (let dz = 0; dz < SMITHY_D; dz++) {
+    for (let dx = 0; dx < SMITHY_W; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      data[blockIndex(x, floorY, z)] = Block.cobblestone; // stone shop floor
+      data[blockIndex(x, wallTop + 1, z)] = Block.planks; // roof
+      const edge = dx === 0 || dz === 0 || dx === lastX || dz === lastZ;
+      const pillar = (dx === 0 || dx === lastX) && (dz === 0 || dz === lastZ);
+      for (let y = floorY + 1; y <= wallTop; y++) {
+        data[blockIndex(x, y, z)] = edge ? (pillar ? Block.brick : Block.cobblestone) : Block.air;
+      }
+    }
+  }
+  // Door on the front (-z) wall; the forge FURNACE set into the wall beside it.
+  const doorX = x0 + (SMITHY_W >> 1);
+  data[blockIndex(doorX, floorY + 1, z0)] = Block.air;
+  data[blockIndex(doorX, floorY + 2, z0)] = Block.air;
+  data[blockIndex(x0 + 1, floorY + 1, z0)] = Block.furnace; // the forge, visible from the lane
+  data[blockIndex(x0 + lastX, floorY + 2, z0 + 2)] = Block.glass; // side window
+  // The workshop: an emberrock anvil/quench block, a wares chest, a lantern.
+  data[blockIndex(x0 + lastX - 1, floorY + 1, z0 + lastZ - 1)] = Block.emberrock;
+  data[blockIndex(x0 + 1, floorY + 1, z0 + lastZ - 1)] = Block.chest;
+  data[blockIndex(x0 + (SMITHY_W >> 1), wallTop, z0 + (SMITHY_D >> 1))] = Block.lantern;
+}
+
+/**
+ * Build a two-storey manor over the 7x6 grass footprint at local (x0, z0): a
+ * plank house with cobble corner posts, a real internal upper floor (with a
+ * stairwell gap to climb through), windows on both levels, a lantern per
+ * floor, a ground-floor chest and an upstairs bed. Gives villages vertical
+ * DEPTH instead of a field of one-room huts. Unfit or too-shallow-roof ground
+ * bails with the terrain untouched.
+ */
+export function tryPlantManor(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  const baseY = fitFootprint(data, heights, x0, z0, MANOR_W, MANOR_D, BUILD_DRIFT);
+  if (baseY === null || baseY + 9 >= CHUNK_HEIGHT) return;
+  underpin(data, heights, x0, z0, MANOR_W, MANOR_D, baseY, Block.cobblestone);
+  const floorY = baseY + 1;
+  const midY = floorY + 4; // internal floor: ground ceiling / upper floor
+  const roofY = floorY + 8;
+  const lastX = MANOR_W - 1;
+  const lastZ = MANOR_D - 1;
+  for (let dz = 0; dz < MANOR_D; dz++) {
+    for (let dx = 0; dx < MANOR_W; dx++) {
+      const x = x0 + dx;
+      const z = z0 + dz;
+      data[blockIndex(x, floorY, z)] = Block.planks; // ground floor
+      data[blockIndex(x, midY, z)] = Block.planks; // mid floor
+      data[blockIndex(x, roofY, z)] = Block.planks; // roof
+      const edge = dx === 0 || dz === 0 || dx === lastX || dz === lastZ;
+      const pillar = (dx === 0 || dx === lastX) && (dz === 0 || dz === lastZ);
+      for (let y = floorY + 1; y < midY; y++) data[blockIndex(x, y, z)] = edge ? (pillar ? Block.cobblestone : Block.planks) : Block.air;
+      for (let y = midY + 1; y < roofY; y++) data[blockIndex(x, y, z)] = edge ? (pillar ? Block.cobblestone : Block.planks) : Block.air;
+    }
+  }
+  // Stairwell: punch the mid floor at a back-interior cell so both levels link.
+  data[blockIndex(x0 + 1, midY, z0 + lastZ - 1)] = Block.air;
+  // Door on the front (-z) wall, ground floor.
+  const doorX = x0 + (MANOR_W >> 1);
+  data[blockIndex(doorX, floorY + 1, z0)] = Block.air;
+  data[blockIndex(doorX, floorY + 2, z0)] = Block.air;
+  // Windows on both storeys.
+  data[blockIndex(x0, floorY + 2, z0 + 2)] = Block.glass;
+  data[blockIndex(x0 + lastX, floorY + 2, z0 + 3)] = Block.glass;
+  data[blockIndex(x0, midY + 2, z0 + 2)] = Block.glass;
+  data[blockIndex(x0 + lastX, midY + 2, z0 + 3)] = Block.glass;
+  data[blockIndex(x0 + 2, midY + 2, z0)] = Block.glass;
+  // A lantern per floor, a chest downstairs, a bed upstairs.
+  data[blockIndex(x0 + (MANOR_W >> 1), midY - 1, z0 + (MANOR_D >> 1))] = Block.lantern;
+  data[blockIndex(x0 + (MANOR_W >> 1), roofY - 1, z0 + (MANOR_D >> 1))] = Block.lantern;
+  data[blockIndex(x0 + 1, floorY + 1, z0 + 1)] = Block.chest;
+  data[blockIndex(x0 + lastX - 1, midY + 1, z0 + 1)] = Block.bed;
+}
+
+/**
+ * Build an open market stall over the 5x5 grass footprint at local (x0, z0):
+ * four log corner posts under a plank awning, a paved floor, and a goods
+ * counter along the back with produce and a wares chest — a little commerce in
+ * the village square. Unfit ground bails with the terrain untouched.
+ */
+export function tryPlantMarket(data: Uint8Array, heights: Int32Array, x0: number, z0: number): void {
+  const baseY = fitFootprint(data, heights, x0, z0, MARKET_W, MARKET_D, BUILD_DRIFT);
+  if (baseY === null) return;
+  underpin(data, heights, x0, z0, MARKET_W, MARKET_D, baseY, Block.cobblestone);
+  const floorY = baseY + 1;
+  const postTop = floorY + 3;
+  const lastX = MARKET_W - 1;
+  const lastZ = MARKET_D - 1;
+  for (let dz = 0; dz < MARKET_D; dz++) {
+    for (let dx = 0; dx < MARKET_W; dx++) {
+      data[blockIndex(x0 + dx, floorY, z0 + dz)] = Block.cobblestone; // paved floor
+      data[blockIndex(x0 + dx, postTop + 1, z0 + dz)] = Block.planks; // awning roof
+    }
+  }
+  // Four log corner posts.
+  for (const [cx, cz] of [[0, 0], [lastX, 0], [0, lastZ], [lastX, lastZ]] as const) {
+    for (let y = floorY + 1; y <= postTop; y++) data[blockIndex(x0 + cx, y, z0 + cz)] = Block.log;
+  }
+  // A counter along the back (+z), with produce and a wares chest on top.
+  for (let dx = 1; dx < lastX; dx++) data[blockIndex(x0 + dx, floorY + 1, z0 + lastZ)] = Block.planks;
+  data[blockIndex(x0 + 1, floorY + 2, z0 + lastZ)] = Block.cropRipe;
+  data[blockIndex(x0 + 2, floorY + 2, z0 + lastZ)] = Block.chest;
+  data[blockIndex(x0 + 3, floorY + 2, z0 + lastZ)] = Block.cropRipe;
+  // A lantern hung under the awning.
+  data[blockIndex(x0 + (MARKET_W >> 1), postTop, z0 + (MARKET_D >> 1))] = Block.lantern;
 }
 
 /**

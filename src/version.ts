@@ -4,4 +4,4 @@
  * If the title screen doesn't show this exact tag, the client is serving a
  * stale build (old dev-server process, stale cache, or an unsynced clone).
  */
-export const BUILD_TAG = 'v0.35 THEY FACE YOU — mobs turn their faces (not backs); cave villages you can find';
+export const BUILD_TAG = 'v0.36 TOWNS WITH DEPTH — smithies, two-storey manors, markets; far more villages';

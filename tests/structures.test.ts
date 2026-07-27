@@ -18,7 +18,10 @@ import {
   tryPlantHut,
   tryPlantLampPost,
   tryPlantLongHouse,
+  tryPlantManor,
+  tryPlantMarket,
   tryPlantRuin,
+  tryPlantSmithy,
   tryPlantShrine,
   tryPlantSnowDome,
   tryPlantWell,
@@ -439,6 +442,76 @@ describe('long house', () => {
   });
 });
 
+describe('smithy', () => {
+  it('raises a cobble/brick workshop with a forge furnace, anvil and chest', () => {
+    const { data, heights } = flatGrassChunk(124);
+    tryPlantSmithy(data, heights, 3, 5); // 6x5 over x 3..8, z 5..9
+    const floorY = 125;
+    expect(data[blockIndex(3, floorY, 5)]).toBe(Block.cobblestone); // stone floor
+    expect(data[blockIndex(3, floorY + 1, 5)]).toBe(Block.brick); // brick corner pillar
+    expect(data[blockIndex(6, floorY + 2, 7)]).toBe(Block.air); // hollow interior
+    expect(data[blockIndex(6, floorY + 4, 7)]).toBe(Block.planks); // roof
+    // The forge furnace set into the front (-z) wall, beside the centred door.
+    expect(data[blockIndex(4, floorY + 1, 5)]).toBe(Block.furnace);
+    expect(data[blockIndex(6, floorY + 1, 5)]).toBe(Block.air); // door gap
+    // Anvil block, chest and lantern.
+    expect(data[blockIndex(7, floorY + 1, 8)]).toBe(Block.emberrock);
+    expect(data[blockIndex(4, floorY + 1, 8)]).toBe(Block.chest);
+    expect(data[blockIndex(6, floorY + 3, 7)]).toBe(Block.lantern);
+  });
+
+  it('bails on unfit ground, leaving terrain untouched', () => {
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 5, 6, 127); // spike inside the footprint
+    const before = chunk.data.slice();
+    tryPlantSmithy(chunk.data, chunk.heights, 3, 5);
+    expect(chunk.data).toEqual(before);
+  });
+});
+
+describe('two-storey manor', () => {
+  it('raises two floors with an internal floor, stairwell, windows, beds and lanterns', () => {
+    const { data, heights } = flatGrassChunk(124);
+    tryPlantManor(data, heights, 2, 4); // 7x6 over x 2..8, z 4..9
+    const floorY = 125;
+    const midY = floorY + 4;
+    const roofY = floorY + 8;
+    expect(data[blockIndex(2, floorY, 4)]).toBe(Block.planks); // ground floor
+    expect(data[blockIndex(5, midY, 6)]).toBe(Block.planks); // internal upper floor
+    expect(data[blockIndex(5, roofY, 6)]).toBe(Block.planks); // roof
+    expect(data[blockIndex(2, floorY + 1, 4)]).toBe(Block.cobblestone); // corner post
+    expect(data[blockIndex(4, floorY + 2, 6)]).toBe(Block.air); // ground interior
+    expect(data[blockIndex(4, midY + 2, 6)]).toBe(Block.air); // upper interior
+    expect(data[blockIndex(3, midY, 8)]).toBe(Block.air); // stairwell gap in mid floor
+    expect(data[blockIndex(7, midY + 1, 5)]).toBe(Block.bed); // bed upstairs
+    expect(data[blockIndex(5, roofY - 1, 7)]).toBe(Block.lantern); // upper lantern
+  });
+
+  it('bails on unfit ground, leaving terrain untouched', () => {
+    const chunk = flatGrassChunk(124);
+    bumpColumn(chunk, 4, 6, 127);
+    const before = chunk.data.slice();
+    tryPlantManor(chunk.data, chunk.heights, 2, 4);
+    expect(chunk.data).toEqual(before);
+  });
+});
+
+describe('market stall', () => {
+  it('raises log posts under a plank awning with a goods counter', () => {
+    const { data, heights } = flatGrassChunk(124);
+    tryPlantMarket(data, heights, 4, 5); // 5x5 over x 4..8, z 5..9
+    const floorY = 125;
+    const postTop = floorY + 3;
+    expect(data[blockIndex(4, floorY, 5)]).toBe(Block.cobblestone); // paved floor
+    expect(data[blockIndex(4, floorY + 1, 5)]).toBe(Block.log); // corner post
+    expect(data[blockIndex(8, postTop, 9)]).toBe(Block.log); // far corner post top
+    expect(data[blockIndex(6, postTop + 1, 7)]).toBe(Block.planks); // awning roof
+    expect(data[blockIndex(5, floorY + 1, 9)]).toBe(Block.planks); // counter
+    expect(data[blockIndex(6, floorY + 2, 9)]).toBe(Block.chest); // wares on the counter
+    expect(data[blockIndex(6, postTop, 7)]).toBe(Block.lantern);
+  });
+});
+
 describe('farm plot', () => {
   it('tills crop rows around a capped water channel on flat grass', () => {
     const { data, heights } = flatGrassChunk(124);
@@ -511,7 +584,7 @@ describe('villageCenterFor', () => {
     }
   });
 
-  it('hosts villages in roughly 45% of regions', () => {
+  it('hosts villages in roughly 64% of regions', () => {
     let hosted = 0;
     let total = 0;
     for (let rz = -16; rz < 16; rz++) {
@@ -520,8 +593,8 @@ describe('villageCenterFor', () => {
         if (villageCenterFor(vseed, rx, rz) !== null) hosted++;
       }
     }
-    expect(hosted / total).toBeGreaterThan(0.35);
-    expect(hosted / total).toBeLessThan(0.55);
+    expect(hosted / total).toBeGreaterThan(0.54);
+    expect(hosted / total).toBeLessThan(0.74);
   });
 
   it('keeps every centre inside its region with a 1-chunk margin', () => {
