@@ -39,7 +39,7 @@ const DUSK_MAX_Y = 40;
 const UW_EMBERORE_THRESHOLD = 0.9; // the hottest ember seams crystallize to ore
 const UW_BLOOM_CHANCE = 34; // rarer than moss: crimson pinpricks in the ash
 const UW_THRONE_CHANCE = 140; // ~1 chunk in 140 raises the Monarch's hall
-const TREE_MARGIN = 2; // canopy margin: trees never cross chunk borders
+const TREE_MARGIN = 3; // canopy margin: even a broad crown never crosses a chunk border
 // Cave biomes: three underground zone themes, each chosen by its own
 // low-frequency 3D noise so a zone spans many chunks. Zones only DECORATE
 // already-carved caves (moss-veined floors, glowing flora, crystal growth);
@@ -831,7 +831,7 @@ function createOverworld(seed: string): Generator {
         if (hsh % scaledDiv !== 0) continue;
         const jungle = (biomes[z * CHUNK_SIZE + x] ?? Biome.plains) === Biome.jungle;
         const trunk = jungle ? 7 + ((hsh >>> 8) % 4) : 4 + ((hsh >>> 8) % 3);
-        plantTree(data, x, z, h, trunk);
+        plantTree(data, x, z, h, trunk, hsh); // the hash varies crown and limbs
       }
     }
 
@@ -2210,36 +2210,93 @@ function layPlaza(data: Uint8Array, heights: Int32Array, x0: number, z0: number)
 export function forEachTreeBlock(
   trunkHeight: number,
   emit: (dx: number, dy: number, dz: number, id: number, isLog: boolean) => void,
+  hash?: number,
 ): void {
   const top = trunkHeight;
   for (let t = 1; t <= trunkHeight; t++) emit(0, t, 0, Block.log, true);
-  // 5x5x2 slab with corners removed, under the trunk top.
+  if (hash === undefined) {
+    // The plain shape: a symmetric 5x5x2 slab, a 3x3 layer and a plus cap.
+    // Kept for saplings so a planted tree grows the canonical form.
+    for (const ly of [top - 2, top - 1]) {
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+          emit(dx, ly, dz, Block.leaves, false);
+        }
+      }
+    }
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) emit(dx, top, dz, Block.leaves, false);
+    }
+    emit(0, top + 1, 0, Block.leaves, false);
+    emit(-1, top + 1, 0, Block.leaves, false);
+    emit(1, top + 1, 0, Block.leaves, false);
+    emit(0, top + 1, -1, Block.leaves, false);
+    emit(0, top + 1, 1, Block.leaves, false);
+    return;
+  }
+
+  // VARIED WILDWOOD: the hash shapes one tree out of many. Broad trees carry a
+  // wider crown, every crown is rounded rather than a square slab, its outer
+  // rim is hash-pruned so no two silhouettes match, and short limbs branch off
+  // the trunk under the canopy. Logs are still all emitted before any leaf.
+  const broad = ((hash >>> 3) & 3) === 0; // ~1 tree in 4 spreads a wide crown
+  const radius = broad ? 3 : 2; // never exceeds TREE_MARGIN
+  // Limbs: 1-2 short logs angling off the trunk just below the crown.
+  const DIRS = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const;
+  const limbs = 1 + ((hash >>> 5) & 1);
+  const limbY = Math.max(1, top - 2);
+  for (let b = 0; b < limbs; b++) {
+    const d = DIRS[(hash >>> (7 + b * 3)) & 3];
+    if (d) emit(d[0], limbY, d[1], Block.log, true);
+  }
+  // Rounded crown. `dx^2+dz^2 <= r^2+r` gives a filled disc with soft corners;
+  // cells past r^2 are the rim, dropped on a hash bit for a ragged edge.
+  const rimKeep = (dx: number, dz: number, ly: number): boolean => {
+    const d2 = dx * dx + dz * dz;
+    if (d2 > radius * radius + radius) return false;
+    if (d2 <= radius * radius) return true; // solid core
+    const bit = (hash >>> ((((dx + 3) * 7 + (dz + 3) * 3 + ly) & 15) + 1)) & 1;
+    return bit === 1;
+  };
   for (const ly of [top - 2, top - 1]) {
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
-        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
-        emit(dx, ly, dz, Block.leaves, false);
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        if (rimKeep(dx, dz, ly)) emit(dx, ly, dz, Block.leaves, false);
       }
     }
   }
-  // 3x3 layer at the trunk top.
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dz = -1; dz <= 1; dz++) emit(dx, top, dz, Block.leaves, false);
+  // A narrower shoulder at the trunk top, then a plus cap crowning it.
+  const shoulder = radius - 1;
+  for (let dx = -shoulder; dx <= shoulder; dx++) {
+    for (let dz = -shoulder; dz <= shoulder; dz++) {
+      if (dx * dx + dz * dz <= shoulder * shoulder + shoulder) emit(dx, top, dz, Block.leaves, false);
+    }
   }
-  // Plus-shape cap.
   emit(0, top + 1, 0, Block.leaves, false);
   emit(-1, top + 1, 0, Block.leaves, false);
   emit(1, top + 1, 0, Block.leaves, false);
   emit(0, top + 1, -1, Block.leaves, false);
   emit(0, top + 1, 1, Block.leaves, false);
+  // Broad crowns rise to a second tip, so tall trees read as domed, not flat.
+  if (broad) emit(0, top + 2, 0, Block.leaves, false);
 }
 
-function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number): void {
-  forEachTreeBlock(trunkHeight, (dx, dy, dz, id, isLog) => {
+function plantTree(data: Uint8Array, x: number, z: number, h: number, trunkHeight: number, hash?: number): void {
+  forEachTreeBlock(
+    trunkHeight,
+    (dx, dy, dz, id, isLog) => {
     const ly = h + dy;
-    if (ly < 0 || ly >= CHUNK_HEIGHT) return;
-    const i = blockIndex(x + dx, ly, z + dz);
-    if (isLog) data[i] = id;
-    else if (data[i] === Block.air) data[i] = id; // leaves never overwrite
-  });
+      if (ly < 0 || ly >= CHUNK_HEIGHT) return;
+      const i = blockIndex(x + dx, ly, z + dz);
+      if (isLog) data[i] = id;
+      else if (data[i] === Block.air) data[i] = id; // leaves never overwrite
+    },
+    hash,
+  );
 }

@@ -33,6 +33,54 @@ describe('forEachTreeBlock', () => {
     const lastLog = order.lastIndexOf(true);
     expect(lastLog).toBeLessThan(firstLeaf);
   });
+
+  describe('hash-varied wildwood shapes', () => {
+    /** A canonical silhouette string for the tree grown from `hash`. */
+    function shapeOf(hash: number, trunkHeight = 5): string {
+      const cells: string[] = [];
+      forEachTreeBlock(trunkHeight, (dx, dy, dz, _id, isLog) => cells.push(`${dx},${dy},${dz},${isLog ? 'L' : 'F'}`), hash);
+      return cells.sort().join('|');
+    }
+
+    it('grows visibly different trees from different hashes', () => {
+      const shapes = new Set<string>();
+      for (let h = 0; h < 40; h++) shapes.add(shapeOf(h * 2654435761));
+      expect(shapes.size).toBeGreaterThan(4); // a varied wood, not one cloned tree
+    });
+
+    it('is deterministic: the same hash always grows the same tree', () => {
+      expect(shapeOf(12345)).toBe(shapeOf(12345));
+    });
+
+    it('keeps every cell within the chunk-border margin of 3', () => {
+      for (let h = 0; h < 64; h++) {
+        forEachTreeBlock(6, (dx, _dy, dz) => {
+          expect(Math.abs(dx)).toBeLessThanOrEqual(3);
+          expect(Math.abs(dz)).toBeLessThanOrEqual(3);
+        }, h * 2654435761);
+      }
+    });
+
+    it('still emits every log (trunk and limbs) before any leaf', () => {
+      for (let h = 0; h < 32; h++) {
+        const order: boolean[] = [];
+        forEachTreeBlock(5, (_dx, _dy, _dz, _id, isLog) => order.push(isLog), h * 40503);
+        expect(order.lastIndexOf(true)).toBeLessThan(order.indexOf(false));
+      }
+    });
+
+    it('grows limbs off the trunk, not just a bare pole', () => {
+      let withLimbs = 0;
+      for (let h = 0; h < 24; h++) {
+        let offAxisLogs = 0;
+        forEachTreeBlock(5, (dx, _dy, dz, _id, isLog) => {
+          if (isLog && (dx !== 0 || dz !== 0)) offAxisLogs++;
+        }, h * 2654435761);
+        if (offAxisLogs > 0) withLimbs++;
+      }
+      expect(withLimbs).toBe(24); // every varied tree carries at least one limb
+    });
+  });
 });
 
 describe('bonusDropFor', () => {

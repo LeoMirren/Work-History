@@ -590,3 +590,12 @@ context loss: finish unchecked items of the first unchecked milestone, in order.
 - [x] Inside, the bailey is cleared around a raised emberrock keep dais bearing the blazing emberthrone (still the end-game trigger), flanked by four ember pillars; a short ashstone foundation keeps the castle from floating where no cavern floor sits beneath
 - [x] The riftframe walls make the fortress read as BUILT against the natural ashstone cavern (verified in-game: purple obsidian walls, glowing lava moat, emberrock battlements); rift arrivals still land beside the throne inside the walls
 - [x] Throne-hall test rewritten to assert the castle (moat, curtain wall, tower cap, dais, drawbridge, cleared bailey); 548 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.38 THE INFERNAL KEEP
+
+## Post-spec: v0.39 THE WILDWOOD — every tree in the world was the same tree
+
+- [x] Root cause of the repetitive overworld: `forEachTreeBlock` grew ONE shape — a 1-wide pole under a perfectly symmetric 5×5 leaf slab — so every tree in every biome was an identical clone. Trees are the dominant overworld visual, so the whole surface read as stamped-out
+- [x] Hash-varied crowns: each tree now derives its shape from its own placement hash — ~1 in 4 spreads a BROAD crown (radius 3, domed with a second tip), crowns are rounded discs rather than square slabs, and the outer rim is hash-pruned so no two silhouettes match
+- [x] LIMBS: 1–2 short logs branch off the trunk just under the canopy, so trees read as trees instead of poles. Logs are still all emitted before any leaf, preserving the clean-trunk invariant for air-only fill (saplings)
+- [x] TREE_MARGIN raised 2→3 so even a broad crown never crosses a chunk border (the canopy-margin invariant still holds); saplings keep growing the canonical shape, so planted trees stay predictable
+- [x] Coverage: variation is real (many distinct silhouettes) and deterministic per hash, every cell stays within the margin, logs always precede leaves across many hashes, and every varied tree carries at least one limb; verified in-game on a 161-tree wood (varied crown heights, ragged canopy edge)
+- [x] 553 tests green, strict tsc, clean build; BUILD_TAG bumped to v0.39 THE WILDWOOD
