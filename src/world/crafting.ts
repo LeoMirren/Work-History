@@ -1,0 +1,245 @@
+/**
+ * Crafting & smelting — an original recipe set driven by ingredient counts.
+ * The inventory screen renders these as a click-to-make book. Pure.
+ *
+ * Two stations:
+ *  - 'craft' recipes are always available;
+ *  - 'smelt' recipes need a furnace within reach AND one fuel item, which is
+ *    consumed per smelt (fuel preference: charcoal is produced, so raw wood
+ *    burns first).
+ */
+import { Block } from './blocks';
+import { Item } from './items';
+import type { Inventory } from '../player/inventory';
+
+export type Station = 'craft' | 'smelt';
+
+export interface Recipe {
+  readonly name: string;
+  readonly station: Station;
+  readonly output: number;
+  readonly outputCount: number;
+  readonly inputs: ReadonlyArray<{ id: number; count: number }>;
+}
+
+/** Items accepted as furnace fuel, cheapest/most-abundant burned first. */
+export const FUEL_IDS: readonly number[] = [Block.log, Block.planks, Item.charcoal, Item.coal];
+
+export const RECIPES: readonly Recipe[] = [
+  { name: 'planks', station: 'craft', output: Block.planks, outputCount: 4, inputs: [{ id: Block.log, count: 1 }] },
+  { name: 'sticks', station: 'craft', output: Item.stick, outputCount: 4, inputs: [{ id: Block.planks, count: 2 }] },
+  {
+    name: 'wood pickaxe',
+    station: 'craft',
+    output: Item.woodPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Block.planks, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  {
+    name: 'stone pickaxe',
+    station: 'craft',
+    output: Item.stonePickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Block.cobblestone, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  {
+    name: 'iron pickaxe',
+    station: 'craft',
+    output: Item.ironPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.ingot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  { name: 'furnace', station: 'craft', output: Block.furnace, outputCount: 1, inputs: [{ id: Block.cobblestone, count: 8 }] },
+  { name: 'chest', station: 'craft', output: Block.chest, outputCount: 1, inputs: [{ id: Block.planks, count: 8 }] },
+  { name: 'bricks', station: 'craft', output: Block.brick, outputCount: 4, inputs: [{ id: Block.cobblestone, count: 4 }] },
+  { name: 'bed', station: 'craft', output: Block.bed, outputCount: 1, inputs: [{ id: Block.planks, count: 4 }, { id: Item.sapling, count: 1 }] },
+  { name: 'iron vest', station: 'craft', output: Item.ironVest, outputCount: 1, inputs: [{ id: Item.ingot, count: 5 }] },
+  { name: 'gold vest', station: 'craft', output: Item.goldVest, outputCount: 1, inputs: [{ id: Item.goldIngot, count: 5 }] },
+  { name: 'gem vest', station: 'craft', output: Item.gemVest, outputCount: 1, inputs: [{ id: Item.gem, count: 5 }] },
+  { name: 'throwing stones', station: 'craft', output: Item.throwingStone, outputCount: 4, inputs: [{ id: Block.cobblestone, count: 1 }] },
+  { name: 'bucket', station: 'craft', output: Item.bucket, outputCount: 1, inputs: [{ id: Item.ingot, count: 3 }] },
+  { name: 'torches', station: 'craft', output: Block.torch, outputCount: 4, inputs: [{ id: Item.coal, count: 1 }, { id: Item.stick, count: 1 }] },
+  { name: 'hoe', station: 'craft', output: Item.hoe, outputCount: 1, inputs: [{ id: Block.planks, count: 2 }, { id: Item.stick, count: 2 }] },
+  { name: 'bread', station: 'craft', output: Item.bread, outputCount: 1, inputs: [{ id: Item.grain, count: 3 }] },
+  // The deep-boss summon: an endgame-priced idol of gems, gold and crystal.
+  {
+    name: 'sovereign totem',
+    station: 'craft',
+    output: Item.sovereignTotem,
+    outputCount: 1,
+    inputs: [
+      { id: Item.gem, count: 6 },
+      { id: Item.goldIngot, count: 3 },
+      { id: Block.crystal, count: 1 },
+    ],
+  },
+  {
+    name: 'rift frame',
+    station: 'craft',
+    output: Block.riftframe,
+    outputCount: 2,
+    inputs: [
+      { id: Item.goldIngot, count: 1 },
+      { id: Block.cobblestone, count: 4 },
+    ],
+  },
+  {
+    name: 'lanterns',
+    station: 'craft',
+    output: Block.lantern,
+    outputCount: 4,
+    inputs: [
+      { id: Item.charcoal, count: 1 },
+      { id: Item.stick, count: 4 },
+    ],
+  },
+  {
+    name: 'copper pickaxe',
+    station: 'craft',
+    output: Item.copperPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.copperIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  {
+    name: 'gold pickaxe',
+    station: 'craft',
+    output: Item.goldPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.goldIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  {
+    name: 'gem pickaxe',
+    station: 'craft',
+    output: Item.gemPickaxe,
+    outputCount: 1,
+    inputs: [
+      { id: Item.gem, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  // Deep-metal gear: silver armors, dusksteel cuts.
+  { name: 'silver vest', station: 'craft', output: Item.silverVest, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 5 }] },
+  { name: 'dusksteel vest', station: 'craft', output: Item.duskVest, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 5 }] },
+  {
+    name: 'duskblade',
+    station: 'craft',
+    output: Item.duskblade,
+    outputCount: 1,
+    inputs: [
+      { id: Item.duskIngot, count: 3 },
+      { id: Item.stick, count: 2 },
+    ],
+  },
+  { name: 'ember torches', station: 'craft', output: Block.torch, outputCount: 6, inputs: [{ id: Item.emberShard, count: 1 }, { id: Item.stick, count: 1 }] },
+  // The armory: every metal's helm (4) and boots (3) complete the set.
+  { name: 'iron helm', station: 'craft', output: Item.ironHelm, outputCount: 1, inputs: [{ id: Item.ingot, count: 4 }] },
+  { name: 'iron boots', station: 'craft', output: Item.ironBoots, outputCount: 1, inputs: [{ id: Item.ingot, count: 3 }] },
+  { name: 'gold helm', station: 'craft', output: Item.goldHelm, outputCount: 1, inputs: [{ id: Item.goldIngot, count: 4 }] },
+  { name: 'gold boots', station: 'craft', output: Item.goldBoots, outputCount: 1, inputs: [{ id: Item.goldIngot, count: 3 }] },
+  { name: 'silver helm', station: 'craft', output: Item.silverHelm, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 4 }] },
+  { name: 'silver boots', station: 'craft', output: Item.silverBoots, outputCount: 1, inputs: [{ id: Item.silverIngot, count: 3 }] },
+  { name: 'gem helm', station: 'craft', output: Item.gemHelm, outputCount: 1, inputs: [{ id: Item.gem, count: 4 }] },
+  { name: 'gem boots', station: 'craft', output: Item.gemBoots, outputCount: 1, inputs: [{ id: Item.gem, count: 3 }] },
+  { name: 'dusksteel helm', station: 'craft', output: Item.duskHelm, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 4 }] },
+  { name: 'dusksteel boots', station: 'craft', output: Item.duskBoots, outputCount: 1, inputs: [{ id: Item.duskIngot, count: 3 }] },
+  // Smelting (furnace + fuel).
+  { name: 'iron ingot', station: 'smelt', output: Item.ingot, outputCount: 1, inputs: [{ id: Block.ore, count: 1 }] },
+  { name: 'copper ingot', station: 'smelt', output: Item.copperIngot, outputCount: 1, inputs: [{ id: Block.copperOre, count: 1 }] },
+  { name: 'gold ingot', station: 'smelt', output: Item.goldIngot, outputCount: 1, inputs: [{ id: Block.goldOre, count: 1 }] },
+  { name: 'silver ingot', station: 'smelt', output: Item.silverIngot, outputCount: 1, inputs: [{ id: Block.silverOre, count: 1 }] },
+  { name: 'dusksteel ingot', station: 'smelt', output: Item.duskIngot, outputCount: 1, inputs: [{ id: Block.duskOre, count: 1 }] },
+  { name: 'cooked meat', station: 'smelt', output: Item.cookedMeat, outputCount: 1, inputs: [{ id: Item.meat, count: 1 }] },
+  { name: 'hearty stew', station: 'smelt', output: Item.heartyStew, outputCount: 1, inputs: [{ id: Item.cookedMeat, count: 1 }, { id: Item.grain, count: 2 }] },
+  { name: 'golden loaf', station: 'smelt', output: Item.goldenLoaf, outputCount: 1, inputs: [{ id: Item.bread, count: 2 }, { id: Item.goldIngot, count: 1 }] },
+  { name: 'charcoal', station: 'smelt', output: Item.charcoal, outputCount: 1, inputs: [{ id: Block.log, count: 1 }] },
+  { name: 'glass', station: 'smelt', output: Block.glass, outputCount: 1, inputs: [{ id: Block.sand, count: 1 }] },
+];
+
+/** Total units of an id the inputs demand (handles repeats defensively). */
+function inputNeed(recipe: Recipe, id: number): number {
+  let n = 0;
+  for (const input of recipe.inputs) if (input.id === id) n += input.count;
+  return n;
+}
+
+/**
+ * Pick a fuel id the inventory can spare for one smelt, accounting for any
+ * fuel that is also a recipe input (needs input+1 of that id). Returns null
+ * if no fuel works.
+ */
+function chooseFuel(inventory: Inventory, recipe: Recipe): number | null {
+  for (const fuel of FUEL_IDS) {
+    if (inventory.countOf(fuel) >= inputNeed(recipe, fuel) + 1) return fuel;
+  }
+  return null;
+}
+
+export interface MakeContext {
+  /** A furnace block is within reach (required for 'smelt'). */
+  furnaceAvailable: boolean;
+}
+
+/** Can this recipe be made once right now? */
+export function canMake(inventory: Inventory, recipe: Recipe, ctx: MakeContext): boolean {
+  for (const input of recipe.inputs) {
+    if (inventory.countOf(input.id) < input.count) return false;
+  }
+  if (recipe.station === 'smelt') {
+    if (!ctx.furnaceAvailable) return false;
+    if (chooseFuel(inventory, recipe) === null) return false;
+  }
+  return true;
+}
+
+/** Conservative count of how many times the recipe could be made. */
+export function craftableCount(inventory: Inventory, recipe: Recipe, ctx: MakeContext): number {
+  if (recipe.station === 'smelt' && !ctx.furnaceAvailable) return 0;
+  let times = Infinity;
+  for (const input of recipe.inputs) {
+    times = Math.min(times, Math.floor(inventory.countOf(input.id) / input.count));
+  }
+  if (recipe.station === 'smelt') {
+    let fuelPool = 0;
+    for (const fuel of FUEL_IDS) fuelPool += inventory.countOf(fuel);
+    times = Math.min(times, fuelPool);
+  }
+  return Number.isFinite(times) ? Math.max(0, times) : 0;
+}
+
+/**
+ * Make one: consume inputs (and one fuel for smelting), add the output.
+ * Atomic — refunds everything and returns false if it can't complete.
+ */
+export function craft(inventory: Inventory, recipe: Recipe, ctx: MakeContext = { furnaceAvailable: true }): boolean {
+  if (!canMake(inventory, recipe, ctx)) return false;
+  const fuel = recipe.station === 'smelt' ? chooseFuel(inventory, recipe) : null;
+  if (recipe.station === 'smelt' && fuel === null) return false;
+
+  for (const input of recipe.inputs) inventory.remove(input.id, input.count);
+  if (fuel !== null) inventory.remove(fuel, 1);
+
+  const leftover = inventory.add(recipe.output, recipe.outputCount);
+  if (leftover > 0) {
+    // No room: refund everything (keeps the operation atomic).
+    inventory.remove(recipe.output, recipe.outputCount - leftover);
+    for (const input of recipe.inputs) inventory.add(input.id, input.count);
+    if (fuel !== null) inventory.add(fuel, 1);
+    return false;
+  }
+  return true;
+}

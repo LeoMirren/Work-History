@@ -1,0 +1,917 @@
+/**
+ * Hostile mobs ("stalkers"): dark humanoids that appear at night near the
+ * player, chase and strike on contact, and burn away in daylight. They share
+ * the entity AABB physics and the ray-pick/hurt interface with animals, so
+ * the player fights them with the same left-click. Melee stalkers telegraph
+ * their strikes with a forward torso lunge, and slain mobs play a brief
+ * shrinking "death pop" before leaving the scene.
+ */
+import * as THREE from 'three';
+import { Block, LIGHT_EMIT, SOLID } from '../world/blocks';
+import { Item } from '../world/items';
+import { rayAABB } from '../world/raycast';
+import {
+  createBody,
+  GRAVITY,
+  moveBody,
+  TERMINAL_VELOCITY,
+  type Body,
+  type MoveResult,
+} from '../player/physics';
+import { hideMaterial, shadowBlob } from './skins';
+import type { WorldView } from '../player/controller';
+
+export const STALKER_HALF_WIDTH = 0.3;
+export const STALKER_HEIGHT = 1.8;
+export const STALKER_HP = 6;
+export const NIGHT_BRIGHTNESS = 0.34; // spawn below this; sunburn above ~0.6
+const DAY_BRIGHTNESS = 0.6;
+const MAX_STALKERS = 18;
+const SPAWN_INTERVAL_S = 1.4;
+const SPAWN_MIN_DIST = 14;
+const SPAWN_MAX_DIST = 34;
+const DESPAWN_DIST = 70;
+const AGGRO_RANGE = 26;
+const MOVE_SPEED = 3.1;
+const HOP_VELOCITY = 7.4;
+const ATTACK_RANGE = 1.6;
+const ATTACK_DAMAGE = 2;
+const ATTACK_COOLDOWN_S = 1.0;
+const SUNBURN_S = 4;
+
+// Elites: rare oversized "walking boss" stalkers that roam day AND night,
+// never sunburn, hit harder, soak more, and burst loot on death.
+const ELITE_CHANCE = 0.1; // fraction of night spawns upgraded to elite
+const ELITE_DAY_INTERVAL_S = 9; // a lone elite prowls even in daylight
+export const ELITE_SCALE = 1.7;
+// Shriekers: the third hostile archetype — tiny pale swarmers that hunt in
+// packs of three, fast and fragile, nipping for 1 a bite.
+export const SWIFT_SCALE = 0.62;
+export const SWIFT_HP = 2;
+// Shellbacks: the fifth archetype — front-armored bruisers. Blows against
+// the shell chip for 1; flank them and they take full damage.
+export const SHELLBACK_HP = 10;
+const SHELLBACK_DAMAGE = 3;
+const SHELLBACK_CHANCE = 0.15; // fraction of surface night spawns
+const SHELLBACK_SPEED_MULT = 0.75;
+// Burrowers: the fourth archetype — earth-toned lurkers that ERUPT from the
+// cave floor right beside an underground player.
+export const BURROWER_HP = 7;
+const BURROWER_DAMAGE = 3;
+const BURROWER_CHANCE = 0.25; // fraction of underground spawns
+const BURROWER_NEAR = 4; // eruption distance band: this close...
+const BURROWER_FAR = 9; // ...to this far from the player
+const ERUPT_S = 0.45; // seconds spent clawing out of the ground
+const SWIFT_SPEED_MULT = 1.8;
+const SWIFT_DAMAGE = 1;
+const SWIFT_PACK = 3;
+const SWIFT_CHANCE = 0.2;
+export const ELITE_HP = 24;
+const ELITE_DAMAGE = 4;
+/** Below this y the world counts as "underground": hostiles spawn any hour. */
+export const UNDERGROUND_SPAWN_Y = 114; // below the post-Deepening surface, caves are never safe
+/** Melee tell: the torso tips this far forward on a hit, decaying upright. */
+const LUNGE_TIP = 0.25;
+const LUNGE_S = 0.3; // seconds the lunge tell takes to decay
+const WINDUP_S = 0.35; // telegraphed strike: the tell runs this long BEFORE damage
+const WHIFF_RECOVERY_S = 0.45; // stagger after a dodged strike
+/** Death pop: a slain stalker lingers this long, shrinking, before removal. */
+const DYING_S = 0.18;
+const DYING_SHRINK = 14; // per-second scale decay while dying
+const DYING_MIN_SCALE = 0.05; // the pop never shrinks below this
+
+// Ranged "spitter" variant.
+const RANGED_CHANCE = 0.4;
+const PREFERRED_RANGE = 9; // spitters hold this distance
+const FIRE_RANGE = 18;
+const FIRE_COOLDOWN_S = 2.2;
+const PROJECTILE_SPEED = 15;
+const PROJECTILE_DAMAGE = 2;
+const PROJECTILE_LIFE_S = 3;
+const PLAYER_HALF_WIDTH = 0.3;
+const PLAYER_HEIGHT = 1.8;
+
+/** Spawns are cancelled within this radius of a placed light source. */
+const LIGHT_SAFE_RADIUS = 7;
+const LIGHT_SAFE_EMIT = 8; // emitters at least this bright ward the dark
+
+/**
+ * True when a strong light source (torch, lantern, glowmoss, altar…) burns
+ * near (x, y, z) — THE rule of the dark: light keeps every monster away.
+ */
+function isLitArea(world: WorldView, x: number, y: number, z: number): boolean {
+  for (let dy = -2; dy <= 3; dy++) {
+    for (let dz = -LIGHT_SAFE_RADIUS; dz <= LIGHT_SAFE_RADIUS; dz++) {
+      for (let dx = -LIGHT_SAFE_RADIUS; dx <= LIGHT_SAFE_RADIUS; dx++) {
+        if ((LIGHT_EMIT[world.getBlock(x + dx, y + dy, z + dz)] ?? 0) >= LIGHT_SAFE_EMIT) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Loot burst an elite showers on death (pure): a handful of valuables and
+ * supplies, with a rare armor find — unmistakably worth the fight.
+ */
+export function eliteLoot(random: () => number): Array<{ id: number; count: number }> {
+  const drops: Array<{ id: number; count: number }> = [
+    { id: Item.gem, count: 1 + Math.floor(random() * 3) },
+    { id: Item.goldIngot, count: 1 + Math.floor(random() * 3) },
+    { id: Item.ingot, count: 2 + Math.floor(random() * 3) },
+    { id: Block.torch, count: 3 + Math.floor(random() * 4) },
+  ];
+  if (random() < 0.25) drops.push({ id: Item.ironVest, count: 1 });
+  return drops;
+}
+
+export interface Stalker {
+  /** Shrieker pack-swarmer: small, fast, fragile (see SWIFT_*). */
+  readonly swift: boolean;
+  /** Burrower: erupts from cave floors beside the player (see BURROWER_*). */
+  readonly burrower: boolean;
+  /** Shellback: front-armored — frontal blows chip for 1 (see SHELLBACK_*). */
+  readonly shelled: boolean;
+  /** Eruption seconds remaining — rising from the ground, no AI yet. */
+  erupting: number;
+  readonly body: Body;
+  readonly ranged: boolean;
+  /** Oversized roaming mini-boss: day-proof, harder-hitting, loot-bursting. */
+  readonly elite: boolean;
+  yaw: number;
+  hp: number;
+  attackCd: number;
+  sunTimer: number;
+  wanderTimer: number;
+  /** Walk-cycle phase driving limb swing. */
+  phase: number;
+  /** Hurt-flash seconds remaining. */
+  flash: number;
+  /** Melee-lunge seconds remaining — the torso tips forward, then decays. */
+  lunge: number;
+  /** Telegraph seconds remaining before the strike lands (0 = not winding). */
+  windup: number;
+  /** Death-pop seconds remaining; > 0 means slain: no AI, shrink, then despawn. */
+  dying: number;
+  /** Knockback impulse, decaying, added to the drive velocity. */
+  kbX: number;
+  kbZ: number;
+  readonly group: THREE.Group;
+  readonly limbs: readonly THREE.Mesh[];
+  /** Torso mesh — tips forward for the melee lunge tell. */
+  readonly torso: THREE.Mesh;
+  readonly mats: readonly THREE.MeshLambertMaterial[];
+}
+
+interface Projectile {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
+  trailAt: number;
+  readonly mesh: THREE.Mesh;
+}
+
+// Venom bolt: a bright core inside a darker translucent shell, spinning in
+// flight and shedding a green wake (see onProjectileTrail).
+// DEFINITION pass: venom bolts are half again bigger with a white-hot core,
+// a denser trail cadence and a faster spin — unmissable incoming fire.
+const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xeaff8a });
+const projectileShellMaterial = new THREE.MeshBasicMaterial({ color: 0x4a7a22, transparent: true, opacity: 0.6 });
+const projectileGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+const projectileShellGeometry = new THREE.BoxGeometry(0.44, 0.44, 0.44);
+const PROJECTILE_TRAIL_S = 0.05;
+const PROJECTILE_SPIN = 11;
+// Eyes glow via unlit materials — visible in the dark, which is the point.
+const stalkerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe03535 });
+const spitterEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb8e04a });
+// Elites wear an unlit gold brow band — readable at range, day or night.
+const eliteBandMaterial = new THREE.MeshBasicMaterial({ color: 0xe6be4a });
+// Bone-white fangs shared by every melee stalker's jaw.
+const fangMaterial = new THREE.MeshBasicMaterial({ color: 0xe8e2d2 });
+// Molten amber glare for burrowers — eyes like coals in the dug earth.
+const burrowerEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffb43a });
+
+/**
+ * A faint self-glow (a fraction of each body material's own colour) baked into
+ * every hostile hide/plate. THE fix for the "black void" look: a monster
+ * backlit by a low sun — or lurking in a dark cave, where it actually spawns —
+ * no longer crushes to a featureless silhouette. It never lights the world
+ * (emissive casts nothing); it just keeps the creature legible in any light.
+ */
+const HOSTILE_EMISSIVE_FLOOR = 0.2;
+function bakeFloor(m: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
+  m.emissive.copy(m.color).multiplyScalar(HOSTILE_EMISSIVE_FLOOR);
+  return m;
+}
+
+/**
+ * Per-archetype colour scheme. Bodies are deliberately MID-TONE — not the old
+ * near-black slabs that read as voids in scene light: a textured hide `base`,
+ * a contrasting bone/chitin `plate` tone for the chest, shoulders, crest and
+ * dorsal ridge, and an unlit `eye` glow. Every surface — front, side and back
+ * — now carries real material contrast instead of accent dots on black.
+ */
+interface HostilePalette {
+  base: number;
+  head: number;
+  limb: number;
+  plate: number;
+  eye: THREE.MeshBasicMaterial;
+}
+
+const PALETTE: Record<'stalker' | 'spitter' | 'burrower' | 'shelled' | 'swift', HostilePalette> = {
+  // Ashen slate predator: steel-blue hide, warm bone plating, red glare.
+  // Deliberately light: overhead noon sun grazes vertical faces, so a darker
+  // base would still read as a shadowed void — this stays blue-grey lit or not.
+  stalker: { base: 0x828da8, head: 0x9aa4bb, limb: 0x717c98, plate: 0xcbc0a2, eye: stalkerEyeMaterial },
+  // Venom spitter: sickly olive hide, pale membrane crest, acid-green glow.
+  spitter: { base: 0x647738, head: 0x8cbb4c, limb: 0x556430, plate: 0xc2ce7c, eye: spitterEyeMaterial },
+  // Clay digger: warm earthen body, sandy claw-plates, molten amber eyes.
+  burrower: { base: 0x7f6140, head: 0x8e6f48, limb: 0x6b5034, plate: 0xb7a06e, eye: burrowerEyeMaterial },
+  // Shellback: warm leather under-body beneath a pale slate carapace.
+  shelled: { base: 0x8a7659, head: 0x97836a, limb: 0x746150, plate: 0xbfc4cc, eye: stalkerEyeMaterial },
+  // Shrieker: bleached bone swarmer, near-white hide, red pinprick eyes.
+  swift: { base: 0xc7bea7, head: 0xd7ceb9, limb: 0xb3a98f, plate: 0xe6dfcb, eye: stalkerEyeMaterial },
+};
+
+const LEG_LEN = 0.72;
+const ARM_LEN = 0.66;
+
+/**
+ * Humanoid: a mid-tone textured body (torso, head, hip legs, shoulder arms)
+ * dressed in a contrasting bone/chitin PLATING layer — a chest slab, shoulder
+ * pauldrons, a head crest and a raked dorsal fin ridge lit by glowing cores —
+ * so the creature reads as a detailed monster from every angle, not a dark box
+ * with a few dots. Melee stalkers add shoulder spikes and arm claws; spitters
+ * add a wide venom-lit hood and throat sac. All colour comes from `palette`.
+ */
+function makeStalkerMesh(ranged: boolean, palette: HostilePalette): {
+  group: THREE.Group;
+  torso: THREE.Mesh;
+  limbs: THREE.Mesh[];
+  mats: THREE.MeshLambertMaterial[];
+} {
+  const torsoMat = bakeFloor(hideMaterial(palette.base, 'hide'));
+  const headMat = bakeFloor(hideMaterial(palette.head, 'hide'));
+  const limbMat = bakeFloor(hideMaterial(palette.limb, 'hide'));
+  const plateMat = bakeFloor(hideMaterial(palette.plate, 'scale'));
+  const eyeMat = palette.eye;
+  // Recessed face: a darkened tint of the HEAD colour (a shadowed eye band),
+  // not a universal near-black slab — the face belongs to the creature.
+  const faceDark = new THREE.MeshLambertMaterial({ color: new THREE.Color(palette.head).multiplyScalar(0.42) });
+  const group = new THREE.Group();
+  group.name = 'entity';
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.34), torsoMat);
+  torso.name = 'entity';
+  torso.position.set(0, LEG_LEN + 0.375, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), headMat);
+  head.name = 'entity';
+  head.position.set(0, 1.62, 0);
+  group.add(torso, head);
+  group.add(shadowBlob(0.55));
+
+  // PLATING — the contrast layer. A chest slab, shoulder pauldrons and a head
+  // crest in the bone/chitin `plate` tone give the front and sides real
+  // light-catching detail, so the body is never a flat dark mass.
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.07), plateMat);
+  chest.name = 'entity';
+  chest.position.set(0, 1.14, -0.18);
+  group.add(chest);
+  for (const sx of [-1, 1]) {
+    const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.3), plateMat);
+    pauldron.name = 'entity';
+    pauldron.position.set(sx * 0.33, 1.5, 0);
+    pauldron.rotation.z = sx * -0.15;
+    group.add(pauldron);
+  }
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.34), plateMat);
+  crest.name = 'entity';
+  crest.position.set(0, 1.81, 0.02);
+  group.add(crest);
+
+  // FACE: a full-width recessed band carrying two big glowing eyes over a
+  // fanged jaw — readable clear across a clearing, not just in close-up.
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.03), faceDark);
+  visor.name = 'entity';
+  visor.position.set(0, 1.68, -0.215);
+  group.add(visor);
+  for (const ex of [-0.115, 0.115]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.17, 0.03), eyeMat);
+    eye.name = 'entity';
+    eye.position.set(ex, 1.68, -0.228);
+    group.add(eye);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.05), faceDark);
+    brow.name = 'entity';
+    brow.position.set(ex, 1.79, -0.23);
+    brow.rotation.z = ex > 0 ? -0.3 : 0.3; // angled scowl
+    group.add(brow);
+  }
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.15, 0.045), faceDark);
+  jaw.name = 'entity';
+  jaw.position.set(0, 1.46, -0.22);
+  group.add(jaw);
+  for (const tx of [-0.14, 0, 0.14]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.035), ranged ? eyeMat : fangMaterial);
+    tooth.name = 'entity';
+    tooth.position.set(tx, 1.535, -0.232);
+    group.add(tooth);
+  }
+  // EAR FINS on the head's sides — bony plate, angled out (identity in profile).
+  for (const sx of [-1, 1]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.16), plateMat);
+    fin.name = 'entity';
+    fin.position.set(sx * 0.24, 1.74, 0.02);
+    fin.rotation.z = sx * -0.25;
+    group.add(fin);
+  }
+  // DORSAL RIDGE down the back: raked bony fins each lit by a glowing core, so
+  // the creature reads as a spined monster even walking away from you.
+  for (let i = 0; i < 4; i++) {
+    const ry = 1.56 - i * 0.2;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.17, 0.06), plateMat);
+    fin.name = 'entity';
+    fin.position.set(0, ry, 0.17);
+    fin.rotation.x = 0.6; // raked backward
+    group.add(fin);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.09, 0.04), eyeMat);
+    core.name = 'entity';
+    core.position.set(0, ry, 0.2);
+    group.add(core);
+  }
+
+  if (ranged) {
+    // Spitter: a wide hood/frill flaring up behind the head, plus a throat
+    // sac lit with the same venom green as the eyes (shared unlit material).
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.1), headMat);
+    hood.name = 'entity';
+    hood.position.set(0, 1.66, 0.24);
+    hood.rotation.x = -0.15; // crest leans forward over the crown
+    const sac = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.1), eyeMat);
+    sac.name = 'entity';
+    sac.position.set(0, 1.38, -0.16);
+    group.add(hood, sac);
+  } else {
+    // Stalker: bony spike nubs jutting off the pauldrons (claws ride the arms).
+    const spikeGeo = new THREE.BoxGeometry(0.09, 0.2, 0.09);
+    spikeGeo.translate(0, 0.1, 0); // pivot at the base
+    for (const sx of [-1, 1]) {
+      const spike = new THREE.Mesh(spikeGeo, plateMat);
+      spike.name = 'entity';
+      spike.position.set(sx * 0.28, LEG_LEN + 0.78, 0);
+      spike.rotation.z = sx * -0.35; // splayed outward
+      group.add(spike);
+    }
+  }
+
+  // Limbs pivot at hip/shoulder: [legL, legR, armL, armR].
+  const limbs: THREE.Mesh[] = [];
+  const legGeo = new THREE.BoxGeometry(0.22, LEG_LEN, 0.26);
+  legGeo.translate(0, -LEG_LEN / 2, 0);
+  for (const sx of [-1, 1]) {
+    const legMesh = new THREE.Mesh(legGeo, limbMat);
+    legMesh.name = 'entity';
+    legMesh.position.set(sx * 0.145, LEG_LEN, 0);
+    group.add(legMesh);
+    limbs.push(legMesh);
+  }
+  const armGeo = new THREE.BoxGeometry(0.16, ARM_LEN, 0.2);
+  armGeo.translate(0, -ARM_LEN / 2, 0);
+  for (const sx of [-1, 1]) {
+    const armMesh = new THREE.Mesh(armGeo, limbMat);
+    armMesh.name = 'entity';
+    armMesh.position.set(sx * 0.365, LEG_LEN + 0.7, 0);
+    group.add(armMesh);
+    limbs.push(armMesh);
+  }
+  if (!ranged) {
+    // Long bone claws on the arm ends — children of the arms, so they swing.
+    const clawGeo = new THREE.BoxGeometry(0.045, 0.24, 0.05);
+    clawGeo.translate(0, -0.12, 0); // hangs from the arm end
+    for (const arm of [limbs[2], limbs[3]]) {
+      for (const cx of [-0.04, 0.04]) {
+        const claw = new THREE.Mesh(clawGeo, plateMat);
+        claw.name = 'entity';
+        claw.position.set(cx, -ARM_LEN, -0.03);
+        arm?.add(claw);
+      }
+    }
+  }
+  return { group, torso, limbs, mats: [torsoMat, headMat, limbMat, plateMat] };
+}
+
+export class HostileSystem {
+  readonly stalkers: Stalker[] = [];
+  private readonly projectiles: Projectile[] = [];
+  private world: WorldView | null = null;
+  private spawnTimer = 0;
+  private eliteTimer = ELITE_DAY_INTERVAL_S;
+  /** Venom bolts shed a wake here (main routes to the particle pool). */
+  onProjectileTrail: ((x: number, y: number, z: number) => void) | null = null;
+  /** A slain elite showers this loot burst (main routes to world drops). */
+  onEliteLoot: ((x: number, y: number, z: number, drops: ReadonlyArray<{ id: number; count: number }>) => void) | null = null;
+  private readonly moveResult: MoveResult = { hitX: false, hitY: false, hitZ: false };
+
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly random: () => number = Math.random,
+  ) {}
+
+  setWorld(world: WorldView | null): void {
+    this.clear();
+    this.world = world;
+  }
+
+  clear(): void {
+    for (const s of this.stalkers) this.scene.remove(s.group);
+    this.stalkers.length = 0;
+    for (const p of this.projectiles) this.scene.remove(p.mesh);
+    this.projectiles.length = 0;
+    this.spawnTimer = 0;
+  }
+
+  get count(): number {
+    return this.stalkers.length;
+  }
+
+  get projectileCount(): number {
+    return this.projectiles.length;
+  }
+
+  spawnAt(x: number, y: number, z: number, ranged?: boolean, elite = false, swift = false, burrower = false, shelled = false): Stalker {
+    const isRanged = swift || burrower || shelled ? false : ranged ?? this.random() < RANGED_CHANCE;
+    const base = shelled
+      ? PALETTE.shelled
+      : burrower
+        ? PALETTE.burrower
+        : swift
+          ? PALETTE.swift
+          : isRanged
+            ? PALETTE.spitter
+            : PALETTE.stalker;
+    // Elites wear gold-touched plating to match their brow band.
+    const palette: HostilePalette = elite ? { ...base, plate: 0xccb066 } : base;
+    const parts = makeStalkerMesh(isRanged, palette);
+    if (shelled) {
+      // Pale slate carapace over the leather under-body: a front slab, a helm
+      // brow and pauldron ridges — unmistakably "hit me from behind".
+      const shellMat = bakeFloor(hideMaterial(0xc4cad4, 'stone'));
+      parts.mats.push(shellMat);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.1), shellMat);
+      plate.name = 'entity';
+      plate.position.set(0, 1.1, -0.24);
+      parts.group.add(plate);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.2, 0.1), shellMat);
+      visor.name = 'entity';
+      visor.position.set(0, 1.78, -0.22);
+      parts.group.add(visor);
+      for (const sx of [-1, 1]) {
+        const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.34), shellMat);
+        ridge.name = 'entity';
+        ridge.position.set(sx * 0.36, 1.32, -0.06);
+        parts.group.add(ridge);
+      }
+    }
+    if (burrower) {
+      parts.group.scale.set(1, 0.12, 1); // still buried; eruption grows it
+    }
+    if (swift) {
+      parts.group.scale.set(SWIFT_SCALE, SWIFT_SCALE, SWIFT_SCALE);
+    }
+    if (elite) {
+      parts.group.scale.set(ELITE_SCALE, ELITE_SCALE, ELITE_SCALE);
+      // A gold brow band marks the walking boss from across a field.
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.46), eliteBandMaterial);
+      band.name = 'entity';
+      band.position.set(0, 1.9, 0);
+      parts.group.add(band);
+    }
+    const stalker: Stalker = {
+      body: createBody(x, y, z),
+      ranged: isRanged,
+      elite,
+      swift,
+      burrower,
+      shelled,
+      erupting: burrower ? ERUPT_S : 0,
+      yaw: this.random() * Math.PI * 2,
+      hp: elite ? ELITE_HP : swift ? SWIFT_HP : burrower ? BURROWER_HP : shelled ? SHELLBACK_HP : STALKER_HP,
+      attackCd: 0,
+      sunTimer: 0,
+      wanderTimer: 0,
+      phase: 0,
+      flash: 0,
+      lunge: 0,
+      windup: 0,
+      dying: 0,
+      kbX: 0,
+      kbZ: 0,
+      group: parts.group,
+      limbs: parts.limbs,
+      torso: parts.torso,
+      mats: parts.mats,
+    };
+    this.scene.add(stalker.group);
+    this.stalkers.push(stalker);
+    return stalker;
+  }
+
+  private trySpawn(px: number, py: number, pz: number, forceElite = false): void {
+    const world = this.world;
+    if (!world || this.stalkers.length >= MAX_STALKERS) return;
+    const underground0 = py < UNDERGROUND_SPAWN_Y;
+    const burrow = underground0 && !forceElite && this.random() < BURROWER_CHANCE;
+    const angle = this.random() * Math.PI * 2;
+    const dist = burrow
+      ? BURROWER_NEAR + this.random() * (BURROWER_FAR - BURROWER_NEAR)
+      : SPAWN_MIN_DIST + this.random() * (SPAWN_MAX_DIST - SPAWN_MIN_DIST);
+    const x = Math.floor(px + Math.cos(angle) * dist);
+    const z = Math.floor(pz + Math.sin(angle) * dist);
+    const elite = forceElite || this.random() < ELITE_CHANCE;
+    // Underground: scan the cave band around the player's depth for a floor;
+    // on the surface: classic top-down scan for the first standable column.
+    const underground = py < UNDERGROUND_SPAWN_Y;
+    const yTop = underground ? Math.min(184, Math.floor(py) + 10) : 184;
+    const yBottom = underground ? Math.max(1, Math.floor(py) - 14) : 1;
+    for (let y = yTop; y >= yBottom; y--) {
+      const id = world.getBlock(x, y, z);
+      if (id === Block.air || id === Block.water) continue;
+      if (SOLID[id] === 1 && world.getBlock(x, y + 1, z) === Block.air && world.getBlock(x, y + 2, z) === Block.air) {
+        // THE RULE OF THE DARK: nothing spawns beside a burning light.
+        // Torch your camp, lantern your halls — the night respects it.
+        if (isLitArea(world, x, y + 1, z)) return;
+        if (burrow) {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, true);
+        } else if (!underground0 && !forceElite && !elite && this.random() < SHELLBACK_CHANCE) {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, false, false, false, false, true);
+        } else if (!forceElite && !elite && this.random() < SWIFT_CHANCE) {
+          // A shrieker pack: three tiny swarmers, scattered a step apart.
+          for (let n = 0; n < SWIFT_PACK && this.stalkers.length < MAX_STALKERS; n++) {
+            const ox = ((n % 2) * 2 - 1) * (1 + n * 0.5);
+            this.spawnAt(x + 0.5 + ox, y + 1, z + 0.5 + (n - 1), false, false, true);
+          }
+        } else {
+          this.spawnAt(x + 0.5, y + 1, z + 0.5, undefined, elite);
+        }
+      }
+      return;
+    }
+  }
+
+  /**
+   * Advance all stalkers. `brightness` is the day/night value; below
+   * NIGHT_BRIGHTNESS they spawn, above DAY_BRIGHTNESS they burn. `hitPlayer`
+   * applies melee damage.
+   */
+  fixedUpdate(
+    dt: number,
+    px: number,
+    py: number,
+    pz: number,
+    brightness: number,
+    hitPlayer: (damage: number) => void,
+  ): void {
+    const world = this.world;
+    if (!world) return;
+    // Night — or anywhere underground — runs the full spawn cadence; broad
+    // daylight still prowls a rare elite so the surface is never quite safe.
+    if (brightness < NIGHT_BRIGHTNESS || py < UNDERGROUND_SPAWN_Y) {
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) {
+        this.spawnTimer = SPAWN_INTERVAL_S;
+        this.trySpawn(px, py, pz);
+      }
+    } else {
+      this.eliteTimer -= dt;
+      if (this.eliteTimer <= 0) {
+        this.eliteTimer = ELITE_DAY_INTERVAL_S;
+        this.trySpawn(px, py, pz, true);
+      }
+    }
+    for (let i = this.stalkers.length - 1; i >= 0; i--) {
+      const s = this.stalkers[i];
+      if (!s) continue;
+      if (s.dying > 0) {
+        // Death pop: no AI, movement or burn — shrink, then despawn.
+        s.dying -= dt;
+        if (s.dying <= 0) {
+          this.scene.remove(s.group);
+          this.stalkers.splice(i, 1);
+        } else {
+          const k = Math.max(DYING_MIN_SCALE, s.group.scale.x * Math.max(0, 1 - dt * DYING_SHRINK));
+          s.group.scale.set(k, k, k);
+        }
+        continue;
+      }
+      const dx = s.body.x - px;
+      const dz = s.body.z - pz;
+      const distSq = dx * dx + dz * dz;
+      // Burn in daylight, despawn when far.
+      if (brightness > DAY_BRIGHTNESS) {
+        if (!s.elite) s.sunTimer += dt; // elites never burn
+      } else {
+        s.sunTimer = 0;
+      }
+      if (s.sunTimer > SUNBURN_S || distSq > DESPAWN_DIST * DESPAWN_DIST || s.body.y < -10) {
+        this.scene.remove(s.group);
+        this.stalkers.splice(i, 1);
+        continue;
+      }
+      // Visible sunburn: smoulder hotter and hotter until the sun takes them,
+      // so the dawn cull reads as burning instead of a silent pop-out.
+      if (s.sunTimer > 0 && s.flash <= 0) {
+        const burn = Math.min(1, s.sunTimer / SUNBURN_S);
+        for (const m of s.mats) m.emissive.setRGB(burn * 0.9, burn * 0.35, 0);
+      }
+      if (s.erupting > 0) {
+        // Clawing out of the floor: scale up, shed dirt, no AI yet.
+        s.erupting -= dt;
+        const t = Math.max(0, Math.min(1, 1 - s.erupting / ERUPT_S));
+        s.group.scale.y = 0.12 + 0.88 * t;
+        if (this.onErupt && this.random() < 0.5) {
+          this.onErupt(s.body.x + (this.random() - 0.5), s.body.y + 0.3, s.body.z + (this.random() - 0.5));
+        }
+        if (s.erupting <= 0) s.group.scale.y = 1;
+        s.group.position.set(s.body.x, s.body.y, s.body.z);
+        continue;
+      }
+      this.step(s, world, dt, px, py, pz, distSq, hitPlayer);
+      s.group.position.set(s.body.x, s.body.y, s.body.z);
+      s.group.rotation.set(0, s.yaw, 0);
+      this.animate(s, dt);
+    }
+    this.updateProjectiles(dt, px, py, pz, hitPlayer);
+  }
+
+  /** Limb swing scaled by actual speed, the melee lunge tell, and hurt flash. */
+  private animate(s: Stalker, dt: number): void {
+    const speed = Math.hypot(s.body.vx, s.body.vz);
+    if (speed > 0.2 && s.body.onGround) {
+      s.phase += dt * (3 + speed * 2.4);
+      const swing = Math.sin(s.phase) * 0.75;
+      // Legs [0,1] alternate; arms [2,3] counter-swing their side's leg.
+      s.limbs[0]?.rotation.set(swing, 0, 0);
+      s.limbs[1]?.rotation.set(-swing, 0, 0);
+      s.limbs[2]?.rotation.set(-swing, 0, 0);
+      s.limbs[3]?.rotation.set(swing, 0, 0);
+    } else {
+      for (const limb of s.limbs) limb.rotation.x *= Math.max(0, 1 - dt * 10);
+    }
+    if (s.lunge > 0) {
+      // Lunge tell: tipped LUNGE_TIP forward on the hit, decaying upright.
+      s.lunge -= dt;
+      s.torso.rotation.x = Math.min(LUNGE_TIP, Math.max(0, s.lunge) * (LUNGE_TIP / LUNGE_S));
+    }
+    if (s.flash > 0) {
+      s.flash -= dt;
+      const on = s.flash > 0;
+      // Flash bright red on the hit; then settle BACK to the self-glow floor
+      // (not pure black) so the body stays legible afterwards.
+      for (const m of s.mats) {
+        if (on) m.emissive.setRGB(0.55, 0, 0);
+        else bakeFloor(m);
+      }
+    }
+  }
+
+  private step(
+    s: Stalker,
+    world: WorldView,
+    dt: number,
+    px: number,
+    py: number,
+    pz: number,
+    distSq: number,
+    hitPlayer: (damage: number) => void,
+  ): void {
+    const body = s.body;
+    if (s.attackCd > 0) s.attackCd -= dt;
+
+    const aggro = distSq < AGGRO_RANGE * AGGRO_RANGE;
+    const horiz = Math.max(0.001, Math.hypot(px - body.x, pz - body.z));
+    if (aggro && s.ranged) {
+      // Spitter: face the player and hold the preferred range — back off when
+      // too close, sidle in when too far, otherwise strafe to a near-stop.
+      // NB: the face is on local -z, so facing a target NEGATES the delta
+      // (same convention as villagers) — otherwise the mob turns its BACK.
+      s.yaw = Math.atan2(-(px - body.x), -(pz - body.z));
+      const dist = Math.sqrt(distSq);
+      const toward = (dist - PREFERRED_RANGE) / Math.max(2, PREFERRED_RANGE);
+      const drive = Math.max(-1, Math.min(1, toward)) * MOVE_SPEED;
+      body.vx = ((px - body.x) / horiz) * drive;
+      body.vz = ((pz - body.z) / horiz) * drive;
+      if (s.attackCd <= 0 && dist < FIRE_RANGE) {
+        this.fire(s, px, py, pz);
+        s.attackCd = FIRE_COOLDOWN_S;
+      }
+    } else if (aggro) {
+      s.yaw = Math.atan2(-(px - body.x), -(pz - body.z)); // face the player (front is -z)
+      const chase = MOVE_SPEED * (s.swift ? SWIFT_SPEED_MULT : s.shelled ? SHELLBACK_SPEED_MULT : 1);
+      body.vx = ((px - body.x) / horiz) * chase;
+      body.vz = ((pz - body.z) / horiz) * chase;
+    } else {
+      s.wanderTimer -= dt;
+      if (s.wanderTimer <= 0) {
+        s.yaw = this.random() * Math.PI * 2;
+        s.wanderTimer = 1 + this.random() * 3;
+      }
+      body.vx = -Math.sin(s.yaw) * MOVE_SPEED * 0.5;
+      body.vz = -Math.cos(s.yaw) * MOVE_SPEED * 0.5;
+    }
+
+    body.vx += s.kbX;
+    body.vz += s.kbZ;
+    const kbDecay = Math.max(0, 1 - dt * 5);
+    s.kbX *= kbDecay;
+    s.kbZ *= kbDecay;
+
+    body.vy -= GRAVITY * dt;
+    if (body.vy < -TERMINAL_VELOCITY) body.vy = -TERMINAL_VELOCITY;
+
+    moveBody(
+      world.isSolid,
+      body,
+      body.vx * dt,
+      body.vy * dt,
+      body.vz * dt,
+      this.moveResult,
+      STALKER_HALF_WIDTH,
+      STALKER_HEIGHT,
+    );
+    if (body.onGround && (this.moveResult.hitX || this.moveResult.hitZ)) {
+      body.vy = HOP_VELOCITY; // climb obstacles toward the player
+    }
+
+    // Melee (non-ranged only): a TELEGRAPHED strike. Entering range starts a
+    // windup — the torso tips forward with NO damage yet — and the blow only
+    // lands if the player is still close when it finishes. Back off during
+    // the tell and the strike whiffs: a real dodge window.
+    const dyEye = Math.abs(body.y - py);
+    if (s.windup > 0) {
+      s.windup -= dt;
+      if (s.windup <= 0) {
+        if (distSq < ATTACK_RANGE * ATTACK_RANGE * 1.6 && dyEye < 2.4) {
+          hitPlayer(s.elite ? ELITE_DAMAGE : s.swift ? SWIFT_DAMAGE : s.burrower ? BURROWER_DAMAGE : s.shelled ? SHELLBACK_DAMAGE : ATTACK_DAMAGE);
+          s.attackCd = ATTACK_COOLDOWN_S;
+        } else {
+          s.attackCd = WHIFF_RECOVERY_S; // dodged: a short stagger
+        }
+      }
+    } else if (!s.ranged && aggro && s.attackCd <= 0 && distSq < ATTACK_RANGE * ATTACK_RANGE && dyEye < 2) {
+      s.windup = WINDUP_S;
+      s.lunge = WINDUP_S + LUNGE_S; // the tell tips through windup + strike
+    }
+  }
+
+  /** A spitter loosed a bolt (main plays the launch voice). */
+  onSpit: (() => void) | null = null;
+  /** A burrower is clawing out at (x, y, z) — main puffs dirt there. */
+  onErupt: ((x: number, y: number, z: number) => void) | null = null;
+
+  /** Launch a projectile from the spitter's head toward the player's chest. */
+  private fire(s: Stalker, px: number, py: number, pz: number): void {
+    this.onSpit?.();
+    const ox = s.body.x;
+    const oy = s.body.y + STALKER_HEIGHT * 0.85;
+    const oz = s.body.z;
+    const tx = px;
+    const ty = py + 1.0; // aim at the torso
+    const tz = pz;
+    const len = Math.max(0.001, Math.hypot(tx - ox, ty - oy, tz - oz));
+    const mesh = new THREE.Mesh(projectileGeometry, projectileMaterial);
+    mesh.name = 'entity';
+    const shell = new THREE.Mesh(projectileShellGeometry, projectileShellMaterial);
+    shell.name = 'entity';
+    mesh.add(shell);
+    mesh.position.set(ox, oy, oz);
+    this.scene.add(mesh);
+    this.projectiles.push({
+      x: ox,
+      y: oy,
+      z: oz,
+      vx: ((tx - ox) / len) * PROJECTILE_SPEED,
+      vy: ((ty - oy) / len) * PROJECTILE_SPEED,
+      vz: ((tz - oz) / len) * PROJECTILE_SPEED,
+      life: PROJECTILE_LIFE_S,
+      trailAt: PROJECTILE_TRAIL_S,
+      mesh,
+    });
+  }
+
+  /** Integrate projectiles; despawn on terrain or expiry, damage on player hit. */
+  private updateProjectiles(
+    dt: number,
+    px: number,
+    py: number,
+    pz: number,
+    hitPlayer: (damage: number) => void,
+  ): void {
+    const world = this.world;
+    if (!world) return;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (!p) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      p.life -= dt;
+      let dead = p.life <= 0;
+      // Terrain collision.
+      if (!dead && SOLID[world.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))] === 1) {
+        dead = true;
+      }
+      // Player AABB hit.
+      if (
+        !dead &&
+        p.x > px - PLAYER_HALF_WIDTH &&
+        p.x < px + PLAYER_HALF_WIDTH &&
+        p.z > pz - PLAYER_HALF_WIDTH &&
+        p.z < pz + PLAYER_HALF_WIDTH &&
+        p.y > py &&
+        p.y < py + PLAYER_HEIGHT
+      ) {
+        hitPlayer(PROJECTILE_DAMAGE);
+        dead = true;
+      }
+      if (dead) {
+        this.scene.remove(p.mesh);
+        this.projectiles.splice(i, 1);
+      } else {
+        p.mesh.position.set(p.x, p.y, p.z);
+        p.mesh.rotation.x += PROJECTILE_SPIN * dt;
+        p.mesh.rotation.y += PROJECTILE_SPIN * 0.7 * dt;
+        p.trailAt -= dt;
+        if (this.onProjectileTrail && p.trailAt <= 0) {
+          p.trailAt = PROJECTILE_TRAIL_S;
+          this.onProjectileTrail(p.x, p.y, p.z);
+        }
+      }
+    }
+  }
+
+  raycastNearest(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    maxDist: number,
+  ): { stalker: Stalker; distance: number } | null {
+    let best: Stalker | null = null;
+    let bestT = maxDist;
+    for (const s of this.stalkers) {
+      if (s.dying > 0) continue; // corpses mid-pop can't be targeted
+      const b = s.body;
+      // Elites are visually 1.7x: the hitbox matches what you see.
+      const hw = s.elite ? STALKER_HALF_WIDTH * ELITE_SCALE : s.swift ? STALKER_HALF_WIDTH * SWIFT_SCALE : STALKER_HALF_WIDTH;
+      const hh = s.elite ? STALKER_HEIGHT * ELITE_SCALE : s.swift ? STALKER_HEIGHT * SWIFT_SCALE : STALKER_HEIGHT;
+      const t = rayAABB(
+        ox, oy, oz, dx, dy, dz,
+        b.x - hw, b.y, b.z - hw,
+        b.x + hw, b.y + hh, b.z + hw,
+      );
+      if (t !== null && t <= bestT) {
+        best = s;
+        bestT = t;
+      }
+    }
+    return best ? { stalker: best, distance: bestT } : null;
+  }
+
+  /**
+   * Strike a stalker; returns true if it died. (kx, kz) is the attack
+   * direction for knockback (defaults keep old callers working). The lethal
+   * hit reports the kill immediately; the body then plays a brief shrinking
+   * death pop before fixedUpdate removes it from scene and array.
+   */
+  hurt(stalker: Stalker, kx = 0, kz = 0, damage = 2): boolean {
+    if (stalker.dying > 0) return false; // already slain and popping
+    // Shellback armor: an attack travelling INTO the facing (head-on) meets
+    // the carapace and chips for 1 — circle behind for full damage.
+    if (stalker.shelled && (kx !== 0 || kz !== 0)) {
+      const fx = -Math.sin(stalker.yaw);
+      const fz = -Math.cos(stalker.yaw);
+      if (kx * fx + kz * fz < 0) damage = Math.min(damage, 1);
+    }
+    stalker.hp -= damage;
+    stalker.body.vy = 4; // knock-up
+    if (stalker.hp <= 0) {
+      stalker.dying = DYING_S;
+      if (stalker.elite) {
+        // Walking-boss reward: shower a loot burst where it fell.
+        const b = stalker.body;
+        this.onEliteLoot?.(b.x, b.y + 1, b.z, eliteLoot(this.random));
+      }
+      return true;
+    }
+    stalker.flash = 0.22;
+    stalker.kbX = kx * (stalker.elite ? 2 : 6); // elites barely budge
+    stalker.kbZ = kz * (stalker.elite ? 2 : 6);
+    return false;
+  }
+}

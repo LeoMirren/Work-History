@@ -1,0 +1,23 @@
+/** Single source of truth for the control scheme (shown in panel + guide). */
+export const CONTROLS: ReadonlyArray<readonly [string, string]> = [
+  ['W / S', 'run forward / back'],
+  ['A / D', 'TURN left / right (steer like a car)'],
+  ['Space', 'jump / swim / fly up'],
+  ['Shift', 'sneak / fly down'],
+  ['Ctrl / 2×W', 'sprint'],
+  ['F', 'toggle fly (creative)'],
+  ['Mouse', 'look'],
+  ['Arrow keys', 'turn / look (no mouse needed)'],
+  ['T', 'auto-run toggle (S stops)'],
+  ['Y', 'toggle A/D between turn and strafe'],
+  ['LMB / RMB', 'break / hunt (either button)'],
+  ['U', 'use: place · talk · open · eat · throw'],
+  ['1-9, wheel', 'hotbar select'],
+  ['I J K L', 'quick-place ahead/left/behind/right'],
+  ['O', 'quick-place ahead-above'],
+  ['E', 'inventory & crafting / block picker'],
+  ['G', 'guide book'],
+  ['Tab', 'status panel'],
+  ['F3', 'debug overlay'],
+  ['Esc', 'pause menu'],
+];
