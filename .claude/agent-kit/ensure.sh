@@ -5,11 +5,15 @@
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || exit 0
 zip="$dir/agent-kit-v2.zip"
 [ -f "$zip" ] || exit 0
-want="$(tr -cd '0-9' < "$dir/VERSION" 2>/dev/null)"
-[ -n "$want" ] || exit 0
+# Versions are exactly ten digits (YYYYMMDDNN). Anything else means "do not install".
+ver() { v="$(head -c 32 "$1" 2>/dev/null | tr -d ' \r\n')"; case "$v" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) printf '%s' "$v";; *) return 1;; esac; }
+want="$(ver "$dir/VERSION")" || exit 0
 dest="${KIT_DEST:-$HOME/.claude}"
-have=""; [ -f "$dest/agent-kit.version" ] && have="$(tr -cd '0-9' < "$dest/agent-kit.version")"
-[ "${have:-0}" -ge "$want" ] 2>/dev/null && exit 0
+have="none"
+if [ -e "$dest/agent-kit.version" ]; then
+  have="$(ver "$dest/agent-kit.version")" || exit 0   # unreadable stamp: leave the device alone
+  [ "$have" -lt "$want" ] || exit 0
+fi
 
 tmp="$(mktemp -d 2>/dev/null)" || exit 0
 trap 'rm -rf "$tmp"' EXIT
@@ -22,6 +26,7 @@ else
 fi
 [ -f "$tmp/agent-kit-v2/install.sh" ] || exit 0
 if KIT_DEST="$dest" bash "$tmp/agent-kit-v2/install.sh" > "$tmp/install.log" 2>&1; then
-  echo "Agent kit $want was installed into $dest from this repo (previous: ${have:-none}). Replaced files are in $dest/backups/. The new global instructions and skills load fully from the next session."
+  printf '%s\n' "$want" > "$dest/agent-kit.version"
+  echo "Agent kit $want was installed into $dest from this repo (previous: $have). Replaced files are in $dest/backups/. The new global instructions and skills load fully from the next session."
 fi
 exit 0
