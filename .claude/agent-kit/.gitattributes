@@ -1,0 +1,3 @@
+ensure.sh text eol=lf
+VERSION text eol=lf
+*.zip binary
