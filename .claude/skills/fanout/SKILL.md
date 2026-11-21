@@ -15,7 +15,7 @@ I installed this skill so that wide work runs as a workflow. Using it is my requ
    - Check: independent agents test the findings or changes that matter. Do not spend an agent on every unit that reports a clean pass.
    - Merge: one ranked summary with the evidence for each unit.
 
-   Set `agentType` on every `agent()` call, because an agent without it runs as an unnamed generic worker. Use this repo's own agents from `.claude/agents/` where one fits, `Explore` for discovery, a reviewer or `evaluator` for the check phase, and `general-purpose` only when nothing fits. Give each agent a `label` that names its unit. Agents cannot start their own agents, so the script starts all of them; use `workflow()` for one nested level.
+   Set `agentType` on every `agent()` call, because an agent without it runs as an unnamed generic worker. Use this repo's own agents from `.claude/agents/` where one fits, `Explore` for discovery, a reviewer or `evaluator` for the check phase, and `general-purpose` only when nothing fits. Give each agent a `label` that names its unit. The script starts the agents, and `workflow()` runs one child workflow. An agent whose own unit splits into independent parts may start named agents of its own; say so in its prompt.
 
    When the workers need to talk to each other while they work, use an agent team instead (`/agent-teams:team-feature`, `/agent-teams:team-review`, `/agent-teams:team-debug`).
 
