@@ -17,7 +17,7 @@ if [ -e "$dest/agent-kit.version" ]; then
   [ "$have" -lt "$want" ] || exit 0
 fi
 
-tmp="$(mktemp -d 2>/dev/null)" || { tmp="${TMPDIR:-/tmp}/agent-kit.$$"; mkdir -p "$tmp" 2>/dev/null || exit 0; }
+tmp="$(mktemp -d 2>/dev/null)" || exit 0   # no private temp folder: do not install
 trap 'rm -rf "$tmp"' EXIT
 if command -v unzip >/dev/null 2>&1; then
   unzip -q -o "$zip" -d "$tmp" 2>/dev/null || exit 0
